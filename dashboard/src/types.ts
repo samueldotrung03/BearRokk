@@ -114,4 +114,8 @@ export interface Profile {
   location: string;
   interests: string[];
   skills: string[];
+  /** Career paths the student is considering. Asked at set-up. */
+  careerInterests?: string[];
+  /** Kinds of event the agents should look for. Asked at set-up. */
+  eventTypes?: string[];
 }

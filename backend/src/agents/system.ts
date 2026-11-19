@@ -5,7 +5,7 @@ import { addToCalendarUrl, type DeadlineEvent } from '../calendar.ts';
 import { canonicalUrl } from '../validate.ts';
 import type { Brain } from './brain.ts';
 import { Fleet, pooled } from './fleet.ts';
-import { allocateSlots, buildMemory, categoryWeights, rankFeed, summarize } from './scoring.ts';
+import { allocateSlots, buildMemory, categoryWeights, noteSignals, rankFeed, summarize } from './scoring.ts';
 import {
   CATEGORY_LABEL,
   CATEGORY_OF,
@@ -63,6 +63,9 @@ export const DEMO_PROFILE: Profile = {
   interests: ['coding', 'data'],
   skills: ['Python'],
   categories: ['internship', 'event', 'club', 'program'],
+  careerInterests: [],
+  eventTypes: [],
+  preferences: null,
 };
 
 export interface StudentState {
@@ -90,12 +93,14 @@ const UNKNOWN_DEADLINE: Record<Category, string> = {
 const DAY_MS = 86_400_000;
 
 /** A week before, two days before, and the day of the deadline. Ones already in the past are left out. */
-export function remindersFor(deadline: string, now: Date): Reminder[] {
+export function remindersFor(deadline: string, now: Date, days: number[] = [7, 2, 0]): Reminder[] {
   const due = Date.parse(deadline);
-  const plan: [number, string][] = [[7, 'Due in one week'], [2, 'Due in two days'], [0, 'Due today']];
+  const label = (d: number) => (d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : d === 7 ? 'Due in one week' : d === 2 ? 'Due in two days' : `Due in ${d} days`);
+  const plan: [number, string][] = [...new Set(days)].sort((a, b) => b - a).map((d) => [d, label(d)]);
+  if (plan.length === 0) return [];
   return plan
     .map(([days, label]) => ({ at: new Date(due - days * DAY_MS).toISOString(), label }))
-    .filter((r, i) => Date.parse(r.at) > now.getTime() || (i === plan.length - 1 && due > now.getTime()));
+    .filter((r, i) => Date.parse(r.at) > now.getTime() || (i === plan.length - 1 && plan[i]![0] === 0 && due > now.getTime()));
 }
 
 const idFor = (key: string) => `opp-${createHash('sha1').update(key).digest('hex').slice(0, 10)}`;
@@ -113,6 +118,8 @@ export class AgentSystem {
   private rejected = new Map<string, string>();
   private rejectedUrls = new Set<string>();
   private applications = new Map<string, Application>();
+  /** Days before a deadline to remind the student. Empty turns reminders off. */
+  private reminderDays: number[] = [7, 2, 0];
   private newIds = new Set<string>();
   private run: RunSnapshot | null = null;
   private runCount = 0;
@@ -151,7 +158,12 @@ export class AgentSystem {
       profile: this.profile,
       memory: summarize(memory),
       // Only the kinds of opportunity the student asked for.
-      feed: rankFeed([...this.opportunities.values()].filter((o) => this.profile.categories.includes(CATEGORY_OF[o.type])), memory, { now: this.opts.now(), reasons: this.reasons, newIds: this.newIds }),
+      feed: rankFeed([...this.opportunities.values()].filter((o) => this.profile.categories.includes(CATEGORY_OF[o.type])), memory, {
+        now: this.opts.now(),
+        reasons: this.reasons,
+        newIds: this.newIds,
+        notes: noteSignals(this.profile.preferences?.notes ?? []),
+      }),
       feedbackSinceRun: this.feedbackSinceRun,
       feedbackThreshold: this.opts.feedbackThreshold,
       scheduleSeconds: this.scheduleSeconds,
@@ -224,6 +236,7 @@ export class AgentSystem {
     this.rejected.clear();
     this.rejectedUrls.clear();
     this.applications.clear();
+    this.reminderDays = [7, 2, 0];
     this.newIds.clear();
     this.profile = structuredClone(this.initialProfile);
     this.feedbackSinceRun = 0;
@@ -286,7 +299,7 @@ export class AgentSystem {
     app.updatedAt = now.toISOString();
 
     const active = app.status === 'to_apply' || app.status === 'applying';
-    app.reminders = active && app.deadline ? remindersFor(app.deadline, now) : [];
+    app.reminders = active && app.deadline ? remindersFor(app.deadline, now, this.reminderDays) : [];
     app.needsDeadline = active && !app.deadline;
     const event = active ? this.calendarEvent(app) : null;
     app.calendar.addUrl = event ? addToCalendarUrl(event) : null;
@@ -297,6 +310,22 @@ export class AgentSystem {
     if (app.status === 'applied' && before !== 'applied') this.interactions.push({ opportunityId, action: 'apply', at: now.toISOString() });
     this.emitStudent();
     return app;
+  }
+
+  /** Change when the student is reminded, and redo the reminders on applications already tracked. */
+  setReminderDays(days: number[]) {
+    this.reminderDays = [...new Set(days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 60))].slice(0, 6);
+    const now = this.opts.now();
+    for (const app of this.applications.values()) {
+      const active = app.status === 'to_apply' || app.status === 'applying';
+      app.reminders = active && app.deadline ? remindersFor(app.deadline, now, this.reminderDays) : [];
+    }
+    this.emitStudent();
+    return this.reminderDays;
+  }
+
+  getReminderDays() {
+    return this.reminderDays;
   }
 
   /** Record what happened on the student's Google Calendar. */

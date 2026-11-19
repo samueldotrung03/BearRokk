@@ -1,6 +1,8 @@
 // Desktop shell for the dashboard. It only hosts the built web app: no Node access is given to
 // the page, and links to outside sites open in the system browser instead of inside the app.
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, systemPreferences } = require('electron');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 // Set by `npm run app:dev` to load the Vite dev server instead of the built files.
@@ -30,6 +32,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
 
@@ -48,6 +51,38 @@ function createWindow() {
   if (devUrl) window.loadURL(devUrl);
   else window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 }
+
+// ---- macOS permissions, for the Settings page -------------------------------------------
+// The app can only read what macOS has granted and open System Settings; granting is the user's
+// own click there.
+const PERMISSION_PANES = {
+  screen: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+  disk: 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
+  control: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+};
+
+function permissionStatus() {
+  if (process.platform !== 'darwin') return { screen: 'unknown', disk: 'unknown', control: 'unknown' };
+  const screen = systemPreferences.getMediaAccessStatus('screen') === 'granted' ? 'granted' : 'denied';
+  const control = systemPreferences.isTrustedAccessibilityClient(false) ? 'granted' : 'denied';
+  // macOS has no call for Full Disk Access; a folder only readable with it is the usual test.
+  let disk = 'denied';
+  try {
+    fs.readdirSync(path.join(os.homedir(), 'Library', 'Application Support', 'com.apple.TCC'));
+    disk = 'granted';
+  } catch {
+    // not granted
+  }
+  return { screen, disk, control };
+}
+
+ipcMain.handle('permissions:status', () => permissionStatus());
+ipcMain.handle('permissions:open', (_event, kind) => {
+  const pane = PERMISSION_PANES[kind];
+  if (!pane) return false;
+  shell.openExternal(pane);
+  return true;
+});
 
 app.whenReady().then(() => {
   createWindow();

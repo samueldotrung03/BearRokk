@@ -6,8 +6,9 @@ import type { Context, Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { AuthUser, Verifier } from '../auth.ts';
 import { createDeadlineEvent, deleteEvent } from '../calendar.ts';
+import { exportApplications } from '../sheets.ts';
 import type { AgentSystem } from './system.ts';
-import { APPLICATION_STATUSES, CATEGORIES, type Action, type Category, type ClassYear, type Profile } from './types.ts';
+import { APPLICATION_STATUSES, CATEGORIES, type Action, type Category, type ClassYear, type Profile, type StudentPreferences } from './types.ts';
 
 export interface AgentsOptions {
   demo: AgentSystem;
@@ -18,21 +19,61 @@ export interface AgentsOptions {
   webConfig?: object | null;
   /** Calendar calls, replaceable in tests. */
   calendar?: { create: typeof createDeadlineEvent; remove: typeof deleteEvent };
+  sheets?: typeof exportApplications;
+  /** How the agents reach Grok, for the settings page. */
+  grok?: { connected: boolean; mode: 'api' | 'cli' | 'simulated'; detail: string };
 }
 
 const ACTIONS: Action[] = ['save', 'like', 'dislike', 'open', 'apply'];
 const YEARS: ClassYear[] = ['Freshman', 'Sophomore', 'Junior', 'Senior'];
-const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 12) : null);
+const strings = (v: unknown, max = 12) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, max) : null);
+
+/** The profile page's answers, with sizes capped so a request cannot store arbitrary amounts. */
+function cleanPreferences(raw: any): StudentPreferences | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const fields = (strings(raw.fields, 80) ?? []).map((f) => f.slice(0, 60));
+  const answers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw.answers ?? {}).slice(0, 40)) if (typeof v === 'string' && v.trim()) answers[k.slice(0, 40)] = v.trim().slice(0, 2000);
+  const lists: Record<string, string[]> = {};
+  if (raw.lists && typeof raw.lists === 'object' && !Array.isArray(raw.lists)) {
+    for (const [k, v] of Object.entries(raw.lists).slice(0, 40)) {
+      const entries = (Array.isArray(v) ? v : [])
+        .filter((x): x is string => typeof x === 'string')
+        .map((x) => x.trim().slice(0, 80))
+        .filter(Boolean)
+        .slice(0, 12);
+      if (entries.length) lists[k.slice(0, 40)] = entries;
+    }
+  }
+  const checks: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(raw.checks ?? {}).slice(0, 40)) if (v === true) checks[k.slice(0, 40)] = true;
+  const topField = typeof raw.topField === 'string' && fields.includes(raw.topField) ? raw.topField : null;
+  const notes = (Array.isArray(raw.notes) ? raw.notes : [])
+    .slice(0, 20)
+    .map((n: any) => ({ title: typeof n?.title === 'string' ? n.title.trim().slice(0, 80) : '', body: typeof n?.body === 'string' ? n.body.trim().slice(0, 4000) : '' }))
+    .filter((n: { title: string; body: string }) => n.title || n.body);
+  return { fields, topField, answers, lists, checks, notes };
+}
 
 function cleanProfile(body: any): Partial<Profile> {
   const patch: Partial<Profile> = {};
   if (YEARS.includes(body.year)) patch.year = body.year;
   if (typeof body.remoteOk === 'boolean') patch.remoteOk = body.remoteOk;
-  if (typeof body.location === 'string' && body.location.trim()) patch.location = body.location.trim().slice(0, 80);
+  for (const field of ['name', 'school', 'major', 'location'] as const) {
+    if (typeof body[field] === 'string' && body[field].trim()) patch[field] = body[field].trim().slice(0, 80);
+  }
   const interests = strings(body.interests);
   if (interests) patch.interests = interests;
   const skills = strings(body.skills);
   if (skills) patch.skills = skills;
+  if (body.preferences !== undefined) {
+    const preferences = cleanPreferences(body.preferences);
+    if (preferences) patch.preferences = preferences;
+  }
+  const careerInterests = strings(body.careerInterests);
+  if (careerInterests) patch.careerInterests = careerInterests.map((s) => s.slice(0, 60));
+  const eventTypes = strings(body.eventTypes);
+  if (eventTypes) patch.eventTypes = eventTypes.map((s) => s.slice(0, 60));
   const categories = strings(body.categories)?.filter((c): c is Category => CATEGORIES.includes(c as Category));
   if (categories?.length) patch.categories = categories;
   return patch;
@@ -77,7 +118,15 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     return system;
   }
 
-  app.get('/api/auth/config', (c) => c.json(enabled ? { enabled: true, providers: ['google', 'password'], firebase: opts.webConfig } : { enabled: false }));
+  // What is connected on the server side, for the settings page. Nothing secret is returned.
+  app.get('/api/connections', (c) =>
+    c.json({
+      grok: opts.grok ?? { connected: false, mode: 'simulated', detail: 'Agents are simulated on sample data.' },
+      signIn: enabled,
+    }),
+  );
+
+  app.get('/api/auth/config', (c) => c.json(enabled ? { enabled: true, providers: ['google', 'x', 'password'], firebase: opts.webConfig } : { enabled: false }));
   app.get('/api/auth/me', async (c) => c.json({ user: await userOf(c) }));
 
   const base = '/api/students/:id';
@@ -114,6 +163,33 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     const body = await c.req.json().catch(() => ({}));
     system.setSchedule(Number(body.seconds) || 0);
     return c.json({ student: system.student() });
+  });
+
+  // Settings that change how the agents behave for this student.
+  app.get(`${base}/preferences`, async (c) => {
+    const system = await systemOf(c);
+    return c.json({ reminderDays: system.getReminderDays(), scheduleSeconds: system.student().scheduleSeconds });
+  });
+  app.put(`${base}/preferences`, async (c) => {
+    const system = await systemOf(c);
+    const body = await c.req.json().catch(() => ({}));
+    if (Array.isArray(body.reminderDays)) system.setReminderDays(body.reminderDays.filter((d: unknown): d is number => typeof d === 'number'));
+    // Never more often than every five minutes, so a setting cannot drain the Grok allowance.
+    if (typeof body.scheduleSeconds === 'number') system.setSchedule(body.scheduleSeconds <= 0 ? 0 : Math.max(300, Math.min(body.scheduleSeconds, 7 * 86_400)));
+    return c.json({ reminderDays: system.getReminderDays(), scheduleSeconds: system.student().scheduleSeconds });
+  });
+
+  // A signed-in student removes everything the backend holds about them.
+  app.delete(base, async (c) => {
+    if (c.req.param('id') !== 'me') return c.json({ error: 'only your own data can be deleted' }, 400);
+    const user = await userOf(c);
+    const system = signedIn.get(user.uid);
+    if (system) {
+      system.setSchedule(0);
+      await system.idle();
+      signedIn.delete(user.uid);
+    }
+    return c.json({ ok: true });
   });
 
   app.post(`${base}/reset`, async (c) => {
@@ -157,6 +233,19 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
       }
     }
     return c.json({ application: system.getApplication(oppId) });
+  });
+
+  // Write the application tracker to a new Google Sheet in the student's Drive.
+  app.post(`${base}/applications/export`, async (c) => {
+    const system = await systemOf(c);
+    const google = c.req.header('x-google-access-token');
+    if (!google) return c.json({ error: 'connect Google Sheets first' }, 400);
+    try {
+      const sheet = await (opts.sheets ?? exportApplications)(google, system.listApplications(), new Date());
+      return c.json(sheet);
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : String(e) }, 502);
+    }
   });
 
   app.delete(`${base}/applications/:oppId`, async (c) => {

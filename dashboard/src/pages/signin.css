@@ -21,6 +21,27 @@
   animation: signin-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+.signin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #c3d0e2 transparent;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+.signin-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.signin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 14px;
+}
+
+.signin-scroll::-webkit-scrollbar-thumb {
+  background: #c3d0e2;
+  border-radius: 999px;
+}
+
 @keyframes signin-rise {
   from {
     opacity: 0;

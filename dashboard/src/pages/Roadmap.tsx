@@ -21,7 +21,7 @@ function Step({ step, isNext }: { step: RoadmapStep; isNext: boolean }) {
         aria-checked={done}
         aria-label={`Mark "${step.title}" as done`}
         onClick={() => dispatch({ type: 'toggleStep', id: step.id })}
-        className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border-2 transition ${
+        className={`relative mt-0.5 grid size-6 shrink-0 after:absolute after:-inset-2.5 after:content-[''] place-items-center rounded-full border-2 transition ${
           done ? 'border-brand bg-brand text-white' : 'border-slate-300 bg-white hover:border-brand'
         }`}
       >
@@ -67,10 +67,10 @@ export function Roadmap() {
     return (
       <Page title="Your roadmap" subtitle={`Goal: ${path?.title ?? 'not chosen yet'}.`}>
         <Card className="p-10 text-center">
-          <p className="text-lg font-semibold">The agents are building this roadmap</p>
+          <p className="text-lg font-semibold">No roadmap for this goal yet</p>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-2">
-            In this template only the software engineering goal has sample steps. Once the agents are connected, a new
-            goal gets its own plan here.
+            Only the software engineering goal has steps so far. Pick it in career discovery, or check back once your
+            agents are connected.
           </p>
           <Link to="/discover" className="btn-primary mt-6 inline-flex h-10 items-center rounded-xl px-4 text-sm font-medium text-white">
             Back to career discovery
@@ -128,7 +128,7 @@ export function Roadmap() {
           <Card className="p-6">
             <h2 className="font-semibold tracking-tight">Where you stand</h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-2">{roadmap.summary}</p>
-            <Link to="/discover" className="mt-4 inline-block text-sm font-medium text-brand">
+            <Link to="/discover" className="mt-4 inline-flex min-h-10 items-center text-sm font-medium text-brand">
               Change goal
             </Link>
           </Card>

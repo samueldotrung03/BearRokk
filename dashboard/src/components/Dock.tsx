@@ -4,6 +4,7 @@
 import {
   BookmarkSimple,
   Compass,
+  GearSix,
   House,
   Path,
   PushPin,
@@ -14,7 +15,7 @@ import {
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link, NavLink } from 'react-router';
-import { agents, agentUsage, opportunities, roadmaps } from '../data/sample.ts';
+import { agentUsage, opportunities, roadmaps } from '../data/sample.ts';
 import { useStore } from '../state/StoreProvider.tsx';
 import { BrandMark } from './Brand.tsx';
 
@@ -34,6 +35,7 @@ export const dockItems: DockItem[] = [
   { to: '/discover', label: 'Career discovery', icon: Compass, colors: ['#ff7ad9', '#9a5bff', '#4f8cff'] },
   { to: '/saved', label: 'Saved', icon: BookmarkSimple, colors: ['#ffd15c', '#ff8a3d', '#ff4f8b'] },
   { to: '/agents', label: 'Agents', icon: Robot, colors: ['#ff5fa2', '#ff7a45', '#b04bff'] },
+  { to: '/settings', label: 'Settings', icon: GearSix, colors: ['#c6d0e0', '#7f93b5', '#4f6bff'], bottom: true },
   { to: '/profile', label: 'Profile', icon: UserCircle, colors: ['#9fb4ff', '#6a7cff', '#40e0d0'], bottom: true },
 ];
 
@@ -59,11 +61,9 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-/** Live panel in the dock: what the agents used this week and where the student stands. */
+/** Panel in the dock: an example week of agent usage, and where the student really stands. */
 function DockUsage() {
   const { state } = useStore();
-  const all = [agents.master, ...agents.managers, ...agents.workers];
-  const running = all.filter((node) => node.status === 'running').length;
   const { pagesPerDay, budgetUsed, searchesToday } = agentUsage;
   const total = pagesPerDay.reduce((sum, pages) => sum + pages, 0);
   const peak = Math.max(...pagesPerDay);
@@ -78,15 +78,10 @@ function DockUsage() {
   ];
 
   return (
-    <section className="dock-usage" aria-label="Agent usage this week">
+    <section className="dock-usage" aria-label="Example of agent usage">
       <div className="flex items-center justify-between text-xs font-semibold">
-        <span className="flex items-center gap-2">
-          <span className="live-dot size-2 rounded-full bg-[#34c759]" aria-hidden="true" />
-          Agents live
-        </span>
-        <span className="text-white/65">
-          {running} of {all.length}
-        </span>
+        <span>Example week</span>
+        <span className="text-white/65">sample figures</span>
       </div>
 
       <p className="mt-3 font-display text-4xl leading-none">{total}</p>
@@ -168,7 +163,7 @@ export function Dock() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       setOpen(false);
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      if (document.activeElement instanceof HTMLElement && document.activeElement.closest('.dock-zone')) document.activeElement.blur();
     };
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener('keydown', onKey);

@@ -1,4 +1,4 @@
-import { Card, Page, StatusPill } from '../components/Page.tsx';
+import { Card, Page } from '../components/Page.tsx';
 import { agentEvents, agents } from '../data/sample.ts';
 import { relativeTime } from '../lib/time.ts';
 import type { AgentNode, AgentStatus } from '../types.ts';
@@ -47,15 +47,12 @@ function Level({ label, hideLabel = false, children }: { label: string; hideLabe
 }
 
 export function Agents() {
-  const all = [agents.master, ...agents.managers, ...agents.workers];
   return (
     <Page
       title="Your agents"
-      subtitle="Grok agents search for you around the clock. This is what they are doing right now."
+      subtitle="How your agents are organised. The activity below is an example until Grok is connected."
       aside={
-        <StatusPill>
-          {all.filter((node) => node.status === 'running').length} of {all.length} agents working
-        </StatusPill>
+        <span className="w-fit rounded-full bg-white/85 px-4 py-2 text-sm font-medium text-ink shadow-card backdrop-blur">Example activity</span>
       }
     >
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">

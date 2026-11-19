@@ -23,6 +23,11 @@ const { app } = createApp(store, {}, {
   },
   verify,
   webConfig: webConfig(),
+  grok: !liveAvailable()
+    ? { connected: false, mode: 'simulated', detail: 'No Grok connection is configured, so the agents are simulated on sample data.' }
+    : config.grokTransport === 'cli'
+      ? { connected: true, mode: 'cli', detail: 'Through the Grok app on this computer, on its Grok subscription.' }
+      : { connected: true, mode: 'api', detail: `Through the xAI API (${config.xaiModels.normal} and ${config.xaiModels.low}).` },
 });
 
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {

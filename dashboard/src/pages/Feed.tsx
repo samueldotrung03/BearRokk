@@ -1,6 +1,7 @@
 // Two views of the same ranked list. "For you" is a full-screen reel, one opportunity per
 // screen, scrolled like TikTok. "Feed" is everything in an ordinary scrolling grid, with search,
 // filters and sorting, for when the student wants to scan and compare.
+import { ProfileMenu } from '../components/ProfileMenu.tsx';
 import {
   ArrowUpRight,
   BookmarkSimple,
@@ -275,13 +276,13 @@ export function Feed() {
           <button
             type="button"
             onClick={toggleDock}
-            className="hidden size-9 place-items-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 sm:grid"
+            className="hidden size-9 place-items-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-white sm:grid"
             aria-label="Pin or unpin the navigation dock"
             title="Pin the dock open, or move your pointer to the left edge"
           >
             <PanelLeft className="size-[18px]" aria-hidden="true" />
           </button>
-          <Link to="/" className="flex items-center gap-2.5 text-white">
+          <Link to="/" className="flex items-center gap-2.5 text-white focus-visible:outline-white">
             <BrandMark light />
             <span className="hidden text-[19px] font-bold tracking-tight sm:block">BearRok</span>
           </Link>
@@ -305,16 +306,11 @@ export function Feed() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="hidden rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur md:block">
-            Sample data
+          <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur">
+            <span className="sm:hidden">Sample</span>
+            <span className="hidden sm:inline">Sample data</span>
           </span>
-          <Link
-            to="/profile"
-            className="grid size-9 place-items-center rounded-full bg-white text-sm font-semibold text-brand shadow-card"
-            aria-label="Your profile"
-          >
-            {state.profile.name.charAt(0)}
-          </Link>
+          <ProfileMenu />
         </div>
       </header>
 

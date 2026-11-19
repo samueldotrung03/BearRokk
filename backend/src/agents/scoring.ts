@@ -14,6 +14,64 @@ import {
   type ScoreParts,
 } from './types.ts';
 
+/**
+ * What the student's custom notes ask for and rule out, as plain words. Notes outrank every
+ * other signal: a posting a note rules out never reaches the feed, and one a note asks for is
+ * lifted above anything the reaction history would do.
+ */
+export interface NoteSignals {
+  want: string[];
+  avoid: string[];
+  /** Names ruled out as a whole, such as a company already applied to. Lowercase. */
+  avoidNames: string[];
+}
+
+const NOTE_STOP = new Set(
+  'a an and are as at be been but by can could did do does for from had has have how i if im in into is it its ive me my of on or our out so than that the their them then there these they this to too up us was we were what when where which who why will with would you your also any all some more most much many very just only really want wants wanted looking look find like love care cares need needs prefer something anything thing things one get got make show shows shown please agents agent opportunity opportunities role roles job jobs company companies work working about over under until while because even still again already where fine okay good great nice don dont doesn doesnt isn isnt cant won wont too them it its'.split(' '),
+);
+const NEGATION = /(?:\bno\b|\bnot\b|\bnever\b|\bavoid\b|\bskip\b|\bexcept\b|\bwithout\b|\bhate\b|don'?t (?:show|want|recommend|send|include|like)|do not (?:show|want|recommend|send|include|like)|already applied to|stop showing)\s+([^.;!?\n]+)/gi;
+/** Lowercase, drop punctuation and a plural s, so "Startups" and "startup" match. */
+const stem = (word: string) => word.toLowerCase().replace(/[^a-z0-9+#]/g, '').replace(/(?<=[a-z]{3})s$/, '');
+const words = (text: string) => text.split(/[\s,/()"':\-]+/).map(stem).filter((w) => w.length > 2 && !NOTE_STOP.has(w));
+
+export function noteSignals(notes: { title: string; body: string }[]): NoteSignals {
+  const avoid = new Set<string>();
+  const avoidNames = new Set<string>();
+  const want = new Set<string>();
+  for (const note of notes) {
+    const text = `${note.title}. ${note.body}`;
+    let rest = text;
+    for (const match of text.matchAll(NEGATION)) {
+      // What is ruled out ends at "but", "unless", or a comma that starts a new thought:
+      // "no banks, but trading is fine", "already applied to Acme, don't show it again".
+      let phrase = match[1]!.split(/\b(?:but|unless|although|though|however)\b|,\s*(?=(?:i|so|and i|don'?t|do not|please|they|it|we)\b)/i)[0]!;
+      // A capitalised name ("Harbor Data Co") is ruled out as a name, not word by word, so a
+      // company called "Harbor Data" does not rule out data work.
+      for (const name of phrase.match(/\b[A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*)+/g) ?? []) {
+        avoidNames.add(name.toLowerCase());
+        phrase = phrase.replace(name, ' ');
+      }
+      for (const w of words(phrase)) avoid.add(w);
+      rest = rest.replace(match[0].slice(0, match[0].length - match[1]!.length + phrase.length), ' ');
+    }
+    for (const w of words(rest)) if (!avoid.has(w)) want.add(w);
+  }
+  return { want: [...want].slice(0, 60), avoid: [...avoid].slice(0, 60), avoidNames: [...avoidNames].slice(0, 30) };
+}
+
+const noteText = (o: Pick<Opportunity, 'title' | 'organizer' | 'field' | 'tags' | 'type' | 'location' | 'format'>) =>
+  new Set(words(`${o.title} ${o.organizer} ${o.field ?? ''} ${o.tags.join(' ')} ${o.type} ${o.location ?? ''} ${o.format === 'online' ? 'remote online' : o.format === 'in_person' ? 'in-person onsite' : (o.format ?? '')}`));
+
+/** Which of the notes' words this posting matches. */
+export function noteMatch(o: Parameters<typeof noteText>[0], signals: NoteSignals): { wanted: string[]; avoided: string[] } {
+  const text = noteText(o);
+  const named = `${o.organizer} ${o.title}`.toLowerCase();
+  return { wanted: signals.want.filter((w) => text.has(w)), avoided: [...signals.avoid.filter((w) => text.has(w)), ...signals.avoidNames.filter((n) => named.includes(n))] };
+}
+
+/** Added to a card's score when the notes ask for it. Larger than any swing from reaction history. */
+export const NOTE_BOOST = 1.2;
+
 /** How far one action moves the affinity of each feature of that card. */
 export const ACTION_DELTA: Record<Action, number> = { apply: 1.5, like: 1, save: 0.8, open: 0.2, dislike: -1.5 };
 
@@ -102,17 +160,23 @@ const DAY = 86_400_000;
 export function rankFeed(
   opportunities: Opportunity[],
   memory: Memory,
-  opts: { now: Date; reasons?: Map<string, string>; newIds?: Set<string> },
+  opts: { now: Date; reasons?: Map<string, string>; newIds?: Set<string>; notes?: NoteSignals },
 ): FeedEntry[] {
+  const notes = opts.notes ?? { want: [], avoid: [], avoidNames: [] };
   const scored = opportunities
     .filter((o) => memory.reaction.get(o.id) !== 'dislike')
+    // A note that rules something out is final, even for results found before the note was written.
+    .filter((o) => noteMatch(o, notes).avoided.length === 0)
     .map((o) => {
       const affinity = affinityOf(o, memory);
       const parts = predict(o.baseScore, affinity);
       let score = combine(parts);
       const due = o.deadline ? Date.parse(o.deadline) - opts.now.getTime() : null;
       if (due !== null && due > 0 && due < 14 * DAY) score += 0.05;
-      return { o, affinity, parts, score };
+      // Notes come first: one matching word lifts a card most of the way, two or more all the way.
+      const asked = noteMatch(o, notes).wanted;
+      if (asked.length) score += NOTE_BOOST * Math.min(1, 0.6 + 0.4 * (asked.length - 1));
+      return { o, affinity, parts, score, asked };
     })
     .sort((a, b) => b.score - a.score);
 
@@ -139,7 +203,8 @@ export function rankFeed(
     score: Number(c.score.toFixed(3)),
     parts: c.parts,
     affinity: Number(c.affinity.toFixed(3)),
-    reason: opts.reasons?.get(c.o.id) ?? c.o.fitExplanation,
+    reason: ((r: string) => (c.asked.length && !r.startsWith('Your notes ask') ? `Your notes ask for this (${c.asked.slice(0, 3).join(', ')}). ${r}` : r))(opts.reasons?.get(c.o.id) ?? c.o.fitExplanation),
+    fromNotes: c.asked.length > 0,
     reaction: memory.reaction.get(c.o.id) ?? null,
     saved: memory.saved.has(c.o.id),
     isNew: opts.newIds?.has(c.o.id) ?? false,

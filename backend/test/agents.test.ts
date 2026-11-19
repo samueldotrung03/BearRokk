@@ -169,7 +169,7 @@ test('sign-in with Google or email: each signed-in student gets their own agents
     return { status: res.status, body: (await res.json()) as any };
   };
 
-  assert.deepEqual((await call('GET', '/api/auth/config')).body, { enabled: true, providers: ['google', 'password'], firebase: { apiKey: 'k', projectId: 'p', authDomain: 'p.firebaseapp.com' } });
+  assert.deepEqual((await call('GET', '/api/auth/config')).body, { enabled: true, providers: ['google', 'x', 'password'], firebase: { apiKey: 'k', projectId: 'p', authDomain: 'p.firebaseapp.com' } });
   assert.equal((await call('GET', '/api/students/me/state')).status, 401);
   assert.equal((await call('GET', '/api/students/me/state', 'forged')).status, 401);
   assert.equal((await call('GET', '/api/students/someone-else/state', 'token-ana')).status, 404);
@@ -287,4 +287,169 @@ test('calendar: an all-day event on the deadline with three pop-up reminders', a
   assert.deepEqual(await createDeadlineEvent('tok', event, fake), { eventId: 'abc', htmlLink: 'https://calendar.google.com/e' });
   assert.equal(seen!.headers.get('authorization'), 'Bearer tok');
   assert.equal(new URL(seen!.url).pathname, '/calendar/v3/calendars/primary/events');
+});
+
+test('desktop sign-in handoff: only the app holding the verifier can collect the result, and only once', async () => {
+  const { createHash } = await import('node:crypto');
+  const { app } = createApp(new LocalStore(null), {}, { demo: system() });
+  const verifier = 'a-long-random-secret-only-the-desktop-app-knows';
+  const session = createHash('sha256').update(verifier).digest('hex');
+  const post = async (path: string, body: unknown) => {
+    const res = await app.request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: res.status, body: (await res.json()) as any };
+  };
+
+  assert.equal((await app.request('/auth/desktop?session=' + session)).status, 200);
+  // Nothing yet: the app keeps waiting.
+  assert.equal((await post(`/api/auth/desktop/${session}/claim`, { verifier })).status, 202);
+  assert.equal((await post('/api/auth/desktop/not-a-session', { provider: 'google', idToken: 't' })).status, 400);
+  assert.equal((await post(`/api/auth/desktop/${session}`, { provider: 'google' })).status, 400);
+
+  assert.equal((await post(`/api/auth/desktop/${session}`, { provider: 'google', idToken: 'google-id-token', accessToken: 'google-access' })).status, 200);
+  // A second result cannot replace the first.
+  assert.equal((await post(`/api/auth/desktop/${session}`, { provider: 'google', idToken: 'attacker' })).status, 409);
+  // Knowing the session id is not enough.
+  assert.equal((await post(`/api/auth/desktop/${session}/claim`, { verifier: 'guess' })).status, 403);
+
+  const claimed = await post(`/api/auth/desktop/${session}/claim`, { verifier });
+  assert.deepEqual(claimed.body.credential, { provider: 'google', idToken: 'google-id-token', accessToken: 'google-access', secret: null });
+  // Collected once, then gone.
+  assert.equal((await post(`/api/auth/desktop/${session}/claim`, { verifier })).status, 202);
+});
+
+test('settings: connection status, and exporting applications to a Google Sheet', async () => {
+  const s = system();
+  await s.trigger('first');
+  const o = s.student().feed.find((f) => f.opportunity.deadline)!.opportunity;
+  s.setApplication(o.id, { status: 'to_apply' });
+  let sent: { token: string; rows: number } | null = null;
+  const { app } = createApp(new LocalStore(null), {}, {
+    demo: s,
+    grok: { connected: true, mode: 'cli', detail: 'subscription' },
+    sheets: async (token, applications) => { sent = { token, rows: applications.length }; return { spreadsheetId: 'sheet-1', url: 'https://docs.google.com/spreadsheets/d/sheet-1' }; },
+  });
+  assert.deepEqual(await (await app.request('/api/connections')).json(), { grok: { connected: true, mode: 'cli', detail: 'subscription' }, signIn: false });
+
+  assert.equal((await app.request('/api/students/demo/applications/export', { method: 'POST' })).status, 400);
+  const res = await app.request('/api/students/demo/applications/export', { method: 'POST', headers: { 'x-google-access-token': 'g-token' } });
+  assert.deepEqual(await res.json(), { spreadsheetId: 'sheet-1', url: 'https://docs.google.com/spreadsheets/d/sheet-1' });
+  assert.deepEqual(sent, { token: 'g-token', rows: 1 });
+
+  const { sheetRows } = await import('../src/sheets.ts');
+  const rows = sheetRows(s.listApplications());
+  assert.equal(rows[0]![0], 'Opportunity');
+  assert.deepEqual(rows[1]!.slice(0, 4), [o.title, o.organizer, 'To apply', o.deadline!.slice(0, 10)]);
+});
+
+test('preferences: reminder timing, a floor on how often agents run, and deleting your data', async () => {
+  const made: AgentSystem[] = [];
+  const { app } = createApp(new LocalStore(null), {}, {
+    demo: system(),
+    webConfig: { apiKey: 'k', projectId: 'p' },
+    verify: async (token) => (token === 'ok' ? { uid: 'u1', name: 'Ana', email: null, picture: null, provider: 'google', emailVerified: true } : Promise.reject(new Error('bad'))),
+    forUser: () => { const s = system(); made.push(s); return s; },
+  });
+  const call = async (method: string, path: string, body?: unknown) => {
+    const res = await app.request(path, { method, headers: { 'content-type': 'application/json', authorization: 'Bearer ok' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: res.status, body: (await res.json()) as any };
+  };
+  assert.deepEqual((await call('GET', '/api/students/me/preferences')).body, { reminderDays: [7, 2, 0], scheduleSeconds: 0 });
+
+  const s = made[0]!;
+  await s.trigger('first');
+  const o = s.student().feed.find((f) => f.opportunity.deadline && Date.parse(f.opportunity.deadline) - NOW.getTime() > 8 * 86_400_000)!.opportunity;
+  s.setApplication(o.id, { status: 'to_apply' });
+
+  // Reminders already set are redone with the new timing; an empty list turns them off.
+  const changed = await call('PUT', '/api/students/me/preferences', { reminderDays: [3, 1], scheduleSeconds: 30 });
+  assert.deepEqual(changed.body, { reminderDays: [3, 1], scheduleSeconds: 300 });
+  assert.deepEqual(s.getApplication(o.id)!.reminders.map((r) => r.label), ['Due in 3 days', 'Due tomorrow']);
+  await call('PUT', '/api/students/me/preferences', { reminderDays: [], scheduleSeconds: 0 });
+  assert.deepEqual(s.getApplication(o.id)!.reminders, []);
+
+  assert.equal((await call('DELETE', '/api/students/demo')).status, 400);
+  assert.equal((await call('DELETE', '/api/students/me')).status, 200);
+  // A fresh, empty student afterwards.
+  assert.equal((await call('GET', '/api/students/me/state')).body.student.feed.length, 0);
+  assert.equal(made.length, 2);
+});
+
+test('profile page answers: ticked fields steer the search and restrictions become rules', async () => {
+  const s = system();
+  const { app } = createApp(new LocalStore(null), {}, { demo: s });
+  const res = await app.request('/api/students/demo/profile', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      preferences: {
+        fields: ['Biotech / pharma', 'Design / UX'],
+        topField: 'Biotech / pharma',
+        answers: { minPay: '20', blank: '   ' },
+        lists: { skipIndustries: ['gambling', ' tobacco ', '  '], empty: ['', ' '] },
+        checks: { remote: true, paidOnly: true, unticked: false },
+        notes: [{ title: 'What I want', body: 'A lab where I do real bench work.' }, { title: '', body: '   ' }],
+      },
+    }),
+  });
+  const saved = ((await res.json()) as any).student.profile.preferences;
+  // Blank answers and unticked boxes are dropped.
+  assert.deepEqual(saved, { fields: ['Biotech / pharma', 'Design / UX'], topField: 'Biotech / pharma', answers: { minPay: '20' }, lists: { skipIndustries: ['gambling', 'tobacco'] }, checks: { remote: true, paidOnly: true }, notes: [{ title: 'What I want', body: 'A lab where I do real bench work.' }] });
+
+  await new Promise((r) => setTimeout(r, 800));
+  await s.idle();
+  const run = s.currentRun()!;
+  // The top field leads, ahead of what the demo profile said at sign-up.
+  assert.deepEqual(run.brief!.interests.slice(0, 2), ['bio', 'design']);
+  assert.ok(run.brief!.hardCriteria.includes('remote only'));
+  assert.ok(run.brief!.hardCriteria.includes('paid, at least $20 an hour'));
+  assert.ok(run.brief!.avoid.includes('gambling, tobacco'));
+  // The note is the first preference and travels in the brief word for word.
+  assert.ok(run.brief!.preferences[0]!.includes('real bench work'));
+  assert.deepEqual(run.brief!.notes, ['What I want: A lab where I do real bench work.']);
+  // The rule is enforced: nothing in person reaches the feed.
+  const feed = s.student().feed;
+  assert.ok(feed.length > 0);
+  assert.ok(feed.every((f) => f.opportunity.format === 'online'));
+  assert.ok(run.validations.some((v) => v.reason?.includes('remote only')));
+});
+
+test('custom notes come first: they outrank ticked fields and reaction history, and what they rule out never shows', async () => {
+  const { noteSignals } = await import('../src/agents/scoring.ts');
+  // Words after "no", "don't show", "already applied to" are ruled out, up to a "but".
+  const signals = noteSignals([{ title: 'Summer plan', body: "I want security work and hackathons. No finance, but data is fine. I already applied to Harbor Data Co, don't show it again." }]);
+  assert.ok(signals.want.includes('security') && signals.want.includes('hackathon') && signals.want.includes('data'));
+  assert.deepEqual(signals.avoid, ['finance']);
+  // A company name is ruled out as a name, so "Harbor Data Co" does not rule out data work.
+  assert.deepEqual(signals.avoidNames, ['harbor data co']);
+  assert.ok(!signals.want.includes('finance'));
+
+  const s = system({ feedbackThreshold: 99 });
+  await s.trigger('first');
+  const before = s.student().feed;
+  // History pushes hard the other way: like every software card.
+  for (const f of before.filter((x) => x.opportunity.field === 'software').slice(0, 4)) s.interact(f.opportunity.id, 'like');
+
+  // Ticked field says design; the note says security and hackathons, and rules out Harbor Data Co.
+  s.setProfile({ preferences: { fields: ['Design / UX'], topField: 'Design / UX', answers: {}, lists: {}, checks: {}, notes: [{ title: 'Summer plan', body: "I want security work and hackathons. I already applied to Harbor Data Co, don't show it again." }] } });
+  await new Promise((r) => setTimeout(r, 800));
+  await s.idle();
+  const run = s.currentRun()!;
+  // The master leads with the note, ahead of the ticked field and the sign-up interests.
+  assert.equal(run.brief!.interests[0], 'security');
+  assert.ok(run.brief!.interests.indexOf('security') < run.brief!.interests.indexOf('design'));
+  assert.ok(run.brief!.preferences[0]!.startsWith('from their note "Summer plan"'));
+  assert.ok(run.brief!.avoid.includes('harbor data co'));
+
+  const feed = s.student().feed;
+  // What the note rules out is gone, including results found before the note existed.
+  assert.ok(before.some((f) => f.opportunity.organizer === 'Harbor Data Co'));
+  assert.ok(!feed.some((f) => f.opportunity.organizer === 'Harbor Data Co'));
+  // What the note asks for is at the top, above the liked software cards.
+  const top = feed.slice(0, 3);
+  assert.ok(top.every((f) => f.fromNotes), `top three should come from the notes: ${top.map((f) => f.opportunity.title).join(' | ')}`);
+  assert.ok(top.every((f) => f.reason.startsWith('Your notes ask for this')));
+  const firstLiked = feed.findIndex((f) => f.reaction === 'like');
+  const lastNoted = feed.map((f) => f.fromNotes).lastIndexOf(true);
+  assert.ok(firstLiked === -1 || feed.filter((f) => f.fromNotes).length <= firstLiked || lastNoted < feed.length, 'liked cards do not outrank noted ones');
+  assert.ok(feed.findIndex((f) => f.fromNotes) < (firstLiked === -1 ? Infinity : firstLiked));
 });

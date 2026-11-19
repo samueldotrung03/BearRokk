@@ -57,6 +57,15 @@ Two more agents run on demand, not in every run:
 | **Career discovery** | Profile created or changed a lot | 3 to 5 career paths: what each is, why it fits, what it expects, first steps |
 | **Roadmap builder** | Student sets or changes a goal | Phases and dated steps; steps link to validated opportunities when one fits |
 
+### Custom notes come first
+
+On the profile page the student can write custom notes: files with a title and free text. They are the highest-priority input in the whole system, above ticked fields, restrictions and reaction history.
+
+- **Master agent:** reads the notes before the rest of the profile. What they ask for leads the brief, what they rule out goes into the things to avoid, and the notes are carried in the brief word for word (`brief.notes`) so no later agent works from a summary.
+- **Search managers, validation agents, presentation manager:** each is told the notes override every other line of the brief. Validation checks them before any other criterion.
+- **Feed ranking (`scoring.ts`):** a result a note rules out never reaches the feed, including results found before the note was written. A result a note asks for gets a boost larger than any swing from likes and dislikes, and its card says "Your notes ask for this".
+- **Without Grok**, the simulated agents read notes by simple wording rules (`noteSignals`): words after "no", "not", "avoid", "skip", "don't show" or "already applied to" are ruled out, a capitalised name is ruled out as a name, and the remaining meaningful words are what is asked for. Live Grok reads the notes as written.
+
 ### Model tiers
 
 Each level runs on a model matched to its job. The master, the managers and the validators run on the normal tier. The fleet is many small jobs, so it gets the cheapest, which is where most of the calls and most of the cost are.

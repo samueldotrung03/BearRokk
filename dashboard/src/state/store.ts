@@ -1,6 +1,7 @@
 // What the student has done in the app. This is the "memory" the master agent reads on its
 // next run; until the backend stores it, it lives in localStorage.
 import type { ClassYear, Profile } from '../types.ts';
+import type { Preferences } from '../data/preferences.ts';
 
 export interface AppState {
   saved: string[];
@@ -9,6 +10,8 @@ export interface AppState {
   doneSteps: string[];
   goalId: string;
   profile: Profile;
+  /** Answers on the profile page: career interests, restrictions and notes. */
+  preferences?: Preferences;
 }
 
 export type Action =
@@ -18,6 +21,8 @@ export type Action =
   | { type: 'opened'; id: string }
   | { type: 'toggleStep'; id: string }
   | { type: 'setGoal'; id: string }
+  | { type: 'setProfile'; profile: Partial<Profile> }
+  | { type: 'setPreferences'; preferences: Preferences }
   | { type: 'setYear'; year: ClassYear }
   | { type: 'setLocation'; location: string }
   | { type: 'toggleInterest'; value: string }
@@ -46,6 +51,10 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, doneSteps: toggle(state.doneSteps, action.id) };
     case 'setGoal':
       return { ...state, goalId: action.id };
+    case 'setPreferences':
+      return { ...state, preferences: action.preferences };
+    case 'setProfile':
+      return { ...state, profile: { ...state.profile, ...action.profile } };
     case 'setYear':
       return { ...state, profile: { ...state.profile, year: action.year } };
     case 'setLocation':
