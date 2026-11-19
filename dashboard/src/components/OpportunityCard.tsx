@@ -29,7 +29,11 @@ function LikeButton({ id }: { id: string }) {
   );
 }
 
-/** Cover photo, with a tinted icon panel when there is no photo or it fails to load. */
+/**
+ * Cover photo, with a tinted icon panel when there is no photo or it fails to load. A logo is
+ * drawn whole on a light panel instead of cropped, and a stock photo or AI illustration carries
+ * its credit.
+ */
 export function Cover({ opportunity: o, className = '' }: { opportunity: Opportunity; className?: string }) {
   const [failed, setFailed] = useState(false);
   const meta = typeMeta[o.type];
@@ -40,7 +44,33 @@ export function Cover({ opportunity: o, className = '' }: { opportunity: Opportu
       </div>
     );
   }
-  return <img src={o.image} alt="" loading="lazy" onError={() => setFailed(true)} className={`bg-slate-100 object-cover ${className}`} />;
+  // A class list that already places the cover keeps it; otherwise the credit needs a frame to sit in.
+  const frame = /\babsolute\b/.test(className) ? '' : 'relative';
+  const credit = o.imageCredit ? (
+    <span className="pointer-events-auto absolute right-2 bottom-2 max-w-[80%] truncate rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-white/90 backdrop-blur">
+      {o.imageCreditUrl ? (
+        <a href={o.imageCreditUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
+          {o.imageCredit}
+        </a>
+      ) : (
+        o.imageCredit
+      )}
+    </span>
+  ) : null;
+  if (o.imageKind === 'logo') {
+    return (
+      <div className={`${frame} grid place-items-center bg-white ${className}`}>
+        <img src={o.image} alt={`${o.organizer} logo`} loading="lazy" onError={() => setFailed(true)} className="max-h-[45%] max-w-[60%] object-contain" />
+      </div>
+    );
+  }
+  if (!credit) return <img src={o.image} alt="" loading="lazy" onError={() => setFailed(true)} className={`bg-slate-100 object-cover ${className}`} />;
+  return (
+    <div className={`${frame} overflow-hidden bg-slate-100 ${className}`}>
+      <img src={o.image} alt="" loading="lazy" onError={() => setFailed(true)} className="size-full object-cover" />
+      {credit}
+    </div>
+  );
 }
 
 function Fact({ icon: Icon, children, urgent = false }: { icon: typeof Clock; children: string; urgent?: boolean }) {

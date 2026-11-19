@@ -11,9 +11,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "app": "vite build --base=./ && electron .",
+    "app": "node scripts/bundle-backend.mjs --config-only && vite build --base=./ && electron .",
     "app:dev": "ELECTRON_START_URL=http://localhost:5173 electron .",
-    "app:package": "vite build --base=./ && electron-packager . BearRok --icon=electron/icon.icns --out=release --overwrite --prune=true --ignore=\"^/(src|public|release|index\\.html|vite\\.config\\.ts|tsconfig\\.json|README\\.md)\" --ignore=\"^/node_modules\""
+    "app:package": "node scripts/bundle-backend.mjs && vite build --base=./ && electron-packager . BearRok --extra-resource=backend-bundle --icon=electron/icon.icns --out=release --overwrite --prune=true --ignore=\"^/(src|public|release|scripts|backend-bundle|index\\.html|vite\\.config\\.ts|tsconfig\\.json|README\\.md)\" --ignore=\"^/node_modules\""
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",

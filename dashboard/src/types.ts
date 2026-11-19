@@ -36,6 +36,14 @@ export interface Opportunity {
   startTime: string | null;
   /** Cover photo. In the live product this is the posting's own preview image. */
   image: string | null;
+  /**
+   * What the agents' picture is: the event's own, the organizer's logo (drawn whole, not
+   * cropped), a free stock photo, or an AI-generated illustration. Absent on sample cards.
+   */
+  imageKind?: 'event' | 'logo' | 'stock' | 'generated' | null;
+  /** Shown on the card for stock photos (photographer and licence) and generated illustrations. */
+  imageCredit?: string | null;
+  imageCreditUrl?: string | null;
   /** Short looping clip the For you reel plays. The photo is its poster and its fallback. */
   video: string | null;
   /** Width divided by height the cover is shown at, so the grid has varied tile heights. */

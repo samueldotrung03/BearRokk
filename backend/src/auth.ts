@@ -1,9 +1,8 @@
 // Sign-in through Firebase Authentication, with Google, X (Twitter), or email and password. The browser
 // signs in and sends the Firebase ID token with each request; the backend verifies it and uses
 // the uid as the student id.
-import { getAuth } from 'firebase-admin/auth';
 import { config } from './config.ts';
-import { firebaseApp } from './firebase.ts';
+import { idTokenVerifier } from './idToken.ts';
 
 export interface AuthUser {
   uid: string;
@@ -27,19 +26,21 @@ export function webConfig(): { apiKey: string; authDomain: string; projectId: st
   return { apiKey, projectId, authDomain: config.firebaseWeb.authDomain ?? `${projectId}.firebaseapp.com` };
 }
 
-/** Null when sign-in is not configured. */
+/**
+ * Null when sign-in is not configured. Only the project id is needed: tokens are checked against
+ * Google's public keys, so this works the same with or without a service account.
+ */
 export function firebaseVerifier(): Verifier | null {
-  if (!webConfig()) return null;
-  const app = firebaseApp();
-  if (!app) return null;
-  const auth = getAuth(app);
+  const web = webConfig();
+  if (!web) return null;
+  const verifyToken = idTokenVerifier(web.projectId);
   return async (token) => {
-    const t = await auth.verifyIdToken(token);
+    const t = await verifyToken(token);
     const provider = PROVIDERS[t.firebase?.sign_in_provider as keyof typeof PROVIDERS];
     if (!provider) throw new Error('sign-in method not accepted');
     return {
-      uid: t.uid,
-      name: (t.name as string | undefined) ?? null,
+      uid: t.sub,
+      name: t.name ?? null,
       email: t.email ?? null,
       picture: t.picture ?? null,
       provider,

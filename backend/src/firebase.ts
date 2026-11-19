@@ -1,4 +1,5 @@
-// One Firebase Admin app for the whole backend: used to verify sign-in tokens and for Firestore.
+// The Firebase Admin app, used for Firestore when a service account is configured. Sign-in tokens
+// are checked without it (idToken.ts), so nothing here is needed on a student's own laptop.
 import { readFileSync } from 'node:fs';
 import { cert, initializeApp, type App } from 'firebase-admin/app';
 import { config } from './config.ts';

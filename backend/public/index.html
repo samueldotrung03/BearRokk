@@ -425,7 +425,7 @@ function renderHeader() {
   $('run').textContent = busy ? 'Agents working…' : run ? 'Run again' : 'Run the agents';
   if (!run) return void ($('stats').textContent = '');
   const secs = Math.max(0, Math.round(((run.finishedAt ? Date.parse(run.finishedAt) : Date.now()) - Date.parse(run.startedAt)) / 1000));
-  const why = { first: 'first run', manual: 'started by hand', profile: 'started itself: the profile changed', feedback: 'started itself: new reactions', schedule: 'started itself: schedule' }[run.trigger];
+  const why = { first: 'first run', manual: 'started by hand', profile: 'started itself: the profile changed', feedback: 'started itself: new reactions', schedule: 'started itself: schedule', fill: 'started itself: the feed was short' }[run.trigger];
   const active = run.agents.filter((a) => a.status === 'running').length + run.jobs.filter((j) => j.status === 'running').length + run.validations.filter((v) => v.status === 'checking').length;
   const total = run.agents.length + run.jobs.filter((j) => j.status !== 'skipped').length + run.validations.length;
   $('stats').innerHTML = `<span><b>Run ${run.number}</b>${why}</span><span><b>${secs}s</b>elapsed</span><span><b>${active}</b>agents working now</span><span><b>${total}</b>agents used</span>`;

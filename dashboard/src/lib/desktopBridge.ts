@@ -2,8 +2,27 @@
 export type PermissionKind = 'screen' | 'disk' | 'control';
 export type PermissionState = 'granted' | 'denied' | 'unknown';
 
+/** How this copy of the app reaches Grok. `managed` is false when the app did not start the backend itself. */
+export interface GrokConnection {
+  managed: boolean;
+  /** claude: a temporary test set-up, see backend/SWAP_TO_GROK.md. */
+  mode: 'cli' | 'api' | 'claude' | null;
+  /** The Grok app for the command line is installed on this computer. */
+  cliFound: boolean;
+  /** The Claude app for the command line is installed on this computer (test set-up only). */
+  claudeFound?: boolean;
+  canStoreKey: boolean;
+  error?: string;
+}
+
 interface DesktopBridge {
   platform: string;
+  /** Absent in a desktop shell older than the page. */
+  grok?: {
+    status: () => Promise<GrokConnection>;
+    connect: (choice: { mode: 'cli' } | { mode: 'api'; key: string } | { mode: 'claude' }) => Promise<GrokConnection>;
+    disconnect: () => Promise<GrokConnection>;
+  };
   permissions: () => Promise<Record<PermissionKind, PermissionState>>;
   openPermission: (kind: PermissionKind) => Promise<boolean>;
 }

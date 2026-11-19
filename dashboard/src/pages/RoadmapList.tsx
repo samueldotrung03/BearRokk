@@ -26,6 +26,7 @@ import { roadmapAsText } from '../lib/roadmapx/exportText.ts';
 import { milestones, streak, syncDoneLog, type DoneLog } from '../lib/roadmapx/milestones.ts';
 import { pace, readiness } from '../lib/roadmapx/readiness.ts';
 import { useLocal } from '../lib/useLocal.ts';
+import { useOpportunities } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import '../styles/roadmap.css';
 
@@ -56,7 +57,9 @@ export function RoadmapList() {
   const planned = roadmap.phases.flatMap((phase) => phase.steps);
   const linkedIds = new Set(planned.map((step) => step.opportunityId));
   const visible = (id: string) => !state.dismissed.includes(id);
-  const started = opportunities.filter((o) => state.extraSteps.includes(o.id) && visible(o.id));
+  // Steps the student added from the feed, and suggestions for more, come from what the agents found.
+  const found = useOpportunities();
+  const started = found.filter((o) => state.extraSteps.includes(o.id) && visible(o.id));
   const startedSteps = new Map(started.map((o) => [o.id, buildOpportunityRoadmap(o, applicationInfo[o.id], state.profile.skills)]));
   const extras = [...startedSteps.values()].flat();
   const steps = [...planned, ...extras];
@@ -74,7 +77,7 @@ export function RoadmapList() {
   const metCount = requirements.filter((requirement) => requirement.met).length;
 
   // What the student saved or liked shows where they are heading, so it is offered as a step.
-  const suggestions = opportunities.filter(
+  const suggestions = found.filter(
     (o) =>
       (state.saved.includes(o.id) || state.liked.includes(o.id)) &&
       visible(o.id) &&

@@ -3,7 +3,7 @@
 import type { Brain, MasterInput } from './brain.ts';
 import { CATALOG, findByUrl, officialUrl, repostUrl, toCandidate, type CatalogItem } from './catalog.ts';
 import { noteMatch, noteSignals } from './scoring.ts';
-import { CATEGORY_LABEL, yearPlural, type ReviewFocus, type Assignment, type Brief, type Candidate, type Category, type Lens, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
+import { CATEGORY_LABEL, yearPlural, type ReviewFocus, type Assignment, type Brief, type Candidate, type FoundDeadline, type Category, type Lens, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
 
 const INTEREST_FIELDS: Record<string, string[]> = {
   coding: ['software'],
@@ -185,7 +185,7 @@ export class SimBrain implements Brain {
     return { brief, assignments };
   }
 
-  async planJobs(assignment: Assignment, _brief: Brief): Promise<ScoutSpec[]> {
+  async planJobs(assignment: Assignment, _brief: Brief, _pastSearches: string[] = []): Promise<ScoutSpec[]> {
     await this.pause(900, assignment.managerId);
     const noun = CATEGORY_LABEL[assignment.category].toLowerCase();
     return assignment.focus.map((value) => ({
@@ -215,6 +215,16 @@ export class SimBrain implements Brain {
     await this.pause(1700, lead.url);
     const item = findByUrl(lead.url);
     return item ? toCandidate(item, this.now()) : null;
+  }
+
+  /** Simulated agents do not draw: an invented picture would pass for a made one. */
+  async illustrate(_candidate: Candidate): Promise<string | null> {
+    return null;
+  }
+
+  /** The sample postings have no second listing to read a deadline from. */
+  async findDeadline(_candidate: Candidate): Promise<FoundDeadline | null> {
+    return null;
   }
 
   async readApplication(candidate: Candidate) {

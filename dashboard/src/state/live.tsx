@@ -1,12 +1,12 @@
 // The connection between the app and the agent backend. It listens to the backend's live stream
 // for this student (their own once signed in, the shared demo student for a guest), turns the
 // backend's results into the cards the pages already draw, and sends the student's reactions
-// back so the agents learn from them. When the backend has nothing yet, pages fall back to the
-// sample cards and say so.
+// back so the agents learn from them. Only what the agents found is shown: while they have
+// nothing yet, or the backend cannot be reached, the pages are empty and say why.
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthProvider.tsx';
 import { API_URL } from '../auth/firebase.ts';
-import { applicationInfo, coverFor, opportunities as sampleOpportunities } from '../data/sample.ts';
+import { applicationInfo, coverFor } from '../data/sample.ts';
 import type { AgentEvent, AgentNode, Opportunity, OpportunityType } from '../types.ts';
 import { useStore } from './StoreProvider.tsx';
 
@@ -24,6 +24,9 @@ interface BackendOpportunity {
   deadline: string | null;
   startTime: string | null;
   image: string | null;
+  imageKind?: Opportunity['imageKind'];
+  imageCredit?: string | null;
+  imageCreditUrl?: string | null;
   unknowns: Opportunity['unknowns'];
   foundAt: string;
   lastCheckedAt: string;
@@ -40,6 +43,8 @@ interface BackendStudent {
   mode: 'simulated' | 'live';
   provider: 'grok' | 'claude' | 'simulated';
   runCount: number;
+  /** Cards the feed should hold; the agents keep searching while it has fewer. */
+  feedTarget?: number;
 }
 interface BackendRun {
   id: string;
@@ -50,7 +55,7 @@ interface BackendRun {
   finishedAt: string | null;
   error: string | null;
   agents: { id: string; level: 'master' | 'manager' | 'presentation'; name: string; role: string; status: 'idle' | 'running' | 'done' | 'failed'; detail: string }[];
-  jobs: { id: string; kind: 'scout' | 'extract' | 'application'; label: string; status: 'queued' | 'running' | 'done' | 'failed' | 'skipped'; result: string | null }[];
+  jobs: { id: string; kind: 'scout' | 'extract' | 'application' | 'deadline' | 'image'; label: string; status: 'queued' | 'running' | 'done' | 'failed' | 'skipped'; result: string | null }[];
   validations: { id: string; title: string; status: 'checking' | 'kept' | 'rejected'; reason: string | null; fit: number | null; reviews?: { reviewer: string; status: 'checking' | 'kept' | 'rejected'; reason: string | null }[] }[];
   log: { seq: number; at: string; agent: string; text: string }[];
   stats: { jobs: number; kept: number; rejected: number; added: number };
@@ -68,10 +73,12 @@ export interface LiveAgents {
 }
 
 interface LiveValue {
-  /** offline: the backend cannot be reached, so the app shows sample cards. */
+  /** offline: the backend cannot be reached, so there is nothing new to show. */
   status: 'connecting' | 'connected' | 'offline';
-  /** True when the cards on screen came from the agents, not from the sample set. */
+  /** True when the agents have results on screen. */
   usingLive: boolean;
+  /** Cards the feed should hold; the agents keep searching on their own while it has fewer. */
+  feedTarget: number;
   /** Which model the agents are on. "claude" is a temporary test set-up. */
   provider: 'grok' | 'claude' | 'simulated';
   opportunities: Opportunity[];
@@ -80,6 +87,9 @@ interface LiveValue {
   searching: boolean;
   runNow: () => Promise<void>;
 }
+
+/** The feed's target when the backend has not said: at least this many cards by default. */
+export const FEED_TARGET = 12;
 
 const LiveContext = createContext<LiveValue | null>(null);
 
@@ -92,7 +102,8 @@ const hash = (text: string) => {
 /** A backend result as the card the pages draw. */
 function toCard(entry: BackendFeedEntry, simulated: boolean): Opportunity {
   const o = entry.opportunity;
-  // The agents do not collect pictures yet, so a card without one gets a stock clip for its kind.
+  // The agents look for a picture (event, logo, stock photo, or an illustration they draw). Only a
+  // card they found nothing for gets a stock clip for its kind.
   const cover = coverFor(o.type, hash(o.id));
   return {
     id: o.id,
@@ -109,6 +120,9 @@ function toCard(entry: BackendFeedEntry, simulated: boolean): Opportunity {
     startTime: o.startTime,
     image: o.image ?? cover.image,
     video: o.image ? null : cover.video,
+    imageKind: o.image ? (o.imageKind ?? null) : null,
+    imageCredit: o.image ? (o.imageCredit ?? null) : null,
+    imageCreditUrl: o.image ? (o.imageCreditUrl ?? null) : null,
     imageAspect: 0.8 + 0.5 * hash(o.id),
     tags: o.tags,
     unknowns: o.unknowns,
@@ -123,7 +137,7 @@ const nodeStatus = (s: string): AgentNode['status'] => (s === 'running' || s ===
 
 function toAgents(run: BackendRun): LiveAgents {
   const node = (a: BackendRun['agents'][number]): AgentNode => ({ id: a.id, name: a.name, role: a.role, status: nodeStatus(a.status), detail: a.status === 'failed' ? `Failed. ${a.detail}` : a.detail });
-  const kind = { scout: 'Scout: searches for leads', extract: 'Reader: opens a posting and reads its details', application: 'Application reader: collects prompts and materials' };
+  const kind = { scout: 'Scout: searches for leads', extract: 'Reader: opens a posting and reads its details', application: 'Application reader: collects prompts and materials', deadline: 'Deadline finder: checks other listings for a deadline', image: 'Picture finder: event photo, logo, stock photo or a drawn illustration' };
   const master = run.agents.find((a) => a.level === 'master');
   const presenter = run.agents.find((a) => a.level === 'presentation');
   const jobs = run.jobs.filter((j) => j.status !== 'skipped');
@@ -201,6 +215,19 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [who, uid, auth.status]);
 
+  // The backend saves the student's memory with their sign-in, which lasts an hour. While the app
+  // is open it is handed a fresh one regularly, so searches that finish later can still be saved.
+  useEffect(() => {
+    if (auth.status !== 'signedIn') return;
+    const renew = async () => {
+      const token = await auth.getToken().catch(() => null);
+      if (token) await fetch(`${API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    };
+    const timer = window.setInterval(() => void renew(), 20 * 60_000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.status, uid]);
+
   const simulated = student?.mode !== 'live';
   const liveCards = useMemo(() => (student?.feed ?? []).map((entry) => toCard(entry, simulated)), [student, simulated]);
   const usingLive = status === 'connected' && liveCards.length > 0;
@@ -248,9 +275,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       status,
       usingLive,
       provider: student?.provider ?? 'simulated',
-      // Real agent results stand alone. A simulated run is invented and covers few fields, so the
-      // prepared sample set, which spans every field, is shown with it.
-      opportunities: !usingLive ? sampleOpportunities : simulated ? [...sampleOpportunities, ...liveCards] : liveCards,
+      feedTarget: student?.feedTarget ?? FEED_TARGET,
+      // Only what the agents found. The sample set is not mixed in: pages show real results or say why they are empty.
+      opportunities: liveCards,
       agents: status === 'connected' && run ? toAgents(run) : null,
       searching: status === 'connected' && run?.status === 'running',
       runNow: async () => {
@@ -270,7 +297,7 @@ export function useLive(): LiveValue {
   return value;
 }
 
-/** The cards to show: the agents' results once there are any, the sample set until then. */
+/** The cards to show: what the agents found, and nothing else. */
 export const useOpportunities = () => useLive().opportunities;
 
 /** The small label in the page header saying where the cards come from. */
@@ -278,8 +305,12 @@ export function DataBadge() {
   const live = useLive();
   const [long, short] = live.searching
     ? ['Agents searching…', 'Searching']
-    : !live.usingLive
-      ? ['Sample data', 'Sample']
+    : live.status === 'offline'
+      ? ['Agents offline', 'Offline']
+      : live.status === 'connecting'
+        ? ['Connecting…', 'Connecting']
+        : !live.usingLive
+          ? ['No results yet', 'Empty']
       : live.provider === 'claude'
         ? ['Live · Claude test', 'Live']
         : live.provider === 'grok'

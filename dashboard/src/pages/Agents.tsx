@@ -144,7 +144,7 @@ export function Agents() {
       subtitle={
         real
           ? 'Watch your agents search for you: the master briefs the managers, workers read the web, and validators decide what reaches you.'
-          : 'Watch the Grok agents search for you: the master briefs the managers, workers read the web, and validators decide what reaches you.'
+          : 'A demonstration on sample data until your agents run their first search: the master briefs the managers, workers read the web, and validators decide what reaches you.'
       }
       aside={
         <StatusPill>

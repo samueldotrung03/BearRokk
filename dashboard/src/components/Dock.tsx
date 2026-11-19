@@ -20,10 +20,10 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, NavLink, useNavigate } from 'react-router';
-import { agentEvents, agents, agentUsage, opportunities, roadmaps } from '../data/sample.ts';
+import { roadmaps } from '../data/sample.ts';
 import { matchesShortcut, useShortcuts } from '../lib/shortcuts.ts';
 import { relativeTime } from '../lib/time.ts';
-import { useOpportunities } from '../state/live.tsx';
+import { useLive, useOpportunities, type LiveAgents } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import { BrandMark } from './Brand.tsx';
 
@@ -52,7 +52,6 @@ const CLOSE_DELAY = 420;
 const PEEK_MS = 2600;
 const TOGGLE_EVENT = 'dock:toggle';
 const PIN_KEY = 'bearrok.dock.pinned';
-const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 
 /** Lets a button elsewhere on the page pin the dock open, or unpin it. */
@@ -71,18 +70,23 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-/** Live panel in the dock: what the agents used this week and where the student stands. */
+/** Every agent in the latest search, top of the chain first. Empty before the first search. */
+function everyAgent(run: LiveAgents | null) {
+  if (!run) return [];
+  return [run.master, ...run.managers, ...run.workers, ...run.validators, run.presenter].filter((node) => node !== null);
+}
+
+/** Live panel in the dock: what the agents did on their latest search and where the student stands. */
 /** The full agent report, opened from the small "Agents live" button in the dock. */
 function UsageWindow({ onClose }: { onClose: () => void }) {
   const { state } = useStore();
   const shown = useOpportunities();
   const ref = useRef<HTMLDialogElement>(null);
-  const all = [agents.master, ...agents.managers, ...agents.workers];
+  const live = useLive();
+  const all = everyAgent(live.agents);
   const running = all.filter((node) => node.status === 'running');
-  const { pagesPerDay, budgetUsed, searchesToday } = agentUsage;
-  const total = pagesPerDay.reduce((sum, pages) => sum + pages, 0);
-  const peak = Math.max(...pagesPerDay);
-  const today = new Date().getDay();
+  const agentEvents = live.agents?.events ?? [];
+  const jobs = live.agents?.workers.length ?? 0;
 
   const steps = roadmaps.find((r) => r.goalId === state.goalId)?.phases.flatMap((phase) => phase.steps) ?? [];
   const done = steps.filter((step) => state.doneSteps.includes(step.id)).length;
@@ -110,9 +114,9 @@ function UsageWindow({ onClose }: { onClose: () => void }) {
       <div className="usage-hero">
         <div className="flex items-center justify-between">
           <h2 id="usage-title" className="flex items-center gap-2 text-sm font-semibold">
-            Example activity
+            Your agents
             <span className="font-normal text-white/65">
-              sample figures · {running.length} of {all.length} working
+              {live.status === 'offline' ? 'offline' : all.length === 0 ? 'no search yet' : `${running.length} of ${all.length} working`}
             </span>
           </h2>
           <button type="button" onClick={() => ref.current?.close()} aria-label="Close" className="usage-close">
@@ -120,43 +124,10 @@ function UsageWindow({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="mt-5 flex items-end justify-between gap-6">
-          <div>
-            <p className="font-display text-6xl leading-none">{total}</p>
-            <p className="mt-1.5 text-sm text-white/65">pages read this week</p>
-          </div>
-          <div className="w-44">
-            <div className="dock-bars" aria-hidden="true">
-              {pagesPerDay.map((pages, index) => (
-                <span
-                  key={index}
-                  className="dock-bar"
-                  data-today={index === pagesPerDay.length - 1}
-                  style={{ height: `${Math.round((pages / peak) * 100)}%`, animationDelay: `${index * 60}ms` }}
-                />
-              ))}
-            </div>
-            <div className="mt-1 grid grid-flow-col auto-cols-fr gap-[5px] text-center text-[10px] text-white/50" aria-hidden="true">
-              {pagesPerDay.map((_, index) => (
-                <span key={index}>{DAYS[(today - (pagesPerDay.length - 1 - index) + 7) % 7]}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 flex items-center justify-between text-sm">
-          <span className="text-white/65">Grok budget today · {searchesToday} searches so far</span>
-          <span className="font-semibold">{Math.round(budgetUsed * 100)}%</span>
-        </div>
-        <div
-          className="dock-meter mt-2"
-          role="progressbar"
-          aria-label="Grok budget used today"
-          aria-valuenow={Math.round(budgetUsed * 100)}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <span style={{ width: `${budgetUsed * 100}%` }} />
+        <div className="mt-5">
+          <p className="font-display text-6xl leading-none">{jobs}</p>
+          <p className="mt-1.5 text-sm text-white/65">searches and pages read in the latest search</p>
+          {live.agents && <p className="mt-3 text-sm text-white/65">{live.agents.summary}</p>}
         </div>
 
         <dl className="mt-5 grid grid-cols-4 gap-1 border-t border-white/15 pt-4 text-center">
@@ -173,6 +144,7 @@ function UsageWindow({ onClose }: { onClose: () => void }) {
         <section>
           <h3 className="text-sm font-semibold">Working now</h3>
           <ul className="mt-3 space-y-3">
+            {running.length === 0 && <li className="text-sm text-ink-3">Nothing running right now.</li>}
             {running.map((node) => (
               <li key={node.id} className="flex gap-2.5">
                 <span className="live-dot mt-1.5 size-2 shrink-0 rounded-full bg-[#34c759]" aria-hidden="true" />
@@ -187,6 +159,7 @@ function UsageWindow({ onClose }: { onClose: () => void }) {
         <section>
           <h3 className="text-sm font-semibold">Latest activity</h3>
           <ul className="mt-3 space-y-3">
+            {agentEvents.length === 0 && <li className="text-sm text-ink-3">Nothing yet.</li>}
             {agentEvents.slice(0, 3).map((event) => (
               <li key={event.id}>
                 <p className="text-sm leading-snug text-ink-2">{event.text}</p>
@@ -199,7 +172,7 @@ function UsageWindow({ onClose }: { onClose: () => void }) {
         </section>
       </div>
       <div className="flex items-center justify-between border-t border-line px-6 py-4">
-        <span className="text-xs text-ink-3">Sample data</span>
+        <span className="text-xs text-ink-3">{live.usingLive ? 'From your agents' : 'No results yet'}</span>
         <Link to="/agents" onClick={() => ref.current?.close()} className="btn-primary flex h-9 items-center rounded-lg px-4 text-sm text-white">
           Open the Agents page
         </Link>
@@ -211,31 +184,21 @@ function UsageWindow({ onClose }: { onClose: () => void }) {
 /** A one-line summary in the dock. Clicking it opens the full report in a window. */
 function DockUsage() {
   const [open, setOpen] = useState(false);
-  const all = [agents.master, ...agents.managers, ...agents.workers];
+  const live = useLive();
+  const all = everyAgent(live.agents);
   const running = all.filter((node) => node.status === 'running').length;
-  const { pagesPerDay } = agentUsage;
-  const peak = Math.max(...pagesPerDay);
 
   return (
     <>
-      <button type="button" className="dock-usage" aria-haspopup="dialog" aria-label="Example agent activity. Open the report" onClick={() => setOpen(true)}>
+      <button type="button" className="dock-usage" aria-haspopup="dialog" aria-label="Agent activity. Open the report" onClick={() => setOpen(true)}>
         <span className="flex min-w-0 flex-col items-start">
           <span className="flex items-center gap-2 text-xs font-semibold">
-            Example activity
+            {running > 0 && <span className="live-dot size-1.5 rounded-full bg-[#34c759]" aria-hidden="true" />}
+            Your agents
           </span>
           <span className="mt-0.5 text-[11px] text-white/60">
-            {running} of {all.length} working
+            {live.status === 'offline' ? 'Offline' : all.length === 0 ? 'No search yet' : running > 0 ? `${running} of ${all.length} working` : 'Latest search finished'}
           </span>
-        </span>
-        <span className="dock-bars dock-bars-mini" aria-hidden="true">
-          {pagesPerDay.map((pages, index) => (
-            <span
-              key={index}
-              className="dock-bar"
-              data-today={index === pagesPerDay.length - 1}
-              style={{ height: `${Math.round((pages / peak) * 100)}%`, animationDelay: `${index * 60}ms` }}
-            />
-          ))}
         </span>
       </button>
       {/* Outside the dock, so it stays up when the dock slides away. */}

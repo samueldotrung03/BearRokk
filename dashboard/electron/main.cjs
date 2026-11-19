@@ -1,9 +1,11 @@
-// Desktop shell for the dashboard. It only hosts the built web app: no Node access is given to
-// the page, and links to outside sites open in the system browser instead of inside the app.
+// Desktop shell for the dashboard. It hosts the built web app and runs the agent backend beside
+// it (backend.cjs). No Node access is given to the page, and links to outside sites open in the
+// system browser instead of inside the app.
 const { app, BrowserWindow, ipcMain, nativeTheme, shell, systemPreferences } = require('electron');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const backend = require('./backend.cjs');
 
 // Set by `npm run app:dev` to load the Vite dev server instead of the built files.
 const devUrl = process.env.ELECTRON_START_URL;
@@ -95,7 +97,11 @@ ipcMain.on('window:focus', (event) => {
   if (process.platform === 'darwin') app.focus({ steal: true });
 });
 
-app.whenReady().then(() => {
+backend.mount();
+
+app.whenReady().then(async () => {
+  // The page needs the backend from its first request, so it is started before the window opens.
+  await backend.startBackend().catch((e) => console.error('backend did not start:', e));
   // The packaged app carries its own icon; this covers `npm run app`, which runs inside Electron's.
   if (process.platform === 'darwin' && !app.isPackaged) app.dock.setIcon(path.join(__dirname, 'icon.png'));
   createWindow();

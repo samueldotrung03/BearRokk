@@ -8,6 +8,7 @@ import type { AuthUser, Verifier } from '../auth.ts';
 import { createDeadlineEvent, deleteEvent } from '../calendar.ts';
 import { readResume, RESUME_MAX_BYTES, RESUME_TYPES } from '../resume.ts';
 import { exportApplications } from '../sheets.ts';
+import type { Store } from '../store/index.ts';
 import type { AgentSystem } from './system.ts';
 import { APPLICATION_STATUSES, CATEGORIES, type Action, type Category, type ClassYear, type Profile, type StudentPreferences } from './types.ts';
 import { RoadmapRequest, type RoadmapWriter } from '../roadmap.ts';
@@ -24,6 +25,12 @@ export interface AgentsOptions {
   sheets?: typeof exportApplications;
   /** Writes a roadmap. Absent when no model is connected; replaceable in tests. */
   roadmap?: RoadmapWriter | null;
+  /** Where each student's memory is kept. Without it nothing outlives the backend. */
+  memory?: Pick<Store, 'loadStudent' | 'saveStudent' | 'deleteStudent'>;
+  /** Told each time a student proves who they are, with the token they proved it with. */
+  onToken?: (uid: string, token: string) => void;
+  /** How long to wait after a change before saving, so a burst of changes is one write. */
+  saveDelayMs?: number;
   /** How the agents reach Grok, for the settings page. */
   grok?: { connected: boolean; mode: 'api' | 'cli' | 'claude' | 'simulated'; detail: string };
 }
@@ -106,6 +113,10 @@ function cleanProfile(body: any): Partial<Profile> {
   return patch;
 }
 
+/** The résumé without its file or text, as pages are shown it. */
+const resumeInfoOf = (r: { name: string; type: string; size: number; uploadedAt: string; text: string | null } | null) =>
+  r ? { name: r.name, type: r.type, size: r.size, uploadedAt: r.uploadedAt, readable: r.text !== null } : null;
+
 class HttpError extends Error {
   status: 401 | 404 | 503;
   constructor(status: 401 | 404 | 503, message: string) {
@@ -115,7 +126,46 @@ class HttpError extends Error {
 }
 
 export function mountAgents(app: Hono, opts: AgentsOptions) {
-  const signedIn = new Map<string, AgentSystem>();
+  const signedIn = new Map<string, Promise<AgentSystem>>();
+  const saving = new Map<string, NodeJS.Timeout>();
+  /** Students whose last save did not go through, and how to try it again. */
+  const unsaved = new Map<string, () => void>();
+
+  /**
+   * Tie a student's agents to their stored memory: put back what was saved under their account,
+   * then save again after every change.
+   */
+  async function remember(key: string, system: AgentSystem): Promise<AgentSystem> {
+    const memory = opts.memory;
+    if (!memory) return system;
+    // If the saved memory cannot be read, the student is not given an empty one in its place:
+    // saving that would wipe what is stored. The request fails and the next one tries again.
+    const saved = await memory.loadStudent(key);
+    if (saved) system.restore(saved);
+    const write = () => {
+      saving.delete(key);
+      memory.saveStudent(key, system.memorySnapshot()).then(
+        () => unsaved.delete(key),
+        (e) => {
+          // Kept, and tried again on the next change or the next time the student connects.
+          unsaved.set(key, write);
+          console.error(`could not save the memory of ${key}: ${e instanceof Error ? e.message : e}`);
+        },
+      );
+    };
+    system.onChange(() => {
+      if (saving.has(key)) return;
+      const timer = setTimeout(write, opts.saveDelayMs ?? 400);
+      timer.unref();
+      saving.set(key, timer);
+    });
+    return system;
+  }
+  /** The guest student's memory is kept too, under a name no account id can have. */
+  const demo = remember('guest:demo', opts.demo).catch((e) => {
+    console.error('could not load the guest memory:', e);
+    return opts.demo;
+  });
   const enabled = Boolean(opts.verify && opts.forUser && opts.webConfig);
 
   async function userOf(c: Context): Promise<AuthUser> {
@@ -125,7 +175,11 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     const token = header?.startsWith('Bearer ') ? header.slice(7) : c.req.query('token');
     if (!token) throw new HttpError(401, 'sign in first');
     try {
-      return await opts.verify!(token);
+      const user = await opts.verify!(token);
+      opts.onToken?.(user.uid, token);
+      // A save that failed while the student was away is tried again now that they are back.
+      unsaved.get(user.uid)?.();
+      return user;
     } catch {
       throw new HttpError(401, 'sign-in expired or invalid; sign in again');
     }
@@ -134,15 +188,22 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
   /** The agent system the request is about: the demo student, or the signed-in one. */
   async function systemOf(c: Context): Promise<AgentSystem> {
     const id = c.req.param('id');
-    if (id === 'demo') return opts.demo;
+    if (id === 'demo') return demo;
     if (id !== 'me') throw new HttpError(404, 'unknown student');
     const user = await userOf(c);
+    // The memory is keyed by the account, so it follows the student to any device they sign in on.
     let system = signedIn.get(user.uid);
     if (!system) {
-      system = opts.forUser!(user);
+      system = remember(user.uid, opts.forUser!(user));
       signedIn.set(user.uid, system);
     }
-    return system;
+    try {
+      return await system;
+    } catch (e) {
+      if (signedIn.get(user.uid) === system) signedIn.delete(user.uid);
+      console.error(`could not load the memory of ${user.uid}:`, e);
+      throw new HttpError(503, 'your saved data could not be loaded; check the connection and try again');
+    }
   }
 
   // What is connected on the server side, for the settings page. Nothing secret is returned.
@@ -262,13 +323,37 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
   app.delete(base, async (c) => {
     if (c.req.param('id') !== 'me') return c.json({ error: 'only your own data can be deleted' }, 400);
     const user = await userOf(c);
-    const system = signedIn.get(user.uid);
+    const system = await signedIn.get(user.uid);
     if (system) {
+      system.onChange(() => {});
       system.setSchedule(0);
       await system.idle();
       signedIn.delete(user.uid);
     }
+    clearTimeout(saving.get(user.uid));
+    saving.delete(user.uid);
+    await opts.memory?.deleteStudent(user.uid);
     return c.json({ ok: true });
+  });
+
+  // The student's memory as the agents read it: the part they wrote, and the part the app learned.
+  app.get(`${base}/memory`, async (c) => {
+    const system = await systemOf(c);
+    const { profile, learned } = system.memorySnapshot();
+    const count = (action: Action) => learned.interactions.filter((i) => i.action === action).length;
+    return c.json({
+      profile: { profile: profile.profile, resume: resumeInfoOf(profile.resume), reminderDays: profile.reminderDays, scheduleSeconds: profile.scheduleSeconds },
+      learned: {
+        counts: { saves: count('save'), likes: count('like'), dislikes: count('dislike'), opens: count('open'), applies: count('apply'), found: learned.opportunities.length, rejected: learned.rejected.length, searches: learned.searches.length, runs: learned.runs.length },
+        summary: system.student().memory,
+        interactions: learned.interactions.slice(-200),
+        searches: learned.searches.slice(-100),
+        runs: learned.runs,
+        found: learned.opportunities.map((o) => ({ id: o.id, title: o.title, organizer: o.organizer, type: o.type, sourceUrl: o.sourceUrl, deadline: o.deadline, foundAt: o.foundAt, lastCheckedAt: o.lastCheckedAt })),
+        rejected: learned.rejected,
+      },
+      stored: Boolean(opts.memory),
+    });
   });
 
   app.post(`${base}/reset`, async (c) => {
@@ -346,6 +431,8 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
       const unsubscribe = system.subscribe((event, data) => void send(event, data));
       // Nobody has to ask: the first viewer finds the agents already starting.
       if (system.student().runCount === 0) setTimeout(() => void system.trigger('first'), 900);
+      // A student coming back to a remembered feed that is short gets it topped up.
+      else setTimeout(() => system.fillIfShort(), 900);
       const beat = setInterval(() => void stream.writeSSE({ event: 'ping', data: '1' }).catch(() => {}), 15_000);
       await new Promise<void>((resolve) => stream.onAbort(resolve));
       clearInterval(beat);
