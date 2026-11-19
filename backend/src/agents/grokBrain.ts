@@ -8,12 +8,13 @@ import type { Brain, MasterInput } from './brain.ts';
 import { CATEGORY_LABEL, type Assignment, type Brief, type Candidate, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
 
 /**
- * Which model each level runs on. The master decides everything downstream, so it gets the
- * strongest model. Workers are many and each does one small job, so they get the cheapest.
+ * Which model each level runs on. The master, managers, validators and presentation manager
+ * run on the normal tier. Workers are many and each does one small job, so they get the cheapest.
+ * The high tier (XAI_MODEL_HIGH) is configured but not assigned to any level at the moment.
  */
 const TIER = config.xaiModels;
 export const AGENT_TIERS = {
-  master: 'high',
+  master: 'normal',
   searchManager: 'normal',
   worker: 'low',
   validator: 'normal',
@@ -60,7 +61,7 @@ export class GrokBrain implements Brain {
     });
     const { data } = await grokJson({
       name: 'master',
-      model: TIER.high,
+      model: TIER.normal,
       schema: Out,
       system: `You are the master agent of a system that finds opportunities for one student. You do not search. Read the student's profile and memory and write:
 - brief: goal (one line), hardCriteria (conditions a result must meet: class year, location or remote, still open), preferences (rank by these), avoid (kinds of thing the student keeps disliking), interests (lowercase fields).

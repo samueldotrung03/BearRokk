@@ -59,12 +59,12 @@ Two more agents run on demand, not in every run:
 
 ### Model tiers
 
-Each level runs on a model matched to its job. The master makes the decisions everything else depends on, so it gets the strongest model. The fleet is many small jobs, so it gets the cheapest, which is where most of the calls and most of the cost are.
+Each level runs on a model matched to its job. The master, the managers and the validators run on the normal tier. The fleet is many small jobs, so it gets the cheapest, which is where most of the calls and most of the cost are.
 
 | Level | Model tier | Default (`backend/.env` to change) |
 |---|---|---|
-| Master agent | Highest | `XAI_MODEL_HIGH`, `grok-4.7` |
-| Search managers | Normal | `XAI_MODEL_NORMAL`, `grok-4.5` |
+| Master agent | Normal | `XAI_MODEL_NORMAL`, `grok-4.5` |
+| Search managers | Normal | `XAI_MODEL_NORMAL` |
 | Worker fleet (scouts, readers, application readers) | Low | `XAI_MODEL_LOW`, `grok-4.3` |
 | Validation agents | Normal | `XAI_MODEL_NORMAL` |
 | Presentation manager | Normal | `XAI_MODEL_NORMAL` |

@@ -7,7 +7,8 @@ export const config = {
   xaiModel: env.XAI_MODEL ?? 'grok-4.7',
   /**
    * One model per tier of the agent system.
-   * high: master agent. normal: search managers, validation agents, presentation manager. low: the worker fleet.
+   * normal: master agent, search managers, validation agents, presentation manager. low: the worker fleet.
+   * high: not assigned to any level at the moment.
    */
   xaiModels: {
     high: env.XAI_MODEL_HIGH ?? env.XAI_MODEL ?? 'grok-4.7',
