@@ -6,6 +6,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, HashRouter } from 'react-router';
 import { App } from './App.tsx';
+import { AuthProvider } from './auth/AuthProvider.tsx';
+import { LiveProvider } from './state/live.tsx';
 import { StoreProvider } from './state/StoreProvider.tsx';
 
 // In the macOS desktop app the title bar is hidden; this class makes room for the window buttons.
@@ -19,9 +21,13 @@ const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Router>
-      <StoreProvider>
-        <App />
-      </StoreProvider>
+      <AuthProvider>
+        <StoreProvider>
+          <LiveProvider>
+            <App />
+          </LiveProvider>
+        </StoreProvider>
+      </AuthProvider>
     </Router>
   </StrictMode>,
 );

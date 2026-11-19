@@ -1,13 +1,14 @@
 import { PanelLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { useStore } from '../state/StoreProvider.tsx';
 import { BrandMark } from './Brand.tsx';
 import { toggleDock } from './Dock.tsx';
+import { DataBadge } from '../state/live.tsx';
+import { ProfileMenu } from './ProfileMenu.tsx';
 
 function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-2.5 text-white">
+    <Link to="/" className="flex items-center gap-2.5 text-white focus-visible:outline-white">
       <BrandMark />
       <span className="text-[19px] font-bold tracking-tight">BearRok</span>
     </Link>
@@ -26,7 +27,6 @@ export function Page({
   aside?: ReactNode;
   children: ReactNode;
 }) {
-  const { state } = useStore();
   return (
     <div className="page-outer relative min-h-dvh pb-28 sm:pb-16">
       <div className="sky absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
@@ -36,7 +36,7 @@ export function Page({
             <button
               type="button"
               onClick={toggleDock}
-              className="hidden size-9 place-items-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 sm:grid"
+              className="hidden size-9 place-items-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-white sm:grid"
               aria-label="Pin or unpin the navigation dock"
               title="Pin the dock open, or move your pointer to the left edge"
             >
@@ -45,16 +45,8 @@ export function Page({
             <Brand />
           </div>
           <div className="flex items-center gap-3">
-            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur">
-              Sample data
-            </span>
-            <Link
-              to="/profile"
-              className="grid size-9 place-items-center rounded-full bg-white text-sm font-semibold text-brand shadow-card"
-              aria-label="Your profile"
-            >
-              {state.profile.name.charAt(0)}
-            </Link>
+            <DataBadge />
+            <ProfileMenu />
           </div>
         </header>
 

@@ -6,6 +6,7 @@ import {
   CalendarDots,
   ClipboardText,
   Compass,
+  GearSix,
   House,
   Path,
   PushPin,
@@ -20,6 +21,7 @@ import { createPortal } from 'react-dom';
 import { Link, NavLink } from 'react-router';
 import { agentEvents, agents, agentUsage, opportunities, roadmaps } from '../data/sample.ts';
 import { relativeTime } from '../lib/time.ts';
+import { useOpportunities } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import { BrandMark } from './Brand.tsx';
 
@@ -41,6 +43,7 @@ export const dockItems: DockItem[] = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDots, colors: ['#ffd27a', '#ff8f5a', '#ff5a8a'] },
   { to: '/saved', label: 'Saved', icon: BookmarkSimple, colors: ['#ffd15c', '#ff8a3d', '#ff4f8b'] },
   { to: '/agents', label: 'Agents', icon: Robot, colors: ['#ff5fa2', '#ff7a45', '#b04bff'] },
+  { to: '/settings', label: 'Settings', icon: GearSix, colors: ['#c6d0e0', '#7f93b5', '#4f6bff'], bottom: true },
   { to: '/profile', label: 'Profile', icon: UserCircle, colors: ['#9fb4ff', '#6a7cff', '#40e0d0'], bottom: true },
 ];
 
@@ -70,6 +73,7 @@ function useMediaQuery(query: string): boolean {
 /** The full agent report, opened from the small "Agents live" button in the dock. */
 function UsageWindow({ onClose }: { onClose: () => void }) {
   const { state } = useStore();
+  const shown = useOpportunities();
   const ref = useRef<HTMLDialogElement>(null);
   const all = [agents.master, ...agents.managers, ...agents.workers];
   const running = all.filter((node) => node.status === 'running');
@@ -81,7 +85,7 @@ function UsageWindow({ onClose }: { onClose: () => void }) {
   const steps = roadmaps.find((r) => r.goalId === state.goalId)?.phases.flatMap((phase) => phase.steps) ?? [];
   const done = steps.filter((step) => state.doneSteps.includes(step.id)).length;
   const stats = [
-    { label: 'in feed', value: opportunities.length - state.dismissed.length },
+    { label: 'in feed', value: shown.filter((o) => !state.dismissed.includes(o.id)).length },
     { label: 'saved', value: state.saved.length },
     { label: 'applications', value: Object.keys(state.applications).length },
     { label: 'roadmap', value: steps.length ? `${Math.round((done / steps.length) * 100)}%` : '0%' },
@@ -104,10 +108,9 @@ function UsageWindow({ onClose }: { onClose: () => void }) {
       <div className="usage-hero">
         <div className="flex items-center justify-between">
           <h2 id="usage-title" className="flex items-center gap-2 text-sm font-semibold">
-            <span className="live-dot size-2 rounded-full bg-[#34c759]" aria-hidden="true" />
-            Agents live
+            Example activity
             <span className="font-normal text-white/65">
-              {running.length} of {all.length} working
+              sample figures · {running.length} of {all.length} working
             </span>
           </h2>
           <button type="button" onClick={() => ref.current?.close()} aria-label="Close" className="usage-close">
@@ -213,11 +216,10 @@ function DockUsage() {
 
   return (
     <>
-      <button type="button" className="dock-usage" aria-haspopup="dialog" aria-label="Agents live. Open the agent report" onClick={() => setOpen(true)}>
+      <button type="button" className="dock-usage" aria-haspopup="dialog" aria-label="Example agent activity. Open the report" onClick={() => setOpen(true)}>
         <span className="flex min-w-0 flex-col items-start">
           <span className="flex items-center gap-2 text-xs font-semibold">
-            <span className="live-dot size-2 rounded-full bg-[#34c759]" aria-hidden="true" />
-            Agents live
+            Example activity
           </span>
           <span className="mt-0.5 text-[11px] text-white/60">
             {running} of {all.length} working
@@ -272,7 +274,7 @@ export function Dock() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       setOpen(false);
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      if (document.activeElement instanceof HTMLElement && document.activeElement.closest('.dock-zone')) document.activeElement.blur();
     };
     window.addEventListener(TOGGLE_EVENT, onToggle);
     window.addEventListener('keydown', onKey);

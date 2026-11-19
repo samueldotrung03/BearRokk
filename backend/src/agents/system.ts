@@ -2,13 +2,15 @@
 // and runs the master -> search managers -> worker fleet -> validators -> presentation manager chain.
 import { createHash } from 'node:crypto';
 import { addToCalendarUrl, type DeadlineEvent } from '../calendar.ts';
+import { resumeInfo, type Resume, type ResumeInfo } from '../resume.ts';
 import { canonicalUrl } from '../validate.ts';
 import type { Brain } from './brain.ts';
 import { Fleet, pooled } from './fleet.ts';
-import { allocateSlots, buildMemory, categoryWeights, rankFeed, summarize } from './scoring.ts';
+import { allocateSlots, buildMemory, categoryWeights, noteSignals, rankFeed, summarize } from './scoring.ts';
 import {
   CATEGORY_LABEL,
   CATEGORY_OF,
+  REVIEWERS,
   type Action,
   type AgentNode,
   type Application,
@@ -24,9 +26,11 @@ import {
   type Opportunity,
   type Profile,
   type RunSnapshot,
+  type ReviewFocus,
   type Trigger,
   type Unknown,
   type Validation,
+  type Verdict,
 } from './types.ts';
 
 export interface SystemOptions {
@@ -35,11 +39,14 @@ export interface SystemOptions {
   /** Worker jobs per run (scouts and extractors). */
   maxJobs: number;
   concurrency: number;
-  maxValidations: number;
   /** Save, like or dislike actions that start a run on their own. */
   feedbackThreshold: number;
   /** Pause between the master's commands to each manager, so they can be followed on screen. */
   managerStaggerMs: number;
+  /** How long to wait after the last profile-page edit before running, since that page saves while typing. */
+  typingPauseMs: number;
+  /** Which model family a live brain talks to, for labelling. */
+  provider?: 'grok' | 'claude';
   now: () => Date;
 }
 
@@ -47,9 +54,9 @@ export const DEFAULT_OPTIONS: SystemOptions = {
   slots: 4,
   maxJobs: 30,
   concurrency: 8,
-  maxValidations: 24,
   feedbackThreshold: 5,
   managerStaggerMs: 0,
+  typingPauseMs: 4000,
   now: () => new Date(),
 };
 
@@ -63,6 +70,9 @@ export const DEMO_PROFILE: Profile = {
   interests: ['coding', 'data'],
   skills: ['Python'],
   categories: ['internship', 'event', 'club', 'program'],
+  careerInterests: [],
+  eventTypes: [],
+  preferences: null,
 };
 
 export interface StudentState {
@@ -75,7 +85,11 @@ export interface StudentState {
   scheduleSeconds: number;
   runCount: number;
   mode: 'simulated' | 'live';
+  /** Which model family the agents are on. "claude" is a temporary test set-up. */
+  provider: 'grok' | 'claude' | 'simulated';
   applications: Application[];
+  /** The uploaded résumé, without the file itself. */
+  resume: ResumeInfo | null;
 }
 
 type Listener = (event: 'run' | 'student', data: unknown) => void;
@@ -90,12 +104,14 @@ const UNKNOWN_DEADLINE: Record<Category, string> = {
 const DAY_MS = 86_400_000;
 
 /** A week before, two days before, and the day of the deadline. Ones already in the past are left out. */
-export function remindersFor(deadline: string, now: Date): Reminder[] {
+export function remindersFor(deadline: string, now: Date, days: number[] = [7, 2, 0]): Reminder[] {
   const due = Date.parse(deadline);
-  const plan: [number, string][] = [[7, 'Due in one week'], [2, 'Due in two days'], [0, 'Due today']];
+  const label = (d: number) => (d === 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : d === 7 ? 'Due in one week' : d === 2 ? 'Due in two days' : `Due in ${d} days`);
+  const plan: [number, string][] = [...new Set(days)].sort((a, b) => b - a).map((d) => [d, label(d)]);
+  if (plan.length === 0) return [];
   return plan
     .map(([days, label]) => ({ at: new Date(due - days * DAY_MS).toISOString(), label }))
-    .filter((r, i) => Date.parse(r.at) > now.getTime() || (i === plan.length - 1 && due > now.getTime()));
+    .filter((r, i) => Date.parse(r.at) > now.getTime() || (i === plan.length - 1 && plan[i]![0] === 0 && due > now.getTime()));
 }
 
 const idFor = (key: string) => `opp-${createHash('sha1').update(key).digest('hex').slice(0, 10)}`;
@@ -113,6 +129,9 @@ export class AgentSystem {
   private rejected = new Map<string, string>();
   private rejectedUrls = new Set<string>();
   private applications = new Map<string, Application>();
+  /** Days before a deadline to remind the student. Empty turns reminders off. */
+  private reminderDays: number[] = [7, 2, 0];
+  private resume: Resume | null = null;
   private newIds = new Set<string>();
   private run: RunSnapshot | null = null;
   private runCount = 0;
@@ -151,13 +170,20 @@ export class AgentSystem {
       profile: this.profile,
       memory: summarize(memory),
       // Only the kinds of opportunity the student asked for.
-      feed: rankFeed([...this.opportunities.values()].filter((o) => this.profile.categories.includes(CATEGORY_OF[o.type])), memory, { now: this.opts.now(), reasons: this.reasons, newIds: this.newIds }),
+      feed: rankFeed([...this.opportunities.values()].filter((o) => this.profile.categories.includes(CATEGORY_OF[o.type])), memory, {
+        now: this.opts.now(),
+        reasons: this.reasons,
+        newIds: this.newIds,
+        notes: noteSignals(this.profile.preferences?.notes ?? []),
+      }),
       feedbackSinceRun: this.feedbackSinceRun,
       feedbackThreshold: this.opts.feedbackThreshold,
       scheduleSeconds: this.scheduleSeconds,
       runCount: this.runCount,
       mode: this.brain.mode,
+      provider: this.brain.mode === 'live' ? (this.opts.provider ?? 'grok') : 'simulated',
       applications: this.listApplications(),
+      resume: resumeInfo(this.resume),
     };
   }
 
@@ -190,10 +216,29 @@ export class AgentSystem {
   setProfile(patch: Partial<Profile>) {
     this.profile = { ...this.profile, ...patch };
     this.emitStudent();
-    // Several quick edits become one run.
-    if (this.profileTimer) clearTimeout(this.profileTimer);
-    this.profileTimer = setTimeout(() => void this.trigger('profile'), 700);
+    this.runSoon(Object.keys(patch).every((k) => k === 'preferences') ? this.opts.typingPauseMs : 700);
     return this.student();
+  }
+
+  /**
+   * Start a run once the student stops editing. The profile page saves as they type, so its
+   * answers wait longer than a single switch flipped elsewhere.
+   */
+  private runSoon(ms: number) {
+    if (this.profileTimer) clearTimeout(this.profileTimer);
+    this.profileTimer = setTimeout(() => void this.trigger('profile'), ms);
+  }
+
+  /** Store or remove the résumé. A new one is a reason for the agents to look again. */
+  setResume(resume: Resume | null) {
+    this.resume = resume;
+    this.emitStudent();
+    if (resume) this.runSoon(700);
+    return resumeInfo(resume);
+  }
+
+  getResume() {
+    return this.resume;
   }
 
   interact(opportunityId: string, action: Action) {
@@ -224,6 +269,8 @@ export class AgentSystem {
     this.rejected.clear();
     this.rejectedUrls.clear();
     this.applications.clear();
+    this.reminderDays = [7, 2, 0];
+    this.resume = null;
     this.newIds.clear();
     this.profile = structuredClone(this.initialProfile);
     this.feedbackSinceRun = 0;
@@ -286,7 +333,7 @@ export class AgentSystem {
     app.updatedAt = now.toISOString();
 
     const active = app.status === 'to_apply' || app.status === 'applying';
-    app.reminders = active && app.deadline ? remindersFor(app.deadline, now) : [];
+    app.reminders = active && app.deadline ? remindersFor(app.deadline, now, this.reminderDays) : [];
     app.needsDeadline = active && !app.deadline;
     const event = active ? this.calendarEvent(app) : null;
     app.calendar.addUrl = event ? addToCalendarUrl(event) : null;
@@ -297,6 +344,22 @@ export class AgentSystem {
     if (app.status === 'applied' && before !== 'applied') this.interactions.push({ opportunityId, action: 'apply', at: now.toISOString() });
     this.emitStudent();
     return app;
+  }
+
+  /** Change when the student is reminded, and redo the reminders on applications already tracked. */
+  setReminderDays(days: number[]) {
+    this.reminderDays = [...new Set(days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 60))].slice(0, 6);
+    const now = this.opts.now();
+    for (const app of this.applications.values()) {
+      const active = app.status === 'to_apply' || app.status === 'applying';
+      app.reminders = active && app.deadline ? remindersFor(app.deadline, now, this.reminderDays) : [];
+    }
+    this.emitStudent();
+    return this.reminderDays;
+  }
+
+  getReminderDays() {
+    return this.reminderDays;
   }
 
   /** Record what happened on the student's Google Calendar. */
@@ -403,7 +466,7 @@ export class AgentSystem {
           });
         }
       }
-      const { brief, assignments } = await this.brain.master({ profile: this.profile, memory: summary, assignments: skeleton });
+      const { brief, assignments } = await this.brain.master({ profile: this.profile, memory: summary, resumeText: this.resume?.text ?? null, assignments: skeleton });
       run.brief = brief;
       run.assignments = assignments;
       const mix = (Object.keys(split) as Category[]).filter((c) => split[c] > 0).map((c) => `${split[c]} on ${CATEGORY_LABEL[c].toLowerCase()}`);
@@ -433,7 +496,10 @@ export class AgentSystem {
           log('Master agent', `Command to ${a.name}: cover ${CATEGORY_LABEL[a.category].toLowerCase()} ${lens} (${a.focus.join(', ')})`);
           const manager = node({ id: a.managerId, level: 'manager', name: a.name, role: `${CATEGORY_LABEL[a.category]}, ${lens}`, status: 'running', detail: 'Planning the search…' });
           try {
-            const specs = await this.brain.planJobs(a, brief);
+            // A scout only finds leads; reading them is what produces results. Keep most of the
+            // manager's budget for readers, or a small run spends everything on searching.
+            const planned = await this.brain.planJobs(a, brief);
+            const specs = planned.slice(0, Math.max(1, Math.floor(a.budget / 3)));
             set(manager, { detail: `Covering: ${a.focus.join(', ')}` });
             log(a.name, `Sent ${specs.length} scouts: ${specs.map((s) => s.label).join(' / ')}`);
             let mine = 0;
@@ -490,53 +556,86 @@ export class AgentSystem {
       if (run.stats.skipped) log('Worker fleet', `${run.stats.skipped} jobs were not run: the run's budget was reached`);
 
       // 3. Validation agents ----------------------------------------------------------
-      const queue = [...found.entries()].slice(0, this.opts.maxValidations);
-      run.validations = queue.map(([key, f]): Validation => ({ id: idFor(key), title: f.candidate.title, managerId: f.managerId, status: 'checking', reason: null, fit: null }));
+      // Every posting the workers brought back is reviewed, with none left out, and each one
+      // gets a separate review from every validation agent. It is kept only if all of them keep it.
+      const queue = [...found.entries()];
+      run.validations = queue.map(([key, f]): Validation => ({
+        id: idFor(key),
+        title: f.candidate.title,
+        managerId: f.managerId,
+        status: 'checking',
+        reason: null,
+        fit: null,
+        reviews: REVIEWERS.map((r) => ({ focus: r.focus, reviewer: r.name, status: 'checking', reason: null, fit: null })),
+      }));
       this.emitRun();
-      const kept: Opportunity[] = [];
-      await pooled(queue, 4, async ([key, f], ) => {
-        const v = run.validations.find((x) => x.id === idFor(key))!;
+
+      const verdicts = new Map<string, Partial<Record<ReviewFocus, Verdict>>>();
+      const tasks = queue.flatMap(([key, f]) => REVIEWERS.map((reviewer) => ({ key, f, reviewer })));
+      await pooled(tasks, Math.max(2, Math.min(this.opts.concurrency, 6)), async ({ key, f, reviewer }) => {
+        const review = run.validations.find((x) => x.id === idFor(key))!.reviews.find((r) => r.focus === reviewer.focus)!;
         try {
-          const verdict = await this.brain.validate(f.candidate, brief, summary);
-          v.status = verdict.keep ? 'kept' : 'rejected';
-          v.reason = verdict.reason;
-          v.fit = verdict.keep ? verdict.fit : null;
-          if (!verdict.keep) {
-            run.stats.rejected++;
-            this.opportunities.delete(v.id);
-            this.rejected.set(key, verdict.reason);
-            this.rejectedUrls.add(f.candidate.sourceUrl);
-            log('Validation agent', `Rejected "${f.candidate.title}". ${verdict.reason}.`, 'bad');
-          } else {
-            const c = verdict.record;
-            const id = v.id;
-            const previous = this.opportunities.get(id);
-            const unknowns: Unknown[] = c.deadline ? [] : [{ field: 'deadline', label: UNKNOWN_DEADLINE[CATEGORY_OF[c.type]] }];
-            kept.push({
-              ...c,
-              id,
-              origin: this.brain.mode === 'live' ? 'live' : 'prepared',
-              fitExplanation: verdict.reason,
-              unknowns,
-              foundAt: previous?.foundAt ?? now().toISOString(),
-              lastCheckedAt: now().toISOString(),
-              baseScore: verdict.fit,
-              foundBy: assignments.find((a) => a.managerId === f.managerId)?.name ?? f.managerId,
-              alsoSeenAt: f.alsoSeenAt,
-              application: previous?.application ?? null,
-            });
-            if (!previous) this.newIds.add(id);
-          }
+          const verdict = await this.brain.validate(f.candidate, brief, summary, reviewer.focus);
+          verdicts.set(key, { ...verdicts.get(key), [reviewer.focus]: verdict });
+          review.status = verdict.keep ? 'kept' : 'rejected';
+          review.reason = verdict.reason;
+          review.fit = verdict.keep ? verdict.fit : null;
         } catch (e) {
-          v.status = 'rejected';
-          v.reason = `Could not be checked: ${errorText(e)}`;
-          run.stats.rejected++;
+          // A review that could not be done is not a pass.
+          review.status = 'rejected';
+          review.reason = `Could not be reviewed: ${errorText(e)}`;
         }
         this.emitRun();
       });
+
+      const kept: Opportunity[] = [];
+      for (const [key, f] of queue) {
+        const v = run.validations.find((x) => x.id === idFor(key))!;
+        const against = v.reviews.filter((r) => r.status !== 'kept');
+        if (against.length > 0) {
+          v.status = 'rejected';
+          v.reason = against.map((r) => `${r.reviewer}: ${r.reason}`).join(' ');
+          run.stats.rejected++;
+          this.opportunities.delete(v.id);
+          // Remembered so it is not re-checked every run, unless a review simply failed to run.
+          if (against.every((r) => !r.reason?.startsWith('Could not be reviewed'))) {
+            this.rejected.set(key, v.reason);
+            this.rejectedUrls.add(f.candidate.sourceUrl);
+          }
+          log('Validation agents', `Rejected "${f.candidate.title}". ${against.map((r) => `${r.reviewer}: ${r.reason}`).join(' ')}`.replace(/\.?$/, '.'), 'bad');
+          continue;
+        }
+        const both = verdicts.get(key)!;
+        // The status reviewer read the official page, so its version of the facts is the one kept;
+        // the criteria reviewer's words are why it fits.
+        const c = (both.status ?? both.criteria)!.record;
+        const fits = v.reviews.map((r) => r.fit ?? 0);
+        const fit = Number((fits.reduce((x, y) => x + y, 0) / fits.length).toFixed(2));
+        v.status = 'kept';
+        v.fit = fit;
+        v.reason = (both.criteria ?? both.status)!.reason;
+        const id = v.id;
+        const previous = this.opportunities.get(id);
+        const unknowns: Unknown[] = c.deadline ? [] : [{ field: 'deadline', label: UNKNOWN_DEADLINE[CATEGORY_OF[c.type]] }];
+        kept.push({
+          ...c,
+          id,
+          origin: this.brain.mode === 'live' ? 'live' : 'prepared',
+          fitExplanation: v.reason,
+          unknowns,
+          foundAt: previous?.foundAt ?? now().toISOString(),
+          lastCheckedAt: now().toISOString(),
+          baseScore: fit,
+          foundBy: assignments.find((a) => a.managerId === f.managerId)?.name ?? f.managerId,
+          alsoSeenAt: f.alsoSeenAt,
+          application: previous?.application ?? null,
+        });
+        if (!previous) this.newIds.add(id);
+      }
+      this.emitRun();
       run.stats.kept = kept.length;
       run.stats.added = this.newIds.size;
-      log('Validation agents', `Checked ${queue.length} postings against the student's criteria: kept ${kept.length}, rejected ${run.stats.rejected}`, 'good');
+      log('Validation agents', `Reviewed all ${queue.length} postings, ${REVIEWERS.length} reviews each (${tasks.length} in total): kept ${kept.length}, rejected ${run.stats.rejected}`, 'good');
 
       // 4. Application readers (from the fleet) for the strongest new results ----------
       const toRead = kept.filter((o) => !o.application).sort((a, b) => b.baseScore - a.baseScore).slice(0, 4);

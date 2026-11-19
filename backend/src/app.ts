@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HttpError, mountAgents, type AgentsOptions } from './agents/api.ts';
 import { config } from './config.ts';
+import { mountDesktopAuth } from './desktopAuth.ts';
 import { Engine, UserError, type Deps, type Mode } from './pipeline.ts';
 import type { Store } from './store/index.ts';
 
@@ -38,6 +39,7 @@ export function createApp(store: Store, deps: Partial<Deps> = {}, agents?: Agent
   app.get('/api/searches', async (c) => c.json({ searches: await store.listSearches(20) }));
 
   if (agents) mountAgents(app, agents);
+  mountDesktopAuth(app);
 
   app.onError((err, c) => {
     if (err instanceof UserError) return c.json({ error: err.message }, err.status as 400);

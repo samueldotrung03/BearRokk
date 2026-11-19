@@ -41,8 +41,28 @@ committed.
 | `/discover` | Career discovery | Paths that fit the student, what each expects, "Make this my goal" |
 | `/saved` | Saved | Saved tiles in the same grid, soonest deadline first |
 | `/agents` | Agents | Master, manager and worker agents with status, and an activity log |
-| `/profile` | Profile | The persona, class year, interests, skills, location, and the history the agents read |
-| `/signin` | Sign in | Mock sign-in screen. Nothing typed is sent or saved; any button goes to the feed |
+| `/profile` | Profile | Four tabs, saved as you type and sent to the backend. **Experience** (`ProfileExperience.tsx`): upload a résumé (PDF or text, up to 5 MB, signed-in students only; the backend keeps the file and reads its text for the agents), LinkedIn and other links, and experience entries the student adds one at a time, each with type, role, organization, location, dates or "still doing this", what I did, skills used and a link, every field optional. **Career interests**: what to look for, about 45 fields as tick-lists in six groups with a top field and add-your-own, then roles, where I want to end up, what I want out of it, about me. **Restrictions**: rules no result may break (where, when, pay, who can apply, never show me). **Custom notes**: note files the student creates, titles and writes freely; the agents read them first and they override the other two tabs. The questions are in `src/data/preferences.ts` |
+| `/settings` | Settings | **Connections**: Grok (status read from the backend), Google, Google Calendar and Google Sheets (each asks Google for that permission; Sheets can export the application tracker to a new spreadsheet). **On this computer**: switches for screen recording, full disk access and control. In the desktop app on a Mac these show what macOS has granted and open the right pane of System Settings; in a browser they only save the choice. No agent uses these three yet. **Agents and reminders**: how often agents search on their own, Run now, and when deadline reminders fire (sent to the backend). **Account and data**: change password, resend the confirmation email, sign out, download my data, clear history, delete account |
+| `/signin` | Sign in | Real sign-in through Firebase (project `bearok-ef3fa`): Google, X, or email and password, plus create account and password reset. The rest of the app redirects here until someone signs in or chooses "Look around without an account" |
+| `/signup` | Create an account | Four steps on the same layout as sign-in. **Account**: first and last name, email, password with live requirements, confirm. **About you**: school, major, class year, location. **Interests**: interests and skills. **Goals**: careers being considered, kinds of event to look for, and which other kinds of opportunity the agents should find. Set-up is required: an account from Google or X starts at step two, is asked to check its first and last name, and cannot reach the feed until it finishes |
+| `/forgot-password` | Forgot password | Enter an email, get a reset link from Firebase, with a 30-second wait before sending again. The message is the same whether or not the address has an account |
+
+## Sign-in
+
+`src/auth/`. `AuthProvider` holds who is signed in; `useAuth()` gives pages the user, `getToken()` for backend calls, and `signOut()`. After sign-in the app asks the backend's `/api/auth/me` whether it accepts the token, and the Profile page shows the answer. The backend address is `VITE_API_URL`, default `http://localhost:8787`.
+
+- The three account pages share `src/auth/ui.tsx` (the sky panel and card, fields, messages, buttons) so they look the same.
+- Creating an account stores the name on the Firebase account, emails a link to confirm the address (asked for, not required), saves the profile in the app, and sends it to the backend, which starts that student's agents.
+- Whether an account has been through "About you" is remembered per account in this browser (`src/auth/onboarding.ts`), so signing in on another device asks once more.
+- The reset link opens Firebase's own page for choosing the new password.
+- Google and email are switched on in Firebase. X is not yet, so that button reports "not switched on yet".
+- The feed, roadmap and other pages still read sample data; only sign-in talks to the backend so far.
+- Desktop app: Google and X sign-in open in the system browser, never in a window of the app. The app opens `<backend>/auth/desktop`, the student signs in there, and the backend hands the result to the app (`src/auth/desktop.ts`, `backend/src/desktopAuth.ts`). The backend must be running for this. Email sign-in happens in the app itself.
+- The Google and X buttons are never locked while a sign-in is open elsewhere. Closing that window or tab leaves the button ready, and clicking it again starts over.
+
+## Account menu
+
+The round button at the top right of every page (`src/components/ProfileMenu.tsx`) opens a menu with Profile and Settings. It closes on Escape, on a click elsewhere, and when the page changes. Settings also sits above Profile at the bottom of the dock.
 
 The logo is the team's artwork: a bear over a shield with a rising arrow, in blue and gold, with the background removed. It is a picture, not a vector: `src/assets/logo.png` (in the app), `public/favicon.png` (browser tab) and `electron/icon.png` (desktop app icon: the logo on a black rounded square), with `electron/icon.icns` built from `icon.png` using `sips` and `iconutil`. These were made from a 278px screenshot, so they are soft at large sizes; replace them from the original file when it is available.
 

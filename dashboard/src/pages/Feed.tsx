@@ -23,7 +23,7 @@ import { toggleDock } from '../components/Dock.tsx';
 import { formatLabel, typeMeta } from '../components/meta.ts';
 import { Cover, Details, OpportunityTile } from '../components/OpportunityCard.tsx';
 import { RoadmapPanel } from '../components/RoadmapPanel.tsx';
-import { opportunities } from '../data/sample.ts';
+import { ProfileMenu } from '../components/ProfileMenu.tsx';
 import {
   countActive,
   deadlineLabel,
@@ -40,6 +40,7 @@ import {
 import { planFor } from '../lib/roadmap.ts';
 import { daysUntil, dueLabel, shortDate } from '../lib/time.ts';
 import { rankFeedDetailed, signalLabel, type RankedOpportunity } from '../state/ranking.ts';
+import { DataBadge, useOpportunities } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import type { Format, Opportunity, OpportunityType } from '../types.ts';
 
@@ -263,7 +264,8 @@ export function Feed() {
   // The ranking runs again on every save, like and dislike, but only for cards the student has
   // not reached yet: cards already scrolled past keep their place, so nothing moves under the thumb.
   const [seen, setSeen] = useState<string[]>([]);
-  const live = useMemo(() => rankFeedDetailed(opportunities, state), [state]);
+  const opportunities = useOpportunities();
+  const live = useMemo(() => rankFeedDetailed(opportunities, state), [opportunities, state]);
   const slides = useMemo(() => {
     const byId = new Map(live.map((r) => [r.opportunity.id, r]));
     const kept = seen.map((id) => byId.get(id)).filter((r): r is RankedOpportunity => r !== undefined);
@@ -403,16 +405,8 @@ export function Feed() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="hidden rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur md:block">
-            Sample data
-          </span>
-          <Link
-            to="/profile"
-            className="grid size-9 place-items-center rounded-full bg-white text-sm font-semibold text-brand shadow-card"
-            aria-label="Your profile"
-          >
-            {state.profile.name.charAt(0)}
-          </Link>
+          <DataBadge />
+          <ProfileMenu />
         </div>
       </header>
 

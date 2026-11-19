@@ -1,4 +1,4 @@
-// Sign-in through Firebase Authentication, with Google or with email and password. The browser
+// Sign-in through Firebase Authentication, with Google, X (Twitter), or email and password. The browser
 // signs in and sends the Firebase ID token with each request; the backend verifies it and uses
 // the uid as the student id.
 import { getAuth } from 'firebase-admin/auth';
@@ -10,13 +10,13 @@ export interface AuthUser {
   name: string | null;
   email: string | null;
   picture: string | null;
-  provider: 'google' | 'password';
+  provider: 'google' | 'x' | 'password';
   /** Always true for Google. For email sign-in, true once the student has clicked the link Firebase emails them. */
   emailVerified: boolean;
 }
 
 /** Sign-in methods the backend accepts, by Firebase provider id. */
-export const PROVIDERS = { 'google.com': 'google', password: 'password' } as const;
+export const PROVIDERS = { 'google.com': 'google', 'twitter.com': 'x', password: 'password' } as const;
 
 export type Verifier = (token: string) => Promise<AuthUser>;
 

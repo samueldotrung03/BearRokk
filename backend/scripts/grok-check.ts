@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { config } from '../src/config.ts';
 import { grokJson } from '../src/grok.ts';
 
-if (config.grokTransport !== 'cli' && !config.xaiApiKey) {
+if (config.grokTransport === 'api' && !config.xaiApiKey) {
   console.error('Set XAI_API_KEY, or GROK_TRANSPORT=cli to use the subscription CLI, in backend/.env first.');
   process.exit(1);
 }

@@ -39,6 +39,50 @@ export interface Profile {
   skills: string[];
   /** Kinds of opportunity the student wants searched. */
   categories: Category[];
+  /** Career paths the student is considering, in their words. */
+  careerInterests: string[];
+  /** Kinds of event the student wants found, such as career fairs or hackathons. */
+  eventTypes: string[];
+  /** The profile page's three tabs: career interests, restrictions, and notes. */
+  preferences: StudentPreferences | null;
+}
+
+export interface StudentPreferences {
+  /** Fields the student ticked, including ones they added. */
+  fields: string[];
+  /** The one field that matters most to them. */
+  topField: string | null;
+  /** Typed answers by question id, such as rolesWanted, cities, minPay, lookingFor. */
+  answers: Record<string, string>;
+  /** Answers with several entries by question id, such as dreamCompanies, cities, skipIndustries. Non-empty entries in order. */
+  lists: Record<string, string[]>;
+  /** Ticked boxes by id, such as remote, paidOnly, onlyMyYear. */
+  checks: Record<string, boolean>;
+  /** Custom notes the student wrote. Read first; they override everything else. */
+  notes: { title: string; body: string }[];
+  /** What the student has done so far, from the Experience tab. */
+  experience: StudentExperience;
+}
+
+export interface ExperienceEntry {
+  /** Internship, Research, Project, and so on. Every part is optional and may be empty. */
+  kind: string;
+  role: string;
+  organization: string;
+  location: string;
+  /** YYYY-MM, or empty. */
+  start: string;
+  end: string;
+  current: boolean;
+  summary: string;
+  skills: string[];
+  link: string;
+}
+
+export interface StudentExperience {
+  linkedin: string;
+  links: string[];
+  entries: ExperienceEntry[];
 }
 
 export type Action = 'save' | 'like' | 'dislike' | 'open' | 'apply';
@@ -109,6 +153,11 @@ export interface Brief {
   year: ClassYear;
   location: string;
   remoteOk: boolean;
+  /**
+   * The student's custom notes, word for word. Highest priority: every agent that sees the brief
+   * follows a note over any other line in it.
+   */
+  notes: string[];
 }
 
 /** The angle a search manager covers its category from. */
@@ -149,13 +198,36 @@ export interface Job {
   attempts: number;
 }
 
+/**
+ * What one validation agent looks at. Every posting is reviewed once for each of these, by
+ * separate agents, and is kept only if all of them keep it.
+ */
+export type ReviewFocus = 'criteria' | 'status';
+
+export const REVIEWERS: { focus: ReviewFocus; name: string; checks: string }[] = [
+  { focus: 'criteria', name: 'Criteria reviewer', checks: "meets the student's rules and is what they are looking for" },
+  { focus: 'status', name: 'Status reviewer', checks: 'is real, still open, and its dates hold up on the official page' },
+];
+
+/** One validation agent's review of one posting. */
+export interface Review {
+  focus: ReviewFocus;
+  reviewer: string;
+  status: 'checking' | 'kept' | 'rejected';
+  reason: string | null;
+  fit: number | null;
+}
+
+/** A posting under review: one entry per posting, with a review from every validation agent. */
 export interface Validation {
   id: string;
   title: string;
   managerId: string;
+  /** kept only when every review kept it. */
   status: 'checking' | 'kept' | 'rejected';
   reason: string | null;
   fit: number | null;
+  reviews: Review[];
 }
 
 export interface LogEvent {
@@ -201,6 +273,8 @@ export interface FeedEntry {
   /** How much the student's history pulls this card up (positive) or down (negative), -1 to 1. */
   affinity: number;
   reason: string;
+  /** True when the student's custom notes asked for this. */
+  fromNotes: boolean;
   reaction: 'like' | 'dislike' | null;
   saved: boolean;
   isNew: boolean;

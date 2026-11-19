@@ -2,12 +2,13 @@ import { Link } from 'react-router';
 import { Masonry } from '../components/Masonry.tsx';
 import { OpportunityCard } from '../components/OpportunityCard.tsx';
 import { Card, Page } from '../components/Page.tsx';
-import { opportunities } from '../data/sample.ts';
+import { useOpportunities } from '../state/live.tsx';
 import { daysUntil } from '../lib/time.ts';
 import { useStore } from '../state/StoreProvider.tsx';
 
 export function Saved() {
   const { state } = useStore();
+  const opportunities = useOpportunities();
   // Soonest deadline first; items without one go last.
   const saved = opportunities
     .filter((o) => state.saved.includes(o.id))

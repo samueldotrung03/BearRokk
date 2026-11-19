@@ -6,9 +6,19 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { quizQuestions } from '../../data/discover-extra.ts';
 import { Discover } from '../../pages/Discover.tsx';
+import { AuthProvider } from '../../auth/AuthProvider.tsx';
+import { LiveProvider } from '../../state/live.tsx';
 import { StoreProvider } from '../../state/StoreProvider.tsx';
 
-const render = () => renderToString(createElement(MemoryRouter, null, createElement(StoreProvider, null, createElement(Discover))));
+// The page header reads the signed-in account and the live data, so both providers wrap it.
+const render = () =>
+  renderToString(
+    createElement(
+      MemoryRouter,
+      null,
+      createElement(AuthProvider, null, createElement(StoreProvider, null, createElement(LiveProvider, null, createElement(Discover)))),
+    ),
+  );
 
 function stubStorage(entries: Record<string, unknown>) {
   const data = new Map(Object.entries(entries).map(([k, v]) => [k, JSON.stringify(v)]));

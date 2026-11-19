@@ -57,6 +57,15 @@ Two more agents run on demand, not in every run:
 | **Career discovery** | Profile created or changed a lot | 3 to 5 career paths: what each is, why it fits, what it expects, first steps |
 | **Roadmap builder** | Student sets or changes a goal | Phases and dated steps; steps link to validated opportunities when one fits |
 
+### Custom notes come first
+
+On the profile page the student can write custom notes: files with a title and free text. They are the highest-priority input in the whole system, above ticked fields, restrictions and reaction history.
+
+- **Master agent:** reads the notes before the rest of the profile. What they ask for leads the brief, what they rule out goes into the things to avoid, and the notes are carried in the brief word for word (`brief.notes`) so no later agent works from a summary.
+- **Search managers, validation agents, presentation manager:** each is told the notes override every other line of the brief. Validation checks them before any other criterion.
+- **Feed ranking (`scoring.ts`):** a result a note rules out never reaches the feed, including results found before the note was written. A result a note asks for gets a boost larger than any swing from likes and dislikes, and its card says "Your notes ask for this".
+- **Without Grok**, the simulated agents read notes by simple wording rules (`noteSignals`): words after "no", "not", "avoid", "skip", "don't show" or "already applied to" are ruled out, a capitalised name is ruled out as a name, and the remaining meaningful words are what is asked for. Live Grok reads the notes as written.
+
 ### Model tiers
 
 Each level runs on a model matched to its job. The master, the managers and the validators run on the normal tier. The fleet is many small jobs, so it gets the cheapest, which is where most of the calls and most of the cost are.
@@ -83,6 +92,8 @@ Set `GROK_TRANSPORT` in `backend/.env`. The agents are the same either way; only
 | Structured answers | Enforced by the API with a JSON schema | Asked for in the prompt, checked on return, one retry |
 | Model tiers | `XAI_MODEL_*` | `GROK_CLI_MODEL_*`, otherwise the CLI's default for every level |
 | At once | 8 worker calls | 3 CLI processes (`GROK_CLI_CONCURRENCY`) |
+
+There is a third value, `claude`, which is **temporary and for testing only**: it runs the same agents on Claude through the Claude Code CLI so the live chain can be exercised before Grok access exists. See [`SWAP_TO_GROK.md`](SWAP_TO_GROK.md).
 
 Cautions for `cli`:
 
@@ -246,6 +257,8 @@ Steps 1 to 3 need no key and come first. If time runs out, steps 5 and 6 stay on
 **Sign-in with Google or with email and password (backend only):** built on Firebase Authentication, project `bearok-ef3fa`. The frontend signs the student in with either method and sends the Firebase ID token as `Authorization: Bearer <token>` (or `?token=` on the live stream). The backend verifies it and gives that student their own agent system under `/api/students/me/`. `GET /api/auth/config` returns the Firebase settings the frontend needs, and `GET /api/auth/me` returns the signed-in user. No sign-in screen is included. The demo student under `/api/students/demo/` stays open. `GET /api/auth/me` also says which method was used and whether an email address has been verified. It switches on when `FIREBASE_WEB_API_KEY` and `FIREBASE_PROJECT_ID` are set in `backend/.env`.
 
 **Application manager (backend only):** built. `PUT /api/students/:id/applications/:oppId` sets the status (`interested`, `to_apply`, `applying`, `applied`), saves draft answers, or supplies a deadline the posting did not state. `GET .../applications` lists them, soonest deadline first, with the prompts and materials the application readers collected. Marking `to_apply` or `applying` creates reminders on its own (a week before, two days before, the day of) and an "Add to Google Calendar" link. If the request carries the student's Google access token in `X-Google-Access-Token` (the frontend gets it at Google sign-in by asking for the `calendar.events` permission), the deadline is put on their Google Calendar as an all-day event with the same three reminders, and removed again when the status becomes `applied`. The token is used for that call and not stored. A posting with no deadline gets no reminder and is flagged `needsDeadline`. The Google Calendar call is tested against a stand-in, not yet against a real account. Reminders are data for the frontend to show; nothing sends an email or notification.
+
+**Background (résumé and experience):** `PUT /api/students/me/resume` takes a PDF or text file (5 MB at most), keeps it in memory and reads its text (`src/resume.ts`); `GET` returns the file and `DELETE` removes it. The demo student cannot have one, since it is shared. Experience entries and links arrive with the profile (`preferences.experience`). The master agent gets both as background: they add areas to search behind what the student asked for, never ahead of it, and never ahead of custom notes.
 
 **Not built:** roadmap builder, career discovery, saving agent-system state to Firestore (it is held in memory and lost on restart), and the dashboard connection.
 

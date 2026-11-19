@@ -23,7 +23,11 @@ async function render(view: string, extra: Record<string, unknown> = {}) {
   for (const [key, value] of Object.entries(extra)) store.set(key, JSON.stringify(value));
   const { Calendar } = await import('../../pages/Calendar.tsx');
   const { StoreProvider } = await import('../../state/StoreProvider.tsx');
-  return renderToString(createElement(MemoryRouter, null, createElement(StoreProvider, null, createElement(Calendar))));
+  const { AuthProvider } = await import('../../auth/AuthProvider.tsx');
+  const { LiveProvider } = await import('../../state/live.tsx');
+  // The page header reads the signed-in account and the live data, so both providers wrap it.
+  const page = createElement(AuthProvider, null, createElement(StoreProvider, null, createElement(LiveProvider, null, createElement(Calendar))));
+  return renderToString(createElement(MemoryRouter, null, page));
 }
 
 describe('Calendar page', () => {
