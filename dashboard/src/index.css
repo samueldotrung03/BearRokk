@@ -1,0 +1,1263 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'DM Sans Variable', Arial, sans-serif;
+  --font-display: 'Instrument Serif', Georgia, serif;
+
+  --color-ink: #152b43;
+  --color-ink-2: #46617d;
+  --color-ink-3: #71849a;
+  --color-canvas: #f3f7fc;
+  --color-line: #e2e9f3;
+  --color-brand: #245bd8;
+  --color-brand-soft: #eef3fa;
+  --color-sky-1: #2f86e0;
+  --color-sky-2: #6fb1f0;
+  --color-sky-3: #b9dbf8;
+
+  --shadow-card: 0 1px 2px rgb(24 52 110 / 0.05), 0 12px 32px -16px rgb(24 52 110 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(24 52 110 / 0.06), 0 22px 44px -18px rgb(24 52 110 / 0.28);
+}
+
+html {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* The sky behind every page header: deep blue at the top, washing out to the canvas. */
+.sky {
+  background:
+    radial-gradient(520px 260px at 84% 62%, rgb(255 255 255 / 0.55), transparent 70%),
+    radial-gradient(900px 380px at 12% 8%, rgb(28 92 214 / 0.55), transparent 70%),
+    linear-gradient(180deg, var(--color-sky-1) 0%, var(--color-sky-2) 42%, var(--color-sky-3) 74%, var(--color-canvas) 100%);
+}
+
+.btn-primary {
+  border-radius: 9px;
+  background: var(--color-brand);
+  font-weight: 600;
+  box-shadow: 0 5px 12px rgb(36 91 216 / 0.18);
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+
+.btn-primary:hover {
+  background: #1d4fc4;
+  transform: translateY(-1px);
+}
+
+/* Instrument Serif has one weight; keep the browser from faking a bolder one. */
+.font-display {
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding-bottom: 3px;
+  border-radius: 8px;
+  background: var(--color-ink);
+  color: white;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.brand-mark[data-tone='light'] {
+  background: white;
+  color: var(--color-ink);
+}
+
+/* ---------- Liquid glass ---------- */
+
+.glass {
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 0.5) 0%,
+    rgb(255 255 255 / 0.16) 42%,
+    rgb(255 255 255 / 0.1) 60%,
+    rgb(255 255 255 / 0.32) 100%
+  );
+  -webkit-backdrop-filter: blur(16px) saturate(190%) brightness(1.06);
+  backdrop-filter: blur(16px) saturate(190%) brightness(1.06);
+  border: 1px solid rgb(255 255 255 / 0.6);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 1px 0 0 rgb(255 255 255 / 0.55),
+    inset 0 -1px 0 rgb(255 255 255 / 0.3),
+    inset 0 0 18px rgb(255 255 255 / 0.3),
+    0 0 0 0.5px rgb(20 44 96 / 0.14),
+    0 24px 48px -14px rgb(20 44 96 / 0.4),
+    0 4px 10px rgb(20 44 96 / 0.1);
+}
+
+/* Specular sheen: a soft light falling across the top-left of the glass. */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 60% at 0% 0%, rgb(255 255 255 / 0.55), transparent 60%),
+    radial-gradient(90% 40% at 100% 100%, rgb(255 255 255 / 0.28), transparent 70%);
+  pointer-events: none;
+}
+
+/* ---------- Dock ---------- */
+
+.dock-edge {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 14px;
+  z-index: 40;
+}
+
+.dock-handle {
+  position: fixed;
+  left: 5px;
+  top: 50%;
+  width: 5px;
+  height: 52px;
+  margin-top: -26px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.8);
+  box-shadow:
+    0 0 0 0.5px rgb(20 44 96 / 0.2),
+    0 4px 12px rgb(20 44 96 / 0.25);
+  z-index: 40;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+/* Runs the full height of the window. The right padding is an invisible margin, so the pointer
+   can travel from the edge to the dock without closing it. */
+.dock-zone {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 50;
+  padding: 10px 40px 10px 10px;
+  transform: translateX(calc(-100% - 8px)) scale(0.985);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  /* Leaving: an even glide out, with the fade finishing just before it is off screen. */
+  transition:
+    transform 0.6s cubic-bezier(0.5, 0, 0.2, 1),
+    opacity 0.45s ease 0.05s;
+}
+
+.dock-zone[data-open='true'] {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+  /* Arriving: quick at first, then a long, soft settle. */
+  transition:
+    transform 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.35s ease;
+}
+
+/* The contents follow the glass in, one row after another. */
+@media (min-width: 640px) {
+  .dock > :not(.dock-glass) {
+    opacity: 0;
+    translate: -14px 0;
+    transition:
+      opacity 0.25s ease,
+      translate 0.4s ease,
+      background 0.15s ease;
+  }
+
+  .dock-zone[data-open='true'] .dock > :not(.dock-glass) {
+    opacity: 1;
+    translate: 0 0;
+    transition:
+      opacity 0.5s ease calc(60ms + var(--row, 0) * 32ms),
+      translate 0.75s cubic-bezier(0.16, 1, 0.3, 1) calc(60ms + var(--row, 0) * 32ms),
+      background 0.15s ease;
+  }
+
+  .dock > :nth-child(3) { --row: 1; }
+  .dock > :nth-child(4) { --row: 2; }
+  .dock > :nth-child(5) { --row: 3; }
+  .dock > :nth-child(6) { --row: 4; }
+  .dock > :nth-child(7) { --row: 5; }
+  .dock > :nth-child(8) { --row: 6; }
+  .dock > :nth-child(9) { --row: 7; }
+  .dock > :nth-child(10) { --row: 8; }
+  .dock > :nth-child(11) { --row: 9; }
+  .dock > :nth-child(12) { --row: 10; }
+}
+
+.dock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 236px;
+  height: 100%;
+  padding: 14px 10px 10px;
+}
+
+.dock-glass {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+}
+
+/* Over page content the clear glass needs more frost than over the sky, or names get lost. */
+.dock-zone .dock-glass {
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 0.72) 0%,
+    rgb(255 255 255 / 0.5) 45%,
+    rgb(255 255 255 / 0.62) 100%
+  );
+  -webkit-backdrop-filter: blur(22px) saturate(190%) brightness(1.06);
+  backdrop-filter: blur(22px) saturate(190%) brightness(1.06);
+}
+
+.dock-spacer {
+  flex: 1;
+  min-height: 8px;
+}
+
+.dock-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 5px;
+  border-radius: 12px;
+  color: var(--color-ink);
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.dock-item:hover {
+  background: rgb(255 255 255 / 0.5);
+}
+
+.dock-item[aria-current='page'] {
+  background: rgb(255 255 255 / 0.9);
+  box-shadow:
+    0 1px 4px rgb(35 61 97 / 0.14),
+    inset 0 1px 0 white;
+}
+
+.dock-brand,
+.dock-brand:hover {
+  background: none;
+  padding: 2px 7px;
+}
+
+.dock-brand .dock-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Sets the name apart from the navigation below it: an etched line, dark over light. */
+.dock-divider {
+  position: relative;
+  height: 1px;
+  margin: 12px 4px 10px;
+  background: linear-gradient(90deg, transparent, rgb(21 43 67 / 0.22) 12%, rgb(21 43 67 / 0.22) 88%, transparent);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.7);
+}
+
+.dock-heading {
+  position: relative;
+  padding: 0 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-3);
+}
+
+.dock-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  overflow: hidden;
+  isolation: isolate;
+  color: white;
+  /* Three soft lights on a deep base: the resting look of the orb. */
+  background:
+    radial-gradient(circle at 28% 22%, var(--c1), transparent 62%),
+    radial-gradient(circle at 80% 34%, var(--c2), transparent 58%),
+    radial-gradient(circle at 46% 92%, var(--c3), transparent 62%),
+    #101a3a;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.55),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
+    inset 0 -3px 6px rgb(8 12 40 / 0.35),
+    0 6px 14px -5px color-mix(in srgb, var(--c2) 75%, transparent);
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.25s ease;
+}
+
+/* The moving light: a blurred color wheel that turns slowly behind the glyph. */
+.dock-tile::before {
+  content: '';
+  position: absolute;
+  inset: -45%;
+  z-index: -1;
+  background: conic-gradient(from 0deg, var(--c1), var(--c2), var(--c3), var(--c1));
+  filter: blur(7px) saturate(1.3);
+  opacity: 0.85;
+  animation: orb-spin 7s linear infinite;
+  animation-play-state: paused;
+}
+
+/* Glass highlight across the top half. */
+.dock-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(90% 55% at 50% 0%, rgb(255 255 255 / 0.5), transparent 70%),
+    linear-gradient(180deg, transparent 55%, rgb(8 12 40 / 0.22));
+  pointer-events: none;
+}
+
+.dock-tile svg {
+  position: relative;
+  width: 19px;
+  height: 19px;
+  filter: drop-shadow(0 0 5px rgb(255 255 255 / 0.55)) drop-shadow(0 1px 1px rgb(8 12 40 / 0.45));
+}
+
+.dock-item:hover .dock-tile::before,
+.dock-item:focus-visible .dock-tile::before,
+.dock-item[aria-current='page'] .dock-tile::before {
+  animation-play-state: running;
+}
+
+.dock-item:hover .dock-tile {
+  transform: scale(1.12);
+}
+
+.dock-item:hover .dock-tile,
+.dock-item[aria-current='page'] .dock-tile {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.4),
+    inset 0 -3px 6px rgb(8 12 40 / 0.3),
+    0 0 16px -2px color-mix(in srgb, var(--c1) 70%, transparent),
+    0 8px 18px -5px color-mix(in srgb, var(--c2) 85%, transparent);
+}
+
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dock-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Sets the name apart from the navigation below it: an etched line, dark over light. */
+.dock-divider {
+  position: relative;
+  height: 1px;
+  margin: 12px 4px 10px;
+  background: linear-gradient(90deg, transparent, rgb(21 43 67 / 0.22) 12%, rgb(21 43 67 / 0.22) 88%, transparent);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.7);
+}
+
+.dock-heading {
+  position: relative;
+  padding: 0 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-3);
+}
+
+.dock-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: white;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    inset 0 -2px 4px rgb(0 0 0 / 0.16),
+    0 4px 8px -3px rgb(20 44 96 / 0.5);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dock-item:hover .dock-tile {
+  transform: scale(1.1);
+}
+
+.dock-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.42), transparent 50%);
+  pointer-events: none;
+}
+
+.dock-tile svg {
+  width: 20px;
+  height: 20px;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.25));
+}
+
+.dock-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dock-dot {
+  display: none;
+}
+
+.dock-pin-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--color-ink-2);
+  background: rgb(255 255 255 / 0.6);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 1px 3px rgb(20 44 96 / 0.18);
+}
+
+.dock-pin-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dock-pin[aria-pressed='true'] .dock-pin-icon {
+  background: var(--color-ink);
+  color: white;
+}
+
+/* The live panel that fills the middle of the dock. */
+.dock-usage {
+  position: relative;
+  margin: 0 0 8px;
+  padding: 14px;
+  border-radius: 16px;
+  color: white;
+  background:
+    radial-gradient(140% 90% at 100% 0%, rgb(86 150 255 / 0.55), transparent 60%),
+    linear-gradient(165deg, #1d3a5c 0%, #152b43 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 10px 22px -10px rgb(21 43 67 / 0.7);
+}
+
+.dock-bars {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: end;
+  gap: 5px;
+  height: 46px;
+}
+
+.dock-bar {
+  border-radius: 4px 4px 2px 2px;
+  background: rgb(255 255 255 / 0.28);
+  transform-origin: bottom;
+  animation: bar-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.dock-bar[data-today='true'] {
+  background: linear-gradient(180deg, #8fc0ff, #4f8dff);
+  box-shadow: 0 0 12px rgb(110 170 255 / 0.7);
+}
+
+@keyframes bar-rise {
+  from {
+    transform: scaleY(0.1);
+    opacity: 0;
+  }
+}
+
+.dock-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.18);
+  overflow: hidden;
+}
+
+.dock-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6fb1f0, #a8d4ff);
+}
+
+/* A pinned dock, or one on a touch screen, is always there: move the page out from under it. */
+.page-outer {
+  transition: padding-left 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 640px) {
+  html[data-dock-pinned='true'] .page-outer {
+    padding-left: 246px;
+  }
+
+  .dock-zone[data-pinned='true'] {
+    padding-right: 10px;
+  }
+}
+
+@media (min-width: 640px) and (hover: none) {
+  .page-outer {
+    padding-left: 246px;
+  }
+}
+
+/* Short windows: drop the live panel before the navigation gets squeezed. */
+@media (max-height: 700px) {
+  .dock-usage {
+    display: none;
+  }
+}
+
+/* Phones: the dock becomes a bar of icons along the bottom and stays visible. */
+@media (max-width: 639px) {
+  .dock-zone {
+    inset: auto auto 0 50%;
+    padding: 12px;
+    transform: translate(-50%, calc(100% + 8px));
+  }
+
+  .dock-zone[data-open='true'] {
+    transform: translate(-50%, 0);
+  }
+
+  .dock {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    height: auto;
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .dock-item {
+    width: auto;
+  }
+
+  .dock-item[aria-current='page'] {
+    background: none;
+    box-shadow: none;
+  }
+
+  .dock-item[aria-current='page'] .dock-dot {
+    display: block;
+    position: absolute;
+    left: 50%;
+    bottom: -3px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 999px;
+    background: rgb(21 43 67 / 0.75);
+  }
+
+  .dock-name,
+  .dock-edge,
+  .dock-handle,
+  .dock-pin,
+  .dock-brand,
+  .dock-divider,
+  .dock-heading,
+  .dock-usage,
+  .dock-spacer {
+    display: none;
+  }
+}
+
+/* ---------- Reel: the full-screen, one-at-a-time feed ---------- */
+
+.reel {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.reel-header {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px;
+  pointer-events: none;
+  transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reel-header > * {
+  pointer-events: auto;
+}
+
+/* The header is positioned, so it has to step aside for a pinned dock on its own. */
+@media (min-width: 640px) {
+  html[data-dock-pinned='true'] .reel-header {
+    left: 246px;
+  }
+}
+
+.reel-filters {
+  display: flex;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.22);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.4);
+}
+
+.reel-filter {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.reel-filter:hover {
+  background: rgb(255 255 255 / 0.2);
+}
+
+.reel-filter[aria-pressed='true'] {
+  background: white;
+  color: var(--color-ink);
+  box-shadow: 0 2px 8px rgb(20 44 96 / 0.2);
+}
+
+.reel-scroller {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  outline: none;
+}
+
+/* A type filter shows an ordinary scrolling grid below the header. */
+.feed-scroller {
+  position: absolute;
+  inset: 68px 0 0 0;
+  overflow-y: auto;
+  padding: 20px 24px 48px;
+}
+
+.feed-toolbar {
+  /* Raised above the cards: its blur makes it a layer of its own, and without this the cards
+     that come after it are drawn over the Filters panel that drops down from it. */
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: var(--shadow-card);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.feed-search {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--color-canvas);
+  border: 1px solid transparent;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.feed-search:focus-within {
+  background: white;
+  border-color: var(--color-brand);
+}
+
+.feed-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: 15px;
+  color: var(--color-ink);
+  background: none;
+  outline: none;
+}
+
+.feed-search input::placeholder {
+  color: var(--color-ink-3);
+}
+
+.feed-select select {
+  height: 44px;
+  padding: 0 36px 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  appearance: none;
+  background: white
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%2346617d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E")
+    no-repeat right 14px center;
+  cursor: pointer;
+}
+
+.feed-filter-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: white;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.feed-filter-button:hover,
+.feed-filter-button[aria-expanded='true'] {
+  border-color: var(--color-brand);
+}
+
+.feed-filter-button[data-active='true'] {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.feed-filter-count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: white;
+  background: var(--color-brand);
+}
+
+.feed-filter-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 30;
+  display: grid;
+  gap: 14px;
+  width: min(340px, calc(100vw - 32px));
+  padding: 18px;
+  border-radius: 18px;
+  background: white;
+  box-shadow:
+    0 0 0 1px var(--color-line),
+    var(--shadow-lift);
+  animation: panel-in 0.18s ease-out;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.feed-filter-panel legend {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.feed-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  font-size: 14px;
+  color: var(--color-ink-2);
+  cursor: pointer;
+}
+
+.feed-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand);
+}
+
+/* An active filter, shown under the toolbar; clicking it removes the filter. */
+.feed-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: var(--color-ink);
+  box-shadow: var(--shadow-card);
+  transition: background 0.15s;
+}
+
+.feed-chip:hover {
+  background: #21405f;
+}
+
+@media (min-width: 640px) {
+  html[data-dock-pinned='true'] .feed-scroller {
+    left: 246px;
+  }
+}
+
+@media (max-width: 639px) {
+  .feed-scroller {
+    inset: 62px 0 0 0;
+    padding: 12px 14px 110px;
+  }
+}
+
+.reel-scroller::-webkit-scrollbar,
+.reel-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.reel-slide {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 76px 16px 20px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.reel-stage {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  height: 100%;
+  max-height: 860px;
+}
+
+.reel-card {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 10 / 16;
+  max-width: calc(100vw - 130px);
+  overflow: hidden;
+  border-radius: 28px;
+  color: white;
+  background: var(--color-ink);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.5),
+    0 30px 60px -20px rgb(20 44 96 / 0.55);
+}
+
+.reel-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(8 16 32 / 0.3) 0%, transparent 22%),
+    linear-gradient(0deg, rgb(8 16 32 / 0.92) 0%, rgb(8 16 32 / 0.6) 34%, transparent 62%);
+}
+
+.reel-body {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 22px;
+}
+
+.reel-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgb(255 255 255 / 0.2);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.45);
+}
+
+.reel-chip-solid {
+  background: white;
+  color: var(--color-ink);
+}
+
+.reel-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 8px;
+}
+
+.reel-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 64px;
+  color: var(--color-ink);
+}
+
+.reel-action-icon {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  background: white;
+  box-shadow:
+    0 1px 2px rgb(24 52 110 / 0.08),
+    0 10px 22px -10px rgb(24 52 110 / 0.4);
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.2s,
+    color 0.2s;
+}
+
+.reel-action-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.reel-action:hover .reel-action-icon {
+  transform: scale(1.1);
+}
+
+.reel-action:active .reel-action-icon {
+  transform: scale(0.94);
+}
+
+.reel-action[data-active='true'] .reel-action-icon,
+.reel-action[data-primary='true'] .reel-action-icon {
+  background: var(--color-brand);
+  color: white;
+}
+
+.reel-action-label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.reel-end {
+  width: min(420px, 100%);
+  padding: 44px 32px;
+  border-radius: 28px;
+  text-align: center;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: var(--shadow-lift);
+}
+
+.reel-pager {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+
+.reel-pager button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  color: var(--color-ink);
+  background: rgb(255 255 255 / 0.85);
+  box-shadow: var(--shadow-card);
+  transition:
+    background 0.2s,
+    opacity 0.2s;
+}
+
+.reel-pager button:hover {
+  background: white;
+}
+
+.reel-pager button:disabled {
+  opacity: 0.4;
+}
+
+.reel-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border-radius: 14px;
+  font-size: 14px;
+  color: white;
+  background: var(--color-ink);
+  box-shadow: var(--shadow-lift);
+  transform: translateX(-50%);
+}
+
+/* Phones: the photo fills the screen and the actions sit on top of it, as in TikTok. */
+@media (max-width: 639px) {
+  .reel-header {
+    padding: 12px;
+  }
+
+  .reel-slide {
+    padding: 0;
+  }
+
+  .reel-stage {
+    position: relative;
+    width: 100%;
+    max-height: none;
+  }
+
+  .reel-card {
+    width: 100%;
+    max-width: none;
+    aspect-ratio: auto;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .reel-shade {
+    background:
+      linear-gradient(180deg, rgb(8 16 32 / 0.55) 0%, transparent 24%),
+      linear-gradient(0deg, rgb(8 16 32 / 0.94) 0%, rgb(8 16 32 / 0.6) 40%, transparent 68%);
+  }
+
+  .reel-body {
+    padding: 18px 86px 96px 18px;
+  }
+
+  .reel-rail {
+    position: absolute;
+    right: 8px;
+    bottom: 96px;
+    gap: 12px;
+    padding: 0;
+  }
+
+  .reel-action {
+    width: 58px;
+    color: white;
+  }
+
+  .reel-action-icon {
+    width: 46px;
+    height: 46px;
+    color: white;
+    background: rgb(255 255 255 / 0.22);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.5);
+  }
+
+  .reel-action-label {
+    text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+  }
+
+  .reel-end {
+    width: calc(100% - 32px);
+  }
+
+  .reel-pager {
+    display: none;
+  }
+
+  .reel-toast {
+    bottom: 92px;
+  }
+}
+
+/* ---------- macOS desktop app: no title bar ---------- */
+
+/* The strip along the top where the window can be dragged. It sits above the page, so the
+   page's own controls start below it. */
+.window-drag {
+  display: none;
+}
+
+html.is-desktop .window-drag {
+  display: block;
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 34px;
+  /* Under the page and ignored by the pointer: it only marks the area as draggable. On top, it
+     would swallow clicks meant for the top bar. */
+  z-index: 0;
+  pointer-events: none;
+  -webkit-app-region: drag;
+}
+
+/* The top bar (logo, filters, profile) sits on the same line as the window buttons. Its left
+   end starts after them; its controls are carved out of the drag strip so they stay clickable. */
+html.is-desktop .reel-header {
+  padding-top: 11px;
+  padding-left: 104px;
+}
+
+html.is-desktop .page-header {
+  padding-top: 11px;
+}
+
+html.is-desktop .reel-header > *,
+html.is-desktop .page-header > * {
+  -webkit-app-region: no-drag;
+}
+
+@media (max-width: 1299px) {
+  html.is-desktop .page-header {
+    padding-left: 76px;
+  }
+}
+
+/* With the sidebar pinned, the window buttons are inside it and the bar needs no extra room. */
+@media (min-width: 640px) {
+  html.is-desktop[data-dock-pinned='true'] .reel-header {
+    padding-left: 24px;
+  }
+
+  html.is-desktop[data-dock-pinned='true'] .page-header {
+    padding-left: 0;
+  }
+}
+
+html.is-desktop .reel-slide {
+  padding-top: 70px;
+}
+
+html.is-desktop .feed-scroller {
+  top: 64px;
+}
+
+/* The sidebar starts below the window buttons. */
+html.is-desktop .dock-zone {
+  padding-top: 52px;
+}
+
+html.is-desktop .signin-page > :first-child {
+  padding-top: 52px;
+}
+
+@media (max-width: 639px) {
+  html.is-desktop .dock-zone {
+    padding-top: 12px;
+  }
+
+  html.is-desktop .reel-slide {
+    padding-top: 0;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(52 199 89 / 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 7px rgb(52 199 89 / 0);
+  }
+}
+
+.live-dot {
+  animation: pulse-ring 1.8s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-zone,
+  .dock-zone[data-open='true'],
+  .dock > :not(.dock-glass),
+  .dock-zone[data-open='true'] .dock > :not(.dock-glass),
+  .page-outer,
+  .dock-tile,
+  .dock-handle {
+    transition: none;
+  }
+
+  .dock-bar,
+  .feed-filter-panel,
+  .dock-tile::before {
+    animation: none;
+  }
+
+  .live-dot {
+    animation: none;
+  }
+}

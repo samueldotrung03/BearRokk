@@ -1,0 +1,248 @@
+// Left-edge navigation: a full-height liquid-glass sidebar that stays hidden until the pointer
+// reaches the left edge of the window, the way the macOS Dock hides. Pinned, it stays open and
+// the page moves over to make room.
+import {
+  BookmarkSimple,
+  Compass,
+  House,
+  Path,
+  PushPin,
+  PushPinSlash,
+  Robot,
+  UserCircle,
+  type Icon,
+} from '@phosphor-icons/react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Link, NavLink } from 'react-router';
+import { agents, agentUsage, opportunities, roadmaps } from '../data/sample.ts';
+import { useStore } from '../state/StoreProvider.tsx';
+import { BrandMark } from './Brand.tsx';
+
+interface DockItem {
+  to: string;
+  label: string;
+  icon: Icon;
+  /** Three colors that swirl inside the icon's orb. */
+  colors: [string, string, string];
+  /** Sits at the bottom of the dock, apart from the main pages. */
+  bottom?: boolean;
+}
+
+export const dockItems: DockItem[] = [
+  { to: '/', label: 'Feed', icon: House, colors: ['#3ad6ff', '#4f6bff', '#b14bff'] },
+  { to: '/roadmap', label: 'Roadmap', icon: Path, colors: ['#5cf2c0', '#19b5e6', '#3d6bff'] },
+  { to: '/discover', label: 'Career discovery', icon: Compass, colors: ['#ff7ad9', '#9a5bff', '#4f8cff'] },
+  { to: '/saved', label: 'Saved', icon: BookmarkSimple, colors: ['#ffd15c', '#ff8a3d', '#ff4f8b'] },
+  { to: '/agents', label: 'Agents', icon: Robot, colors: ['#ff5fa2', '#ff7a45', '#b04bff'] },
+  { to: '/profile', label: 'Profile', icon: UserCircle, colors: ['#9fb4ff', '#6a7cff', '#40e0d0'], bottom: true },
+];
+
+const CLOSE_DELAY = 420;
+const PEEK_MS = 2600;
+const TOGGLE_EVENT = 'dock:toggle';
+const PIN_KEY = 'bearrok.dock.pinned';
+const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+/** Lets a button elsewhere on the page pin the dock open, or unpin it. */
+export function toggleDock() {
+  window.dispatchEvent(new Event(TOGGLE_EVENT));
+}
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const onChange = () => setMatches(media.matches);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+}
+
+/** Live panel in the dock: what the agents used this week and where the student stands. */
+function DockUsage() {
+  const { state } = useStore();
+  const all = [agents.master, ...agents.managers, ...agents.workers];
+  const running = all.filter((node) => node.status === 'running').length;
+  const { pagesPerDay, budgetUsed, searchesToday } = agentUsage;
+  const total = pagesPerDay.reduce((sum, pages) => sum + pages, 0);
+  const peak = Math.max(...pagesPerDay);
+  const today = new Date().getDay();
+
+  const steps = roadmaps.find((r) => r.goalId === state.goalId)?.phases.flatMap((phase) => phase.steps) ?? [];
+  const done = steps.filter((step) => state.doneSteps.includes(step.id)).length;
+  const stats = [
+    { label: 'in feed', value: opportunities.length - state.dismissed.length },
+    { label: 'saved', value: state.saved.length },
+    { label: 'roadmap', value: steps.length ? `${Math.round((done / steps.length) * 100)}%` : '0%' },
+  ];
+
+  return (
+    <section className="dock-usage" aria-label="Agent usage this week">
+      <div className="flex items-center justify-between text-xs font-semibold">
+        <span className="flex items-center gap-2">
+          <span className="live-dot size-2 rounded-full bg-[#34c759]" aria-hidden="true" />
+          Agents live
+        </span>
+        <span className="text-white/65">
+          {running} of {all.length}
+        </span>
+      </div>
+
+      <p className="mt-3 font-display text-4xl leading-none">{total}</p>
+      <p className="mt-1 text-xs text-white/65">pages read this week</p>
+
+      <div className="dock-bars mt-3" aria-hidden="true">
+        {pagesPerDay.map((pages, index) => (
+          <span
+            key={index}
+            className="dock-bar"
+            data-today={index === pagesPerDay.length - 1}
+            style={{ height: `${Math.round((pages / peak) * 100)}%`, animationDelay: `${index * 60}ms` }}
+          />
+        ))}
+      </div>
+      <div className="mt-1 grid grid-flow-col auto-cols-fr gap-[5px] text-center text-[10px] text-white/50" aria-hidden="true">
+        {pagesPerDay.map((_, index) => (
+          <span key={index}>{DAYS[(today - (pagesPerDay.length - 1 - index) + 7) % 7]}</span>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between text-xs">
+        <span className="text-white/65">Grok budget today</span>
+        <span className="font-semibold">{Math.round(budgetUsed * 100)}%</span>
+      </div>
+      <div
+        className="dock-meter mt-1.5"
+        role="progressbar"
+        aria-label="Grok budget used today"
+        aria-valuenow={Math.round(budgetUsed * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <span style={{ width: `${budgetUsed * 100}%` }} />
+      </div>
+      <p className="mt-1.5 text-[11px] text-white/50">{searchesToday} searches so far</p>
+
+      <dl className="mt-3 grid grid-cols-3 gap-1 border-t border-white/15 pt-3 text-center">
+        {stats.map((stat) => (
+          <div key={stat.label}>
+            <dd className="text-sm font-bold">{stat.value}</dd>
+            <dt className="text-[10px] text-white/55">{stat.label}</dt>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+export function Dock() {
+  const canHover = useMediaQuery('(hover: hover) and (pointer: fine)');
+  const narrow = useMediaQuery('(max-width: 639px)');
+
+  // Starts open for a moment so a first-time visitor sees where navigation lives.
+  const [open, setOpen] = useState(true);
+  const [pinned, setPinned] = useState(() => localStorage.getItem(PIN_KEY) === '1');
+  const closeTimer = useRef<number | undefined>(undefined);
+
+  const cancelClose = useCallback(() => window.clearTimeout(closeTimer.current), []);
+  const scheduleClose = useCallback(
+    (delay = CLOSE_DELAY) => {
+      cancelClose();
+      closeTimer.current = window.setTimeout(() => setOpen(false), delay);
+    },
+    [cancelClose],
+  );
+  const show = useCallback(() => {
+    cancelClose();
+    setOpen(true);
+  }, [cancelClose]);
+
+  useEffect(() => {
+    scheduleClose(PEEK_MS);
+    return cancelClose;
+  }, [scheduleClose, cancelClose]);
+
+  useEffect(() => {
+    const onToggle = () => setPinned((value) => !value);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    };
+    window.addEventListener(TOGGLE_EVENT, onToggle);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener(TOGGLE_EVENT, onToggle);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  // The page reads this attribute to make room for a pinned dock.
+  useEffect(() => {
+    document.documentElement.dataset.dockPinned = String(pinned);
+    localStorage.setItem(PIN_KEY, pinned ? '1' : '0');
+  }, [pinned]);
+
+  const visible = open || pinned || !canHover || narrow;
+
+  const renderItem = (item: DockItem) => (
+    <NavLink key={item.to} to={item.to} end={item.to === '/'} className="dock-item" aria-label={item.label}>
+      <span
+        className="dock-tile"
+        style={{ '--c1': item.colors[0], '--c2': item.colors[1], '--c3': item.colors[2] } as CSSProperties}
+      >
+        <item.icon weight="fill" aria-hidden="true" />
+      </span>
+      <span className="dock-name" aria-hidden="true">
+        {item.label}
+      </span>
+      <span className="dock-dot" aria-hidden="true" />
+    </NavLink>
+  );
+
+  return (
+    <>
+      <div className="dock-edge" onPointerEnter={show} aria-hidden="true" />
+      <div className="dock-handle" style={{ opacity: visible ? 0 : 1 }} aria-hidden="true" />
+      <div
+        className="dock-zone"
+        data-open={visible}
+        data-pinned={pinned}
+        onPointerEnter={show}
+        onPointerLeave={() => scheduleClose()}
+        onFocus={show}
+        onBlur={() => scheduleClose()}
+      >
+        <nav className="dock" aria-label="Primary">
+          <div className="dock-glass glass" aria-hidden="true" />
+          <Link to="/" className="dock-item dock-brand" aria-label="BearRok home">
+            <BrandMark />
+            <span className="dock-name" aria-hidden="true">
+              BearRok
+            </span>
+          </Link>
+          <div className="dock-divider" aria-hidden="true" />
+          {dockItems.filter((item) => !item.bottom).map(renderItem)}
+          <div className="dock-spacer" />
+          <DockUsage />
+          {dockItems.filter((item) => item.bottom).map(renderItem)}
+          <button
+            type="button"
+            className="dock-item dock-pin"
+            aria-pressed={pinned}
+            aria-label="Keep the sidebar open"
+            onClick={() => setPinned((value) => !value)}
+          >
+            <span className="dock-pin-icon">
+              {pinned ? <PushPinSlash weight="fill" aria-hidden="true" /> : <PushPin weight="duotone" aria-hidden="true" />}
+            </span>
+            <span className="dock-name" aria-hidden="true">
+              {pinned ? 'Unpin sidebar' : 'Keep sidebar open'}
+            </span>
+          </button>
+        </nav>
+      </div>
+    </>
+  );
+}
