@@ -66,7 +66,7 @@ export function PlanCard({
         </div>
         <div className="flex items-center gap-2">
           {accepted.length > 0 && (
-            <button type="button" onClick={onClearAccepted} className="cal-nav gap-1.5 px-3 text-sm font-semibold">
+            <button type="button" onClick={onClearAccepted} className="cal-nav flex! items-center gap-1.5 px-3 text-sm font-semibold whitespace-nowrap">
               <Undo2 className="size-4" aria-hidden="true" /> Clear accepted
             </button>
           )}

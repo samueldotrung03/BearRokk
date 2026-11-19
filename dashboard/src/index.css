@@ -606,6 +606,8 @@ body {
   overscroll-behavior: contain;
   scrollbar-width: none;
   outline: none;
+  /* When the cards arrive, the reel stays at the top instead of following whatever was on screen before them. */
+  overflow-anchor: none;
 }
 
 /* A type filter shows an ordinary scrolling grid below the header. */

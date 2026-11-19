@@ -1258,10 +1258,16 @@
 
 .cx-agenda {
   display: grid;
+  /* Rows shrink to the column, so a long line is cut with an ellipsis and not pushed off the card. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   max-height: 640px;
   padding-right: 4px;
   overflow-y: auto;
+}
+
+.cx-agenda-day > ul {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .cx-agenda-head {

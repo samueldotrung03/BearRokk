@@ -131,6 +131,8 @@ export interface Journey {
   open: boolean;
   /** Neighbouring careers worth a look. Empty for a posting. */
   related: Related[];
+  /** True when this roadmap is a career guide's "How to start", sent over from Career discovery. */
+  guide?: boolean;
   /** True when this roadmap was built from the options the student picked. */
   plan?: boolean;
   /** Categories the student picked nothing from, with what they could add. Built roadmaps only. */
@@ -455,6 +457,69 @@ export function customCareer(goal: string): Journey {
   return asOptions(journey);
 }
 
+/** The "How to start" part of a career guide, as the Career discovery page hands it over. */
+export interface GuideStart {
+  steps: { title: string; detail: string; when?: string | null; resource: { title: string; url: string } | null; prepares?: string[] }[];
+  /** Who researched it, so sample steps are never shown as live research. */
+  provider: 'grok' | 'claude' | 'simulated';
+  sample: boolean;
+}
+
+/** Where the Career discovery page leaves a guide's steps for the roadmap page, by career title. */
+export const GUIDES_KEY = 'bearrok.roadmap.guides';
+
+/**
+ * A career guide's "How to start" drawn as a road: its steps in the guide's own order, grouped by
+ * when the guide says to do them. No hours are shown, because the guide gives none.
+ */
+export function guideJourney(goal: string, guide: GuideStart, doneSteps: string[], skip: string[] = []): Journey {
+  const slug = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+  const prefix = `guide-${slug(goal)}`;
+  const seen = new Set<string>();
+  const groups: { id: string; title: string; window: string; steps: Draft[] }[] = [];
+  for (const step of guide.steps) {
+    const id = `${prefix}:${slug(step.title)}`;
+    if (!step.title.trim() || seen.has(id)) continue;
+    seen.add(id);
+    const when = step.when?.trim() || 'How to start';
+    let group = groups.at(-1);
+    if (!group || group.title !== when) {
+      group = { id: `${prefix}:phase-${groups.length}`, title: when, window: '', steps: [] };
+      groups.push(group);
+    }
+    const prepares = (step.prepares ?? []).filter((p) => p.trim());
+    group.steps.push({
+      id,
+      kind: kindOf(`${step.title} ${step.detail}`),
+      title: step.title,
+      detail: step.detail,
+      phaseId: group.id,
+      due: null,
+      done: doneSteps.includes(id),
+      hours: 0,
+      source: 'people',
+      strength: null,
+      skills: [],
+      resources: step.resource && /^https?:\/\//.test(step.resource.url) ? [{ label: step.resource.title, url: step.resource.url }] : [],
+      why: [`It is step ${seen.size} of how to start in the ${goal} career guide.`, ...(prepares.length ? [`It prepares you for ${prepares.join(', ')} in the interviews.`] : [])],
+      evidence: null,
+      opportunity: null,
+    });
+  }
+  const who = guide.sample || guide.provider === 'simulated' ? 'sample steps, because no model is connected' : guide.provider === 'claude' ? 'researched by Claude, standing in for Grok during testing' : 'researched by Grok';
+  const journey = finish(
+    'career',
+    goal,
+    `How to start in ${goal}, step by step, from its career guide. Open a step for what it involves, and tick it off when you have done it.`,
+    groups,
+    [],
+    { stages: [{ label: 'Reading the career guide', result: `How to start in ${goal}` }], fit: null, sources: [], stories: [], basis: `These steps come from the career guide's "How to start" for ${goal} (${who}).` },
+    hueOf(undefined),
+    skip,
+  );
+  return { ...journey, guide: true };
+}
+
 /** A timeline line with its months and counts taken out, so "Applied in October" and "Applied in November" match. */
 const sameThing = (line: string) =>
   line
@@ -675,7 +740,7 @@ export function jobJourney(state: AppState, o: Opportunity, now = Date.now(), sk
     : !missing.length
       ? `${o.organizer} asks for ${list(asked)}, and your profile shows ${asked.length === 1 ? 'it' : 'all of it'}.`
       : !met.length
-        ? `${o.organizer} asks for ${list(asked)}. None of it is on your profile yet, so the roadmap starts there.`
+        ? `${o.organizer} asks for ${list(asked)}. None of it is on your profile yet, so ${applied ? 'the roadmap covers it while you wait' : 'the roadmap starts there'}.`
         : `${o.organizer} asks for ${list(asked)}. Your profile shows ${list(met)}; ${list(missing)} ${missing.length === 1 ? 'is' : 'are'} still to come.`;
   const score = asked.length ? Math.round((met.length / asked.length) * 100) : Math.round(o.baseScore * 100);
   return finish(

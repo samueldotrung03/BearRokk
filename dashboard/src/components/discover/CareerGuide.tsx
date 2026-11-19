@@ -3,7 +3,9 @@
 // when the agents finish it. "Add more" opens a window where the student tells the agents what they
 // want more of. Each interview format links to the steps of how to start that prepare for it. While
 // the agents work, one line says what they are doing.
-import { ArrowRight, ExternalLink, Plus, RotateCw, Target } from 'lucide-react';
+import { ArrowRight, ExternalLink, Map as MapIcon, Plus, RotateCw, Target } from 'lucide-react';
+import { useInRouterContext, useNavigate } from 'react-router';
+import { GUIDES_KEY, type GuideStart } from '../../lib/roadmapx/journey.ts';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {
   isBusy,
@@ -232,9 +234,49 @@ function VoicesBody({ data, sample }: { data: Voices; sample: boolean }) {
   );
 }
 
-function StartBody({ data, target }: { data: Start; target: number[] }) {
+/** Hands the steps to the roadmap page and opens it there as a road. */
+function openAsRoadmap(title: string, guide: GuideStart) {
+  try {
+    const kept = JSON.parse(localStorage.getItem(GUIDES_KEY) ?? '{}') as Record<string, GuideStart>;
+    localStorage.setItem(GUIDES_KEY, JSON.stringify({ ...kept, [title]: guide }));
+    localStorage.setItem('bearrok.roadmap.career', JSON.stringify(`custom:${title}`));
+    localStorage.setItem('bearrok.roadmap.open', JSON.stringify('career'));
+    localStorage.setItem('bearrok.roadmap.look', JSON.stringify('journey'));
+  } catch {
+    // Storage can be full or blocked; the roadmap page then opens on the student's own goal.
+  }
+}
+
+/** The way from the list of steps to the same steps as a road on the Roadmap page. */
+function RoadButton({ title, guide }: { title: string; guide: GuideStart }) {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      className="dc-road"
+      onClick={() => {
+        openAsRoadmap(title, guide);
+        navigate('/roadmap');
+      }}
+    >
+      <span className="dc-road-icon" aria-hidden="true">
+        <MapIcon />
+      </span>
+      <span>
+        <strong>See these {guide.steps.length} steps as a roadmap</strong>
+        <small>Walk them as a road you can move along, open and tick off, instead of reading a list.</small>
+      </span>
+      <ArrowRight aria-hidden="true" />
+    </button>
+  );
+}
+
+function StartBody({ data, target, title, provider, sample }: { data: Start; target: number[]; title: string; provider: GuideStart['provider']; sample: boolean }) {
+  // The guide is also drawn outside the app's pages, where there is nowhere to go to.
+  const canGo = useInRouterContext();
   return (
     <>
+      {canGo && data.steps.length > 0 && <RoadButton title={title} guide={{ steps: data.steps, provider, sample }} />}
       <ol className="dc-steps-list">
         {data.steps.map((step, i) => (
           <li key={step.title} id={`guide-step-${i}`} className={target.includes(i) ? 'is-target' : ''} tabIndex={-1}>
@@ -540,7 +582,7 @@ export function CareerGuide({
     basics: s.basics.data && <BasicsBody data={s.basics.data} />,
     voices: s.voices.data && <VoicesBody data={s.voices.data} sample={s.voices.sample} />,
     interview: s.interview.data && <InterviewBody data={s.interview.data} start={s.start.data} onPrepare={prepare} />,
-    start: s.start.data && <StartBody data={s.start.data} target={target} />,
+    start: s.start.data && <StartBody data={s.start.data} target={target} title={guide.title} provider={guide.provider} sample={s.start.sample} />,
   };
 
   return (

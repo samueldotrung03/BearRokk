@@ -15,7 +15,7 @@ import { Page } from '../components/Page.tsx';
 import { careerPaths } from '../data/sample.ts';
 import { aiJourney, aiPlan, chosenFrom, roadmapRequest } from '../lib/roadmapx/ai.ts';
 import { formatHours } from '../lib/roadmapx/context.ts';
-import { activeApplications, careerJourney, careerSearch, customCareer, jobJourney, planJourney } from '../lib/roadmapx/journey.ts';
+import { activeApplications, careerJourney, careerSearch, customCareer, guideJourney, GUIDES_KEY, jobJourney, planJourney, type GuideStart } from '../lib/roadmapx/journey.ts';
 import { useLocal } from '../lib/useLocal.ts';
 import { useAiRoadmap } from '../state/aiRoadmap.ts';
 import { useLive } from '../state/live.tsx';
@@ -61,9 +61,12 @@ export function Roadmap() {
   const careerId = viewing && (viewing.startsWith('custom:') || careerPaths.some((p) => p.id === viewing)) ? viewing : state.goalId;
   // The student's own wording of where a career roadmap leads, kept per career. It is what the writer is asked for.
   const [towards, setTowards] = useLocal<Record<string, string>>('bearrok.roadmap.toward', {});
+  // A career guide's "How to start", when Career discovery sent one over for this career.
+  const [guides] = useLocal<Record<string, GuideStart>>(GUIDES_KEY, {});
+  const guide = !dest && careerId.startsWith('custom:') ? guides[careerId.slice(7)] : undefined;
   const built = useMemo(
-    () => (dest ? jobJourney(state, dest.opportunity, now, skip) : careerId.startsWith('custom:') ? customCareer(careerId.slice(7)) : careerJourney(state, now, skip, careerId, [...byId.values()])),
-    [dest, state, now, skip, careerId, byId],
+    () => (dest ? jobJourney(state, dest.opportunity, now, skip) : guide ? guideJourney(careerId.slice(7), guide, state.doneSteps, skip) : careerId.startsWith('custom:') ? customCareer(careerId.slice(7)) : careerJourney(state, now, skip, careerId, [...byId.values()])),
+    [dest, state, now, skip, careerId, byId, guide],
   );
   const toward = dest ? '' : (towards[careerId] ?? '');
   const draft = useMemo(() => (toward ? { ...built, goal: toward } : built), [built, toward]);
@@ -76,7 +79,8 @@ export function Roadmap() {
     setFinding(false);
   };
   const request = useMemo(() => roadmapRequest(state, draft.goal, dest ?? null, draft.analysis.stories), [state, draft, dest]);
-  const boardWritten = useAiRoadmap(request);
+  // The guide's steps are already researched; the roadmap writer is not asked to write over them.
+  const boardWritten = useAiRoadmap(request, !guide);
   const board = useMemo(() => (boardWritten.answer ? aiJourney(state, draft, boardWritten.answer, skip) : draft), [boardWritten.answer, state, draft, skip]);
 
   // Once the student is done choosing, their picks become a roadmap of their own, and the writer fills it in.
@@ -300,7 +304,13 @@ export function Roadmap() {
           </ol>
           <p className={`rm3-writer is-${written.status}`} role="status">
             <i aria-hidden="true" />
-            {written.status === 'ready'
+            {journey.guide
+              ? guide?.sample || guide?.provider === 'simulated'
+                ? 'Sample steps from the career guide. No model is connected.'
+                : guide?.provider === 'claude'
+                  ? 'From the career guide, researched by Claude standing in for Grok'
+                  : 'From the career guide, researched by Grok'
+              : written.status === 'ready'
               ? writer === 'claude'
                 ? 'Written by Claude, standing in for Grok during testing'
                 : 'Written by Grok for you'
@@ -331,6 +341,18 @@ export function Roadmap() {
             </i>
           </div>
         </div>
+
+        {journey.guide && (
+          <p className="rm3-planbar" role="status">
+            <Compass aria-hidden="true" />
+            <span>
+              <strong>How to start in {journey.goal}, as a road.</strong> These are the steps from its career guide, in the guide's order.
+            </span>
+            <Link to="/discover">
+              <ArrowUpRight aria-hidden="true" /> Back to the guide
+            </Link>
+          </p>
+        )}
 
         {journey.plan && (
           <p className="rm3-planbar" role="status">

@@ -12,7 +12,7 @@ const tabs = [
   { id: 'experience', label: 'Experience', intro: 'What you have done so far. Your agents use it to judge how well an opportunity fits and what you would still need to learn for it.' },
   { id: 'career', label: 'Career interests', intro: 'This decides what your agents search for. They look in the fields you tick and rank results by how well they match the rest of this page.' },
   { id: 'restrictions', label: 'Restrictions', intro: 'These are rules. Your agents never recommend something that breaks one. When a posting does not say, for example it lists no pay, it is marked "not confirmed" instead of guessed.' },
-  { id: 'notes', label: 'Custom notes', intro: 'Write anything you want your agents to know, in your own words, in as many notes as you like. They read these first, and a note wins over anything on the other two tabs.' },
+  { id: 'notes', label: 'Custom notes', intro: 'Write anything you want your agents to know, in your own words, in as many notes as you like. They read these first, and a note wins over anything on the other tabs.' },
 ] as const;
 type TabId = (typeof tabs)[number]['id'];
 type Change = (next: Preferences) => void;
