@@ -13,7 +13,7 @@
     "test": "vitest run",
     "app": "vite build --base=./ && electron .",
     "app:dev": "ELECTRON_START_URL=http://localhost:5173 electron .",
-    "app:package": "vite build --base=./ && electron-packager . BearRok --out=release --overwrite --prune=true --ignore=\"^/(src|public|release|index\\.html|vite\\.config\\.ts|tsconfig\\.json|README\\.md)\" --ignore=\"^/node_modules\""
+    "app:package": "vite build --base=./ && electron-packager . BearRok --icon=electron/icon.icns --out=release --overwrite --prune=true --ignore=\"^/(src|public|release|index\\.html|vite\\.config\\.ts|tsconfig\\.json|README\\.md)\" --ignore=\"^/node_modules\""
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",

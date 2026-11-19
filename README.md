@@ -136,6 +136,6 @@ The event is **Thursday, November 19, 2026**. Grok account access is expected ar
 
 ## Status
 
-The agent system is built in `backend/` and can be watched running: `cd backend && npm install && npm run dev`, then open http://localhost:8787/. Until Grok is connected it runs on simulated agents and sample data. Sign-in and application management are built in the backend; the roadmap and career discovery are not. See `backend/AGENT_SYSTEM.md`.
+The agent system is built in `backend/` and can be watched running: `cd backend && npm install && npm run dev`, then open http://localhost:8787/. Until Grok is connected it runs on simulated agents and sample data. Sign-in, the application manager and custom notes are built in the backend; the roadmap and career discovery are not. See `backend/AGENT_SYSTEM.md`.
 
-The dashboard is in `dashboard/` (reel feed, roadmap, career discovery, saved, agents, profile, sign-in): `cd dashboard && npm install && npm run dev`, then open http://localhost:5173/. It runs on sample data and is not connected to the backend yet; see `dashboard/README.md`.
+The dashboard is in `dashboard/` (reel feed, roadmap, career discovery, saved, agents, a tabbed profile, settings, and sign-in with account set-up): `cd dashboard && npm install && npm run dev`, then open http://localhost:5173/. Sign-in, the profile and settings talk to the backend; the feed, roadmap and agents pages still show sample data. See `dashboard/README.md`.

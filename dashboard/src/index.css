@@ -67,24 +67,10 @@ body {
 }
 
 .brand-mark {
-  display: inline-grid;
-  place-items: center;
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  padding-bottom: 3px;
-  border-radius: 8px;
-  background: var(--color-ink);
-  color: white;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 23px;
-  line-height: 1;
-}
-
-.brand-mark[data-tone='light'] {
-  background: white;
-  color: var(--color-ink);
+  width: 38px;
+  height: 36px;
+  object-fit: contain;
 }
 
 /* ---------- Liquid glass ---------- */

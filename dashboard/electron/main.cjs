@@ -85,6 +85,8 @@ ipcMain.handle('permissions:open', (_event, kind) => {
 });
 
 app.whenReady().then(() => {
+  // The packaged app carries its own icon; this covers `npm run app`, which runs inside Electron's.
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock.setIcon(path.join(__dirname, 'icon.png'));
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

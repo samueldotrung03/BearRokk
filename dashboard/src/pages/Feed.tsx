@@ -283,7 +283,7 @@ export function Feed() {
             <PanelLeft className="size-[18px]" aria-hidden="true" />
           </button>
           <Link to="/" className="flex items-center gap-2.5 text-white focus-visible:outline-white">
-            <BrandMark light />
+            <BrandMark />
             <span className="hidden text-[19px] font-bold tracking-tight sm:block">BearRok</span>
           </Link>
         </div>

@@ -4,8 +4,11 @@ import type { Opportunity } from '../types.ts';
 import { rankFeed, rankFeedDetailed } from './ranking.ts';
 import { reducer, type AppState } from './store.ts';
 
+// One clock for every call: the score includes recency, so two calls a millisecond apart would
+// otherwise differ in the last digits and break exact comparisons.
+const NOW = Date.now();
 const scores = (state: AppState = initialState) =>
-  new Map(rankFeedDetailed(opportunities, state).map((r) => [r.opportunity.id, r.score]));
+  new Map(rankFeedDetailed(opportunities, state, NOW).map((r) => [r.opportunity.id, r.score]));
 const ids = (state: AppState = initialState) => rankFeed(opportunities, state).map((o) => o.id);
 
 describe('rankFeed', () => {

@@ -8,7 +8,7 @@ import { ProfileMenu } from './ProfileMenu.tsx';
 function Brand() {
   return (
     <Link to="/" className="flex items-center gap-2.5 text-white focus-visible:outline-white">
-      <BrandMark light />
+      <BrandMark />
       <span className="text-[19px] font-bold tracking-tight">BearRok</span>
     </Link>
   );
