@@ -12,7 +12,7 @@ import {
   PushPin,
   PushPinSlash,
   Robot,
-  SunHorizon,
+  SquaresFour,
   UserCircle,
   X,
   type Icon,
@@ -36,7 +36,7 @@ interface DockItem {
 }
 
 export const dockItems: DockItem[] = [
-  { to: '/today', label: 'Today', icon: SunHorizon },
+  { to: '/today', label: 'Dashboard', icon: SquaresFour },
   { to: '/', label: 'Feed', icon: House },
   { to: '/roadmap', label: 'Roadmap', icon: Path },
   { to: '/discover', label: 'Career discovery', icon: Compass },

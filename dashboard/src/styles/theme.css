@@ -1,0 +1,190 @@
+/* Theme tokens. The light values are the app's original look; the dark values follow the
+   "Glow" design: a near-black canvas, quiet raised surfaces, hairline borders, and soft color
+   only where something is alive. Page stylesheets read these instead of fixed colors. */
+
+:root {
+  --surface: #ffffff; /* cards and panels */
+  --surface-2: #f6f9fd; /* insets, wells, table heads */
+  --surface-3: #eef3fa; /* hover and pressed fills */
+  --surface-glass: rgb(255 255 255 / 0.9);
+  --line-strong: #cfd9e6;
+  --brand-text: #245bd8; /* brand color when it is text or an icon */
+  --on-brand: #ffffff;
+  --ok: #047857;
+  --ok-soft: #ecfdf5;
+  --warn: #b45309;
+  --warn-soft: #fffbeb;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --glow: linear-gradient(90deg, #7c6cff, #4aa8ff, #37d6a0, #f5c04a, #ff7a59);
+  --scrim: rgb(15 23 42 / 0.45);
+}
+
+:root[data-theme='dark'] {
+  --color-ink: #f2f4f8;
+  --color-ink-2: #b4bbc9;
+  --color-ink-3: #848d9e;
+  --color-canvas: #0a0b0f;
+  --color-line: rgb(255 255 255 / 0.09);
+  --color-brand: #3d76f2;
+  --color-brand-soft: rgb(110 155 255 / 0.13);
+  --color-sky-1: #0d1326;
+  --color-sky-2: #0c0f1c;
+  --color-sky-3: #0a0c14;
+
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.03), 0 18px 40px -22px rgb(0 0 0 / 0.9);
+  --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.05), 0 28px 56px -22px rgb(0 0 0 / 0.95);
+
+  --surface: #13151b;
+  --surface-2: #191c24;
+  --surface-3: #22262f;
+  --surface-glass: rgb(19 21 27 / 0.82);
+  --line-strong: rgb(255 255 255 / 0.16);
+  --brand-text: #93b6ff;
+  --on-brand: #ffffff;
+  --ok: #6ee7b7;
+  --ok-soft: rgb(52 211 153 / 0.13);
+  --warn: #fcd34d;
+  --warn-soft: rgb(251 191 36 / 0.13);
+  --danger: #fca5a5;
+  --danger-soft: rgb(248 113 113 / 0.13);
+  --scrim: rgb(0 0 0 / 0.62);
+
+  /* Tailwind's own grays and tints, so utility classes follow the theme. */
+  --color-slate-50: #171a21;
+  --color-slate-100: #1e222b;
+  --color-slate-200: #282d38;
+  --color-slate-300: #363c49;
+  --color-slate-400: #596273;
+  --color-emerald-50: rgb(52 211 153 / 0.13);
+  --color-emerald-100: rgb(52 211 153 / 0.2);
+  --color-amber-50: rgb(251 191 36 / 0.13);
+  --color-red-50: rgb(248 113 113 / 0.13);
+  /* Type and match chips: colored text on a faint tint of the same hue. */
+  --color-slate-600: #b4bbc9;
+  --color-blue-50: rgb(96 165 250 / 0.14);
+  --color-blue-700: #93c5fd;
+  --color-violet-50: rgb(167 139 250 / 0.14);
+  --color-violet-700: #c4b5fd;
+  --color-teal-50: rgb(45 212 191 / 0.13);
+  --color-teal-700: #5eead4;
+  --color-indigo-50: rgb(129 140 248 / 0.15);
+  --color-indigo-700: #a5b4fc;
+  --color-rose-50: rgb(251 113 133 / 0.13);
+  --color-rose-700: #fda4af;
+}
+
+/* ---------- Dark: utility classes that name a fixed color ---------- */
+
+:root[data-theme='dark'] :is(.bg-white, .bg-white\/90, .bg-white\/85, .bg-white\/80) {
+  background-color: var(--surface-glass);
+}
+:root[data-theme='dark'] :is(.bg-white\/70, .bg-white\/40) {
+  background-color: rgb(255 255 255 / 0.05);
+}
+:root[data-theme='dark'] .hover\:bg-white:hover {
+  background-color: var(--surface-3);
+}
+:root[data-theme='dark'] .border-white {
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] :is(.text-brand, .hover\:text-brand:hover) {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] :is(.text-emerald-700, .text-emerald-800, .text-emerald-600) {
+  color: var(--ok);
+}
+:root[data-theme='dark'] :is(.text-amber-600, .text-amber-700, .text-amber-800, .text-orange-700, .text-orange-800, .hover\:text-orange-700:hover) {
+  color: var(--warn);
+}
+:root[data-theme='dark'] :is(.text-red-700, .text-rose-500, .text-rose-600) {
+  color: var(--danger);
+}
+/* The strongest button becomes a white pill, as in the Glow design. */
+:root[data-theme='dark'] .bg-ink.text-white {
+  color: #0a0b0f;
+}
+
+/* ---------- Dark: page shell ---------- */
+
+:root[data-theme='dark'] .sky {
+  background:
+    radial-gradient(620px 300px at 82% 0%, rgb(255 96 96 / 0.16), transparent 70%),
+    radial-gradient(760px 340px at 46% -6%, rgb(132 96 255 / 0.2), transparent 70%),
+    radial-gradient(820px 360px at 8% 0%, rgb(46 120 255 / 0.24), transparent 70%),
+    linear-gradient(180deg, var(--color-sky-1) 0%, var(--color-sky-2) 46%, var(--color-canvas) 100%);
+}
+:root[data-theme='dark'] .btn-primary {
+  box-shadow: 0 6px 18px rgb(61 118 242 / 0.3);
+}
+:root[data-theme='dark'] .btn-primary:hover {
+  background: #5387f6;
+}
+:root[data-theme='dark'] ::selection {
+  background: rgb(110 155 255 / 0.35);
+}
+
+/* ---------- The appearance picker ---------- */
+
+.theme-picker {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface-3);
+  border: 1px solid var(--color-line);
+}
+.theme-picker button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  transition:
+    background 0.18s,
+    color 0.18s;
+}
+.theme-picker button svg {
+  width: 16px;
+  height: 16px;
+}
+.theme-picker button:hover {
+  color: var(--color-ink);
+}
+.theme-picker button[aria-checked='true'] {
+  background: var(--surface);
+  color: var(--color-ink);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12), 0 0 0 1px var(--color-line);
+}
+.theme-picker-compact button {
+  padding: 0 9px;
+}
+
+/* ---------- Dark: sign-in pages ---------- */
+
+:root[data-theme='dark'] .signin-hero::before {
+  background: none;
+}
+:root[data-theme='dark'] .signin-scroll {
+  scrollbar-color: var(--surface-3) transparent;
+}
+:root[data-theme='dark'] .signin-scroll::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .signin-card {
+  background: var(--surface);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .signin-input {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+/* Over the sky panel on a phone the picker sits on a photo-like gradient; keep it legible. */
+.signin-theme .theme-picker {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}

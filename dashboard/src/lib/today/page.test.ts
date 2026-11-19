@@ -5,7 +5,6 @@ import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { initialState } from '../../data/sample.ts';
-import { currentRoadmap } from '../roadmap.ts';
 
 const store = new Map<string, string>();
 const memoryStorage = {
@@ -35,19 +34,16 @@ describe('Today page', () => {
 
   it('renders every section for the sample student', async () => {
     const html = await render();
-    for (const text of ['Today&#x27;s brief', 'Do today', 'Closing this week', 'New for you', 'Your progress', 'Ask BearRok']) {
+    for (const text of ['New for you', 'What your goal asks for', 'Profile strength', 'Add a reminder for today', 'Due this week', 'This week', 'Applications', 'Next steps', 'Your agents']) {
       expect(html).toContain(text);
     }
-    expect(html).toContain('td-action'); // the sample student has things to do
     expect(html).toContain('Grok will write it once the agents are connected');
   });
 
-  it('shows the start screen for a brand-new student with nothing due', async () => {
-    const steps = currentRoadmap(initialState.goalId).phases.flatMap((phase) => phase.steps.map((step) => step.id));
-    const html = await render({ ...initialState, applications: {}, saved: [], liked: [], extraSteps: [], doneSteps: steps });
-    expect(html).toContain('Nothing to do today');
-    expect(html).toContain('Open your feed');
-    expect(html).toContain('href="/discover"');
-    expect(html).toContain('Nothing of yours is due.'); // the sample feed has deadlines this week
+  it('still renders for a brand-new student with nothing tracked', async () => {
+    const html = await render({ ...initialState, applications: {}, saved: [], liked: [], extraSteps: [], doneSteps: [] });
+    expect(html).toContain('Nothing tracked yet');
+    expect(html).toContain('None tracked yet');
+    expect(html).not.toContain('Do today');
   });
 });

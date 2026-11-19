@@ -4,13 +4,18 @@ import '../pages/signin.css';
 import { ArrowRight, Eye, EyeSlash, Lock } from '@phosphor-icons/react';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 import { BrandMark } from '../components/Brand.tsx';
+import { ThemePicker } from '../components/ThemePicker.tsx';
 
 const preview = ['Internships, events and clubs that fit you', 'Deadlines before they pass', 'A roadmap to your goal'];
 
 /** The left panel is the same on every account page; only the card on the right changes. */
 export function AuthShell({ below, children }: { /** Shown under the card. */ below?: ReactNode; children: ReactNode }) {
   return (
-    <div className="signin-page grid min-h-dvh bg-canvas lg:grid-cols-2">
+    <div className="signin-page relative grid min-h-dvh bg-canvas lg:grid-cols-2">
+      {/* The appearance can be chosen before signing in; Settings has the same choice. */}
+      <div className="signin-theme absolute top-5 right-5 z-10 sm:top-7 sm:right-8">
+        <ThemePicker compact />
+      </div>
       <section className="sky signin-hero flex flex-col px-6 pt-6 pb-20 text-white sm:px-10 sm:pt-8 lg:p-12">
         <div className="flex items-center gap-2.5">
           <BrandMark />
