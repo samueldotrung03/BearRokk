@@ -1,8 +1,10 @@
-/** The "b." mark from the pitch site. `light` is for use on the blue header. */
-export function BrandMark({ light = false }: { light?: boolean }) {
-  return (
-    <span className="brand-mark" data-tone={light ? 'light' : 'dark'} aria-hidden="true">
-      b.
-    </span>
-  );
+import logo from '../assets/logo.png';
+
+/**
+ * The BearRok logo: a bear over a shield with a rising arrow, in blue and gold. It is the team's
+ * own artwork with the background removed. The same picture is `public/favicon.png` and, padded
+ * to a square, `electron/icon.png` (the desktop app icon).
+ */
+export function BrandMark() {
+  return <img className="brand-mark" src={logo} alt="" />;
 }

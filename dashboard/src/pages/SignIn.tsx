@@ -26,7 +26,7 @@ export function SignIn() {
     <div className="signin-page grid min-h-dvh bg-canvas lg:grid-cols-2">
       <section className="sky signin-hero flex flex-col px-6 pt-6 pb-20 text-white sm:px-10 sm:pt-8 lg:p-12">
         <div className="flex items-center gap-2.5">
-          <BrandMark light />
+          <BrandMark />
           <span className="text-[19px] font-bold tracking-tight">BearRok</span>
         </div>
 

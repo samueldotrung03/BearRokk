@@ -43,6 +43,8 @@ committed.
 | `/profile` | Profile | The persona, class year, interests, skills, location, and the history the agents read |
 | `/signin` | Sign in | Mock sign-in screen. Nothing typed is sent or saved; any button goes to the feed |
 
+The logo is the team's artwork: a bear over a shield with a rising arrow, in blue and gold, with the background removed. It is a picture, not a vector: `src/assets/logo.png` (in the app), `public/favicon.png` (browser tab) and `electron/icon.png` (desktop app icon: the logo on a black rounded square), with `electron/icon.icns` built from `icon.png` using `sips` and `iconutil`. These were made from a 278px screenshot, so they are soft at large sizes; replace them from the original file when it is available.
+
 ## Navigation dock
 
 `src/components/Dock.tsx`, styled in `src/index.css` (`.dock-*`, `.glass`).
