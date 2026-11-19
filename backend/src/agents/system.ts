@@ -6,6 +6,7 @@ import { resumeInfo, type Resume, type ResumeInfo } from '../resume.ts';
 import { canonicalUrl } from '../validate.ts';
 import type { Brain } from './brain.ts';
 import { Fleet, limiter } from './fleet.ts';
+import type { ImageFinder } from './images.ts';
 import { allocateSlots, buildMemory, categoryWeights, noteSignals, rankFeed, summarize } from './scoring.ts';
 import {
   CATEGORY_LABEL,
@@ -54,6 +55,10 @@ export interface SystemOptions {
   feedTarget: number;
   /** Searches in a row the agents may start to fill the feed before they stop and wait for the student. */
   maxFillRuns: number;
+  /** Finds each posting's picture. Without it postings keep whatever picture the reader gave, unchecked. */
+  images?: ImageFinder | null;
+  /** Stored postings without a picture that one run looks for pictures for, on top of its own finds. */
+  imageBackfill?: number;
   /** Which model family a live brain talks to, for labelling. */
   provider?: 'grok' | 'claude';
   now: () => Date;
@@ -706,6 +711,9 @@ export class AgentSystem {
         run.stats.added = this.newIds.size;
         this.emitStudent();
         if (!o.deadline) working.push(findDeadline(o).catch((e) => log('Worker fleet', `Deadline finder failed for "${o.title}": ${errorText(e)}`, 'bad')));
+        // A re-found posting keeps the picture it already has.
+        if (previous?.imageKind && previous.image) Object.assign(o, { image: previous.image, imageKind: previous.imageKind, imageCredit: previous.imageCredit, imageCreditUrl: previous.imageCreditUrl, imageTriedAt: previous.imageTriedAt });
+        else if (finder) working.push(findImage(o).catch((e) => log('Worker fleet', `Picture finder failed for "${o.title}": ${errorText(e)}`, 'bad')));
       };
 
       /** Store a posting the moment it is read, and send it to every validation agent. */
@@ -742,6 +750,33 @@ export class AgentSystem {
         );
         working.push(Promise.all(reviews).then(() => settle(key, f)));
       };
+
+      // A picture for each posting: its event's own, else the organizer's logo, else a free stock
+      // photo, else an illustration the agents draw. Fetching pages costs nothing; only drawing is a model call.
+      const finder = this.opts.images;
+      let pictured = 0;
+      const findImage = async (o: Opportunity) => {
+        if (!finder) return;
+        const found = await fleet.run({ kind: 'image', managerId: o.foundBy, label: `Picture: ${o.title}`, exempt: true }, async () => {
+          const value = await finder.find(o, () => this.brain.illustrate(o));
+          const label = { event: 'its own picture', logo: "the organizer's logo", stock: 'a free stock photo', generated: 'an AI-generated illustration' };
+          return { value, summary: value ? label[value.kind] : 'no picture found' };
+        });
+        // Looked for once; a posting nothing was found for is tried again after a day.
+        o.imageTriedAt = now().toISOString();
+        o.imageKind = found?.kind ?? null;
+        o.image = found?.url ?? null;
+        o.imageCredit = found?.credit ?? null;
+        o.imageCreditUrl = found?.creditUrl ?? null;
+        if (found) pictured++;
+        this.emitStudent();
+      };
+      // Postings stored before pictures were looked for get one now, a few per run.
+      const DAY = 86_400_000;
+      const needsPicture = (x: Opportunity) => x.imageKind === undefined || (x.imageKind === null && (!x.imageTriedAt || now().getTime() - Date.parse(x.imageTriedAt) > DAY));
+      for (const o of [...this.opportunities.values()].filter(needsPicture).slice(0, this.opts.imageBackfill ?? 30)) {
+        if (finder) working.push(findImage(o).catch((e) => log('Worker fleet', `Picture finder failed for "${o.title}": ${errorText(e)}`, 'bad')));
+      }
 
       // Postings an earlier run read but stopped before reviewing go first.
       const carried = [...this.pending.values()].filter((p) => !this.opportunities.has(idFor(p.key)) && !this.rejected.has(p.key));
@@ -834,6 +869,7 @@ export class AgentSystem {
       run.stats.added = this.newIds.size;
       this.emitRun();
       log('Validation agents', `Reviewed all ${run.validations.length} postings, ${REVIEWERS.length} reviews each, as they came in: kept ${kept.length}, rejected ${run.stats.rejected}`, 'good');
+      if (finder && pictured) log('Worker fleet', `Found pictures for ${pictured} postings.`, 'good');
       if (undated) log('Worker fleet', `${undated} postings stated no deadline on the organizer's pages. Other listings gave one for ${filled}; the rest stay marked unknown.`, filled ? 'good' : 'info');
 
       // 4. Application readers (from the fleet) for the strongest new results ----------
