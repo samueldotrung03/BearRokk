@@ -3,15 +3,16 @@
 // score built as a weighted sum of predicted actions, then heuristics such as diversity.
 // No code from that repository is used; it is Scala behind trained models and licensed AGPL-3.0.
 // This is a small, readable stand-in that runs in the browser on the student's own history.
-import { roadmaps } from '../data/sample.ts';
+import { currentRoadmap } from '../lib/roadmap.ts';
 import type { Opportunity, OpportunityType } from '../types.ts';
-import type { AppState } from './store.ts';
+import { extraStepId, type AppState } from './store.ts';
 
-export type Signal = 'profile' | 'saved-like' | 'roadmap' | 'closing' | 'new' | 'explore';
+export type Signal = 'profile' | 'saved-like' | 'liked-like' | 'roadmap' | 'closing' | 'new' | 'explore';
 
 export const signalLabel: Record<Signal, string> = {
   profile: 'Fits your profile',
   'saved-like': 'Like ones you saved',
+  'liked-like': 'Like ones you liked',
   roadmap: 'On your roadmap',
   closing: 'Closing soon',
   new: 'New today',
@@ -41,8 +42,23 @@ const DAY = 24 * HOUR;
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
+/**
+ * Types that lead to the same kind of thing. Reacting to one says a little about the others in
+ * its family, the way Twitter carries a like over to similar authors.
+ */
+const FAMILY: Record<OpportunityType, 'career' | 'community'> = {
+  internship: 'career',
+  research: 'career',
+  scholarship: 'career',
+  event: 'community',
+  hackathon: 'community',
+  club: 'community',
+};
+const FAMILY_SHARE = 0.5; // a reaction to a sibling type counts half
+
 interface History {
   saves: Map<OpportunityType, number>;
+  likes: Map<OpportunityType, number>;
   opens: Map<OpportunityType, number>;
   dismissals: Map<OpportunityType, number>;
 }
@@ -58,30 +74,46 @@ function countByType(ids: string[], byId: Map<string, Opportunity>): Map<Opportu
 
 /** Opportunity ids the roadmap still needs, and the one attached to the very next step. */
 function roadmapNeeds(state: AppState): { open: Set<string>; next: string | null } {
-  const steps = roadmaps.find((r) => r.goalId === state.goalId)?.phases.flatMap((phase) => phase.steps) ?? [];
+  const steps = currentRoadmap(state.goalId).phases.flatMap((phase) => phase.steps);
   const todo = steps.filter((step) => !state.doneSteps.includes(step.id));
   const open = new Set(todo.map((step) => step.opportunityId).filter((id): id is string => id !== null));
+  // Opportunities the student added to the roadmap themselves count the same way.
+  for (const id of state.extraSteps) if (!state.doneSteps.includes(extraStepId(id))) open.add(id);
   return { open, next: todo[0]?.opportunityId ?? null };
 }
 
 function scoreOne(o: Opportunity, history: History, needs: ReturnType<typeof roadmapNeeds>, now: number): RankedOpportunity {
-  const saves = history.saves.get(o.type) ?? 0;
+  // Reactions to this type count in full, reactions to sibling types in part.
+  const felt = (counts: Map<OpportunityType, number>) => {
+    let total = 0;
+    for (const [type, count] of counts) {
+      if (type === o.type) total += count;
+      else if (FAMILY[type] === FAMILY[o.type]) total += count * FAMILY_SHARE;
+    }
+    return total;
+  };
+  const saves = felt(history.saves);
+  const likes = felt(history.likes);
   const opens = history.opens.get(o.type) ?? 0;
-  const dismissals = history.dismissals.get(o.type) ?? 0;
+  const dismissals = felt(history.dismissals);
   const onRoadmap = needs.open.has(o.id);
 
   // Candidate sourcing. "In network" is anything tied to what the student already engages with.
-  const source = saves > 0 || opens > 0 || onRoadmap ? 'in-network' : 'out-of-network';
+  // A reaction to a sibling type nudges the score but does not bring a card in network.
+  const direct = (history.saves.get(o.type) ?? 0) + (history.likes.get(o.type) ?? 0) + opens;
+  const source = direct > 0 || onRoadmap ? 'in-network' : 'out-of-network';
 
   // Predicted actions: the agent's fit score, moved by what the student did with this type before.
-  const pOpen = clamp(0.6 * o.baseScore + 0.1 * opens + 0.05 * saves);
-  const pSave = clamp(0.5 * o.baseScore + 0.15 * saves);
+  // A like asks for more of the same; it counts for a little less than a save.
+  const pOpen = clamp(0.6 * o.baseScore + 0.1 * opens + 0.05 * saves + 0.05 * likes);
+  const pSave = clamp(0.5 * o.baseScore + 0.15 * saves + 0.1 * likes);
   const pDismiss = clamp(0.04 + 0.18 * dismissals);
   let score = WEIGHTS.open * pOpen + WEIGHTS.save * pSave + WEIGHTS.dismiss * pDismiss;
 
   const signals: Signal[] = [];
   if (o.baseScore >= 0.8) signals.push('profile');
-  if (saves > 0) signals.push('saved-like');
+  if ((history.saves.get(o.type) ?? 0) > 0) signals.push('saved-like');
+  else if ((history.likes.get(o.type) ?? 0) > 0) signals.push('liked-like');
 
   if (source === 'out-of-network') score *= OUT_OF_NETWORK_SCALE;
 
@@ -111,6 +143,7 @@ export function rankFeedDetailed(opportunities: Opportunity[], state: AppState, 
   const byId = new Map(opportunities.map((o) => [o.id, o]));
   const history: History = {
     saves: countByType(state.saved, byId),
+    likes: countByType(state.liked, byId),
     opens: countByType(state.opened, byId),
     dismissals: countByType(state.dismissed, byId),
   };

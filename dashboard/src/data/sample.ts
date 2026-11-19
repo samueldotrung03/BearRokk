@@ -2,7 +2,7 @@
 // Every organization here is made up and every link points to example.org. Dates are set
 // relative to today so the template never looks stale.
 import type { AppState } from '../state/store.ts';
-import type { AgentEvent, AgentNode, CareerPath, Opportunity, Roadmap } from '../types.ts';
+import type { AgentEvent, AgentNode, ApplicationInfo, CareerPath, Opportunity, PathProfile, Roadmap } from '../types.ts';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -13,6 +13,8 @@ const minutesAgo = (minutes: number) => new Date(now - minutes * 60_000).toISOSt
 const link = (slug: string) => `https://example.org/${slug}`;
 // Placeholder photos hotlinked from Unsplash. If one fails to load, the card shows an icon panel.
 const photo = (id: string) => `https://images.unsplash.com/photo-${id}?w=640&q=70&auto=format&fit=crop`;
+// Free stock clips from Mixkit, standing in for a posting's own video.
+const clip = (id: number) => `https://assets.mixkit.co/videos/${id}/${id}-720.mp4`;
 
 export const opportunities: Opportunity[] = [
   {
@@ -30,6 +32,7 @@ export const opportunities: Opportunity[] = [
     deadline: inDays(9),
     startTime: null,
     image: photo('1485827404703-89b55fcc595e'),
+    video: clip(41644),
     imageAspect: 0.8,
     tags: ['Python', 'Backend', 'Sophomores welcome'],
     unknowns: [],
@@ -52,6 +55,7 @@ export const opportunities: Opportunity[] = [
     deadline: inDays(5),
     startTime: inDays(17),
     image: photo('1504384308090-c894fdcc538d'),
+    video: clip(48166),
     imageAspect: 0.72,
     tags: ['Team project', 'Beginner track', 'Free'],
     unknowns: [],
@@ -74,6 +78,7 @@ export const opportunities: Opportunity[] = [
     deadline: null,
     startTime: inDays(3),
     image: photo('1540575467063-178a50c2df87'),
+    video: clip(42666),
     imageAspect: 1.0,
     tags: ['Networking', 'Resume review'],
     unknowns: [{ field: 'registrationDeadline', label: 'RSVP deadline not stated' }],
@@ -96,6 +101,7 @@ export const opportunities: Opportunity[] = [
     deadline: null,
     startTime: inDays(7),
     image: photo('1523240795612-9a054b0db644'),
+    video: clip(4794),
     imageAspect: 0.85,
     tags: ['Open source', 'No application'],
     unknowns: [],
@@ -118,6 +124,7 @@ export const opportunities: Opportunity[] = [
     deadline: inDays(21),
     startTime: null,
     image: photo('1532094349884-543bc11b234d'),
+    video: clip(41658),
     imageAspect: 1.15,
     tags: ['Machine learning', 'Spring 2027', 'For credit'],
     unknowns: [{ field: 'hours', label: 'Weekly hours not stated' }],
@@ -140,6 +147,7 @@ export const opportunities: Opportunity[] = [
     deadline: inDays(30),
     startTime: null,
     image: photo('1522071820081-009f0129c71c'),
+    video: clip(4519),
     imageAspect: 0.75,
     tags: ['$5,000', 'Mentorship'],
     unknowns: [],
@@ -162,6 +170,7 @@ export const opportunities: Opportunity[] = [
     deadline: inDays(16),
     startTime: null,
     image: photo('1558494949-ef010cbdcc31'),
+    video: clip(46635),
     imageAspect: 1.2,
     tags: ['SQL', 'Pipelines', 'Remote'],
     unknowns: [],
@@ -184,6 +193,7 @@ export const opportunities: Opportunity[] = [
     deadline: inDays(40),
     startTime: inDays(48),
     image: photo('1515187029135-18ee286d815b'),
+    video: clip(13231),
     imageAspect: 0.9,
     tags: ['Career fair', '80+ employers'],
     unknowns: [],
@@ -199,6 +209,14 @@ export const roadmaps: Roadmap[] = [
     goal: 'Software engineering internship, summer 2027',
     summary:
       'You have the coursework most postings ask for. What is missing is proof you can build with other people, and applications sent before the January rush.',
+    requirements: [
+      { id: 'req-swe-ds', label: 'Data structures and algorithms', skill: 'Data structures', stepId: 'step-ds' },
+      { id: 'req-swe-lang', label: 'One language you can build in quickly', skill: 'Python', stepId: null },
+      { id: 'req-swe-sql', label: 'SQL for joins and aggregates', skill: 'SQL', stepId: 'step-sql' },
+      { id: 'req-swe-team', label: 'A project built with other people', skill: null, stepId: 'step-hack' },
+      { id: 'req-swe-resume', label: 'A resume an engineer has reviewed', skill: null, stepId: 'step-resume' },
+      { id: 'req-swe-apply', label: 'Applications sent before the January rush', skill: null, stepId: 'step-apply-ten' },
+    ],
     phases: [
       {
         id: 'phase-foundations',
@@ -295,7 +313,592 @@ export const roadmaps: Roadmap[] = [
       },
     ],
   },
+  {
+    goalId: 'path-ml',
+    goal: 'Machine learning engineering internship, summer 2027',
+    summary:
+      'Your Python is ready and the math is under way. What is missing is a model you trained and measured yourself, and one person in a lab who knows your work.',
+    requirements: [
+      { id: 'req-ml-math', label: 'Linear algebra and probability', skill: null, stepId: 'step-ml-math' },
+      { id: 'req-ml-python', label: 'Python with a deep learning library', skill: 'Python', stepId: 'step-ml-lib' },
+      { id: 'req-ml-model', label: 'A model you trained and evaluated yourself', skill: null, stepId: 'step-ml-model' },
+      { id: 'req-ml-lab', label: 'Research or lab experience', skill: null, stepId: 'step-ml-research' },
+    ],
+    phases: [
+      {
+        id: 'phase-ml-base',
+        title: 'Build the base',
+        window: 'Now through December',
+        steps: [
+          {
+            id: 'step-ml-math',
+            kind: 'learn',
+            title: 'Finish linear algebra and probability',
+            detail: 'Both come up in every machine learning interview, and the research posting asks for them by name.',
+            opportunityId: null,
+            due: null,
+          },
+          {
+            id: 'step-ml-lib',
+            kind: 'learn',
+            title: 'Work through one deep learning library end to end',
+            detail: 'Pick one and train a small image or text model with it. Depth in one beats a tour of three.',
+            opportunityId: null,
+            due: inDays(21),
+          },
+        ],
+      },
+      {
+        id: 'phase-ml-proof',
+        title: 'Show the work',
+        window: 'December through January',
+        steps: [
+          {
+            id: 'step-ml-model',
+            kind: 'build',
+            title: 'Train a model and write up how you measured it',
+            detail: 'A short report with a baseline, a test set you kept apart and one honest failure reads better than a high score.',
+            opportunityId: 'opp-bay-hack',
+            due: inDays(5),
+          },
+          {
+            id: 'step-ml-research',
+            kind: 'apply',
+            title: 'Apply to a research assistant opening',
+            detail: 'A lab is where undergraduates get real training runs and a recommendation.',
+            opportunityId: 'opp-ml-research',
+            due: inDays(21),
+          },
+        ],
+      },
+      {
+        id: 'phase-ml-apply',
+        title: 'Apply early',
+        window: 'January through February',
+        steps: [
+          {
+            id: 'step-ml-fair',
+            kind: 'attend',
+            title: 'Meet machine learning teams at the career fair',
+            detail: 'Bring the model write-up. Ask each team what their interns shipped last summer.',
+            opportunityId: 'opp-career-fair',
+            due: inDays(40),
+          },
+          {
+            id: 'step-ml-apply',
+            kind: 'apply',
+            title: 'Send eight applications',
+            detail: 'Aim at teams that list the library you used.',
+            opportunityId: null,
+            due: inDays(45),
+          },
+        ],
+      },
+    ],
+  },
+  {
+    goalId: 'path-data',
+    goal: 'Data engineering internship, summer 2027',
+    summary:
+      'You can already program. Data teams hire on SQL and on evidence that you have moved real data from one place to another on a schedule.',
+    requirements: [
+      { id: 'req-data-sql', label: 'Strong SQL', skill: 'SQL', stepId: 'step-data-sql' },
+      { id: 'req-data-pipe', label: 'Pipelines and scheduling basics', skill: null, stepId: 'step-data-pipeline' },
+      { id: 'req-data-cloud', label: 'Comfort with one cloud platform', skill: null, stepId: 'step-data-cloud' },
+      { id: 'req-data-team', label: 'Work in a shared codebase', skill: null, stepId: 'step-data-club' },
+    ],
+    phases: [
+      {
+        id: 'phase-data-base',
+        title: 'Learn the tools',
+        window: 'Now through December',
+        steps: [
+          {
+            id: 'step-data-sql',
+            kind: 'learn',
+            title: 'Get fast at SQL',
+            detail: 'Window functions and joins across three tables are the usual interview level.',
+            opportunityId: null,
+            due: inDays(14),
+          },
+          {
+            id: 'step-data-cloud',
+            kind: 'learn',
+            title: "Finish one cloud platform's free starter track",
+            detail: 'Storage, a managed database and a scheduled job are enough to talk about.',
+            opportunityId: null,
+            due: inDays(28),
+          },
+        ],
+      },
+      {
+        id: 'phase-data-proof',
+        title: 'Build a pipeline',
+        window: 'December through January',
+        steps: [
+          {
+            id: 'step-data-pipeline',
+            kind: 'build',
+            title: 'Build a pipeline that runs every day',
+            detail: 'Pull a public data set, clean it, load it and chart it. Leave it running for two weeks and keep the logs.',
+            opportunityId: null,
+            due: null,
+          },
+          {
+            id: 'step-data-club',
+            kind: 'join',
+            title: 'Join a club with a shared codebase',
+            detail: 'Reviewed changes show you can work on data other people depend on.',
+            opportunityId: 'opp-systems-club',
+            due: inDays(7),
+          },
+        ],
+      },
+      {
+        id: 'phase-data-apply',
+        title: 'Apply',
+        window: 'January through February',
+        steps: [
+          {
+            id: 'step-data-apply',
+            kind: 'apply',
+            title: 'Apply to the data engineering internship',
+            detail: 'It asks for SQL and one pipeline project, which is this roadmap.',
+            opportunityId: 'opp-harbor-data',
+            due: inDays(16),
+          },
+          {
+            id: 'step-data-fair',
+            kind: 'attend',
+            title: 'Talk to data teams at the career fair',
+            detail: 'Ask which tools their interns touch in the first month.',
+            opportunityId: 'opp-career-fair',
+            due: inDays(40),
+          },
+        ],
+      },
+    ],
+  },
+  {
+    goalId: 'path-pm',
+    goal: 'Product management internship, summer 2027',
+    summary:
+      'Your technical base earns trust with engineers. What product teams look for next is clear writing and a time you led a group to a result.',
+    requirements: [
+      { id: 'req-pm-writing', label: 'Clear writing', skill: null, stepId: 'step-pm-writing' },
+      { id: 'req-pm-lead', label: 'Evidence of leading a team to a result', skill: null, stepId: 'step-pm-lead' },
+      { id: 'req-pm-tech', label: 'Enough technical depth to earn trust', skill: 'Data structures', stepId: null },
+      { id: 'req-pm-users', label: 'Time spent with real users', skill: null, stepId: 'step-pm-users' },
+    ],
+    phases: [
+      {
+        id: 'phase-pm-base',
+        title: 'Practice the craft',
+        window: 'Now through December',
+        steps: [
+          {
+            id: 'step-pm-writing',
+            kind: 'learn',
+            title: 'Write three one-page product briefs',
+            detail: 'Pick apps you use, state one problem and one change, and say how you would know it worked.',
+            opportunityId: null,
+            due: inDays(21),
+          },
+          {
+            id: 'step-pm-users',
+            kind: 'learn',
+            title: 'Interview five students about one problem',
+            detail: 'Product interviews ask for a time you changed your mind because of a user.',
+            opportunityId: null,
+            due: inDays(28),
+          },
+        ],
+      },
+      {
+        id: 'phase-pm-proof',
+        title: 'Lead something',
+        window: 'December through January',
+        steps: [
+          {
+            id: 'step-pm-lead',
+            kind: 'build',
+            title: 'Lead a team at a hackathon',
+            detail: 'Own the plan and the demo. A shipped project you led is the strongest line on a product resume.',
+            opportunityId: 'opp-bay-hack',
+            due: inDays(5),
+          },
+          {
+            id: 'step-pm-info',
+            kind: 'attend',
+            title: 'Go to an info session and ask about product roles',
+            detail: 'Many companies hire product interns from the same events as engineers.',
+            opportunityId: 'opp-lumen-info',
+            due: null,
+          },
+        ],
+      },
+      {
+        id: 'phase-pm-apply',
+        title: 'Apply',
+        window: 'January through February',
+        steps: [
+          {
+            id: 'step-pm-scholar',
+            kind: 'apply',
+            title: 'Apply for the first-generation scholarship',
+            detail: 'It funds a summer and comes with mentors who work in product.',
+            opportunityId: 'opp-first-gen-scholarship',
+            due: inDays(30),
+          },
+          {
+            id: 'step-pm-fair',
+            kind: 'attend',
+            title: 'Meet product teams at the career fair',
+            detail: 'Bring one brief. Ask who the interns report to.',
+            opportunityId: 'opp-career-fair',
+            due: inDays(40),
+          },
+        ],
+      },
+    ],
+  },
 ];
+
+/**
+ * What people who reached each goal did first. In the product a profiles worker in the fleet
+ * reads public profiles of people who landed the role and extracts this; here every entry is
+ * invented, and none stands for a real person. Names are never kept.
+ */
+export const pathProfiles: PathProfile[] = [
+  {
+    id: 'profile-swe-1',
+    goalId: 'path-swe',
+    outcome: 'Software engineering intern, robotics company',
+    year: 'Sophomore',
+    timeline: ['Data structures course', 'Systems club, two merged pull requests', 'Hackathon team project', 'Applied in October'],
+    did: ['step-ds', 'step-club', 'step-hack', 'step-project', 'step-resume', 'step-apply-northwind', 'step-apply-ten'],
+  },
+  {
+    id: 'profile-swe-2',
+    goalId: 'path-swe',
+    outcome: 'Software engineering intern, payments startup',
+    year: 'Junior',
+    timeline: ['Data structures and databases courses', 'Hackathon winner, team of four', 'Resume reviewed at an info session', 'Career fair'],
+    did: ['step-ds', 'step-sql', 'step-hack', 'step-resume', 'step-fair', 'step-apply-ten'],
+  },
+  {
+    id: 'profile-swe-3',
+    goalId: 'path-swe',
+    outcome: 'Backend intern, cloud provider',
+    year: 'Sophomore',
+    timeline: ['Data structures course', 'Open source club', 'Personal project turned into a portfolio piece', 'Applied to twelve roles'],
+    did: ['step-ds', 'step-club', 'step-project', 'step-apply-ten', 'step-apply-northwind'],
+  },
+  {
+    id: 'profile-swe-4',
+    goalId: 'path-swe',
+    outcome: 'Software engineering intern, health tech company',
+    year: 'Junior',
+    timeline: ['Data structures course', 'SQL for a research lab', 'Hackathon', 'Career fair'],
+    did: ['step-ds', 'step-sql', 'step-hack', 'step-project', 'step-fair'],
+  },
+  {
+    id: 'profile-swe-5',
+    goalId: 'path-swe',
+    outcome: 'Software engineering intern, e-commerce company',
+    year: 'Sophomore',
+    timeline: ['Data structures course', 'Hackathon team project', 'Portfolio write-up', 'Resume review', 'Applied in November'],
+    did: ['step-ds', 'step-hack', 'step-project', 'step-resume', 'step-apply-ten', 'step-apply-northwind'],
+  },
+  {
+    id: 'profile-swe-6',
+    goalId: 'path-swe',
+    outcome: 'Platform intern, logistics company',
+    year: 'Junior',
+    timeline: ['Data structures course', 'Club project lead', 'Hackathon', 'Applied to fifteen roles'],
+    did: ['step-ds', 'step-club', 'step-hack', 'step-apply-ten'],
+  },
+  {
+    id: 'profile-swe-7',
+    goalId: 'path-swe',
+    outcome: 'Software engineering intern, game studio',
+    year: 'Sophomore',
+    timeline: ['Data structures course', 'Two game jams with a team', 'Portfolio site', 'Career fair'],
+    did: ['step-ds', 'step-hack', 'step-project', 'step-fair'],
+  },
+  {
+    id: 'profile-swe-8',
+    goalId: 'path-swe',
+    outcome: 'Software engineering intern, fintech company',
+    year: 'Junior',
+    timeline: ['Data structures and SQL', 'Systems club', 'Resume reviewed by an engineer', 'Applied in October'],
+    did: ['step-ds', 'step-sql', 'step-club', 'step-resume', 'step-apply-ten', 'step-apply-northwind'],
+  },
+  {
+    id: 'profile-swe-9',
+    goalId: 'path-swe',
+    outcome: 'Infrastructure intern, developer tools company',
+    year: 'Sophomore',
+    timeline: ['Data structures course', 'Open source contributions', 'Hackathon', 'Resume review'],
+    did: ['step-ds', 'step-club', 'step-hack', 'step-resume', 'step-apply-ten'],
+  },
+  {
+    id: 'profile-swe-10',
+    goalId: 'path-swe',
+    outcome: 'Software engineering intern, education startup',
+    year: 'Freshman',
+    timeline: ['Self-taught web projects', 'Hackathon team project', 'Career fair'],
+    did: ['step-hack', 'step-project', 'step-fair'],
+  },
+  {
+    id: 'profile-swe-11',
+    goalId: 'path-swe',
+    outcome: 'Backend intern, streaming company',
+    year: 'Junior',
+    timeline: ['Data structures and SQL', 'Hackathon', 'Portfolio piece', 'Applied to ten roles'],
+    did: ['step-ds', 'step-sql', 'step-hack', 'step-project', 'step-apply-ten'],
+  },
+  {
+    id: 'profile-swe-12',
+    goalId: 'path-swe',
+    outcome: 'Software engineering intern, robotics lab spin-out',
+    year: 'Sophomore',
+    timeline: ['Data structures course', 'Robotics club', 'Hackathon', 'Resume review', 'Applied in October'],
+    did: ['step-ds', 'step-club', 'step-hack', 'step-resume', 'step-apply-northwind', 'step-apply-ten'],
+  },
+  {
+    id: 'profile-ml-1',
+    goalId: 'path-ml',
+    outcome: 'Machine learning intern, speech company',
+    year: 'Junior',
+    timeline: ['Linear algebra and probability', 'Trained and wrote up an image model', 'Research assistant in a lab'],
+    did: ['step-ml-math', 'step-ml-lib', 'step-ml-model', 'step-ml-research', 'step-ml-apply'],
+  },
+  {
+    id: 'profile-ml-2',
+    goalId: 'path-ml',
+    outcome: 'Applied science intern, retail company',
+    year: 'Junior',
+    timeline: ['Probability and statistics', 'Deep learning course project', 'Career fair'],
+    did: ['step-ml-math', 'step-ml-lib', 'step-ml-model', 'step-ml-fair', 'step-ml-apply'],
+  },
+  {
+    id: 'profile-ml-3',
+    goalId: 'path-ml',
+    outcome: 'Machine learning intern, robotics company',
+    year: 'Sophomore',
+    timeline: ['Linear algebra', 'Hackathon model with a write-up', 'Research assistant'],
+    did: ['step-ml-math', 'step-ml-model', 'step-ml-research'],
+  },
+  {
+    id: 'profile-ml-4',
+    goalId: 'path-ml',
+    outcome: 'Research intern, university lab',
+    year: 'Sophomore',
+    timeline: ['Linear algebra and probability', 'One library, end to end', 'Research assistant'],
+    did: ['step-ml-math', 'step-ml-lib', 'step-ml-research'],
+  },
+  {
+    id: 'profile-ml-5',
+    goalId: 'path-ml',
+    outcome: 'Machine learning intern, ads company',
+    year: 'Junior',
+    timeline: ['Probability', 'Kaggle-style project with a kept test set', 'Applied to eight teams'],
+    did: ['step-ml-math', 'step-ml-lib', 'step-ml-model', 'step-ml-apply'],
+  },
+  {
+    id: 'profile-ml-6',
+    goalId: 'path-ml',
+    outcome: 'ML platform intern, cloud provider',
+    year: 'Junior',
+    timeline: ['Linear algebra', 'Deep learning library', 'Model report', 'Career fair'],
+    did: ['step-ml-math', 'step-ml-lib', 'step-ml-model', 'step-ml-fair', 'step-ml-apply'],
+  },
+  {
+    id: 'profile-ml-7',
+    goalId: 'path-ml',
+    outcome: 'Machine learning intern, health startup',
+    year: 'Senior',
+    timeline: ['Statistics', 'Lab research', 'Model write-up'],
+    did: ['step-ml-math', 'step-ml-model', 'step-ml-research', 'step-ml-apply'],
+  },
+  {
+    id: 'profile-ml-8',
+    goalId: 'path-ml',
+    outcome: 'Applied ML intern, search company',
+    year: 'Junior',
+    timeline: ['Linear algebra and probability', 'Library course', 'Trained a text model', 'Career fair'],
+    did: ['step-ml-math', 'step-ml-lib', 'step-ml-model', 'step-ml-fair'],
+  },
+  {
+    id: 'profile-data-1',
+    goalId: 'path-data',
+    outcome: 'Data engineering intern, analytics company',
+    year: 'Junior',
+    timeline: ['SQL course', 'Daily pipeline on public data', 'Applied in November'],
+    did: ['step-data-sql', 'step-data-pipeline', 'step-data-apply'],
+  },
+  {
+    id: 'profile-data-2',
+    goalId: 'path-data',
+    outcome: 'Data engineering intern, logistics company',
+    year: 'Sophomore',
+    timeline: ['SQL', 'Cloud starter track', 'Club with a shared codebase'],
+    did: ['step-data-sql', 'step-data-cloud', 'step-data-club', 'step-data-apply'],
+  },
+  {
+    id: 'profile-data-3',
+    goalId: 'path-data',
+    outcome: 'Analytics engineering intern, fintech',
+    year: 'Junior',
+    timeline: ['SQL and window functions', 'Pipeline project', 'Career fair'],
+    did: ['step-data-sql', 'step-data-pipeline', 'step-data-fair'],
+  },
+  {
+    id: 'profile-data-4',
+    goalId: 'path-data',
+    outcome: 'Data platform intern, streaming company',
+    year: 'Junior',
+    timeline: ['SQL', 'Cloud certification', 'Scheduled pipeline'],
+    did: ['step-data-sql', 'step-data-cloud', 'step-data-pipeline', 'step-data-apply'],
+  },
+  {
+    id: 'profile-data-5',
+    goalId: 'path-data',
+    outcome: 'Data engineering intern, health company',
+    year: 'Senior',
+    timeline: ['SQL', 'Pipeline for a lab', 'Career fair'],
+    did: ['step-data-sql', 'step-data-pipeline', 'step-data-fair', 'step-data-apply'],
+  },
+  {
+    id: 'profile-data-6',
+    goalId: 'path-data',
+    outcome: 'Data engineering intern, retail company',
+    year: 'Sophomore',
+    timeline: ['SQL', 'Cloud starter track', 'Open source club', 'Pipeline project'],
+    did: ['step-data-sql', 'step-data-cloud', 'step-data-club', 'step-data-pipeline'],
+  },
+  {
+    id: 'profile-data-7',
+    goalId: 'path-data',
+    outcome: 'Data intern, city government',
+    year: 'Junior',
+    timeline: ['SQL', 'Public data pipeline', 'Applied to six roles'],
+    did: ['step-data-sql', 'step-data-pipeline', 'step-data-apply'],
+  },
+  {
+    id: 'profile-data-8',
+    goalId: 'path-data',
+    outcome: 'Data engineering intern, ad tech company',
+    year: 'Junior',
+    timeline: ['SQL', 'Cloud platform', 'Career fair'],
+    did: ['step-data-sql', 'step-data-cloud', 'step-data-fair', 'step-data-apply'],
+  },
+  {
+    id: 'profile-pm-1',
+    goalId: 'path-pm',
+    outcome: 'Product management intern, productivity app',
+    year: 'Junior',
+    timeline: ['Three product briefs on a blog', 'Led a hackathon team', 'Career fair'],
+    did: ['step-pm-writing', 'step-pm-lead', 'step-pm-fair'],
+  },
+  {
+    id: 'profile-pm-2',
+    goalId: 'path-pm',
+    outcome: 'Associate product intern, marketplace',
+    year: 'Junior',
+    timeline: ['User interviews for a club app', 'Led a team project', 'Info session'],
+    did: ['step-pm-users', 'step-pm-lead', 'step-pm-info'],
+  },
+  {
+    id: 'profile-pm-3',
+    goalId: 'path-pm',
+    outcome: 'Product intern, education startup',
+    year: 'Sophomore',
+    timeline: ['Product briefs', 'User interviews', 'Hackathon lead'],
+    did: ['step-pm-writing', 'step-pm-users', 'step-pm-lead'],
+  },
+  {
+    id: 'profile-pm-4',
+    goalId: 'path-pm',
+    outcome: 'Product management intern, fintech',
+    year: 'Senior',
+    timeline: ['Led a club to a shipped app', 'Info session', 'Career fair'],
+    did: ['step-pm-lead', 'step-pm-info', 'step-pm-fair'],
+  },
+  {
+    id: 'profile-pm-5',
+    goalId: 'path-pm',
+    outcome: 'Product intern, health company',
+    year: 'Junior',
+    timeline: ['Writing portfolio', 'User research', 'Scholarship with product mentors'],
+    did: ['step-pm-writing', 'step-pm-users', 'step-pm-scholar'],
+  },
+  {
+    id: 'profile-pm-6',
+    goalId: 'path-pm',
+    outcome: 'Technical product intern, developer tools',
+    year: 'Junior',
+    timeline: ['Engineering internship first', 'Product briefs', 'Led a hackathon team'],
+    did: ['step-pm-writing', 'step-pm-lead'],
+  },
+  {
+    id: 'profile-pm-7',
+    goalId: 'path-pm',
+    outcome: 'Product management intern, travel company',
+    year: 'Junior',
+    timeline: ['User interviews', 'Led a team', 'Career fair'],
+    did: ['step-pm-users', 'step-pm-lead', 'step-pm-fair'],
+  },
+  {
+    id: 'profile-pm-8',
+    goalId: 'path-pm',
+    outcome: 'Product intern, social app',
+    year: 'Sophomore',
+    timeline: ['Product briefs', 'Hackathon lead', 'Info session'],
+    did: ['step-pm-writing', 'step-pm-lead', 'step-pm-info'],
+  },
+];
+
+/**
+ * What the agents read off each application page. In the product an application reader in the
+ * worker fleet fills this in; here it is written by hand.
+ */
+export const applicationInfo: Record<string, ApplicationInfo> = {
+  'opp-northwind-swe': {
+    prompts: [
+      'Tell us about a project you built with other people. What was your part? (200 words)',
+      'Why do you want to work on robotics software? (150 words)',
+    ],
+    materials: ['Resume (PDF)', 'Unofficial transcript', 'Link to a code sample'],
+    requiresLogin: false,
+  },
+  'opp-harbor-data': { prompts: [], materials: ['Resume (PDF)', 'Unofficial transcript'], requiresLogin: true },
+  'opp-ml-research': {
+    prompts: [
+      'Which of the lab\'s recent papers interests you most, and why? (250 words)',
+      'Describe your experience with Python and any machine learning library.',
+    ],
+    materials: ['Resume (PDF)', 'Unofficial transcript', 'Name of one faculty reference'],
+    requiresLogin: false,
+  },
+  'opp-first-gen-scholarship': {
+    prompts: [
+      'What does being the first in your family to attend college mean for your goals? (400 words)',
+      'How would this scholarship change your next year? (200 words)',
+    ],
+    materials: ['Unofficial transcript', 'Financial aid summary', 'One recommendation letter'],
+    requiresLogin: false,
+  },
+  'opp-bay-hack': {
+    prompts: ['What do you want to build this weekend? (100 words)'],
+    materials: ['Team name or "looking for a team"', 'Student ID for check-in'],
+    requiresLogin: false,
+  },
+  'opp-lumen-info': { prompts: [], materials: ['RSVP', 'Printed resume for the review'], requiresLogin: false },
+  'opp-systems-club': { prompts: ['What would you like to work on? (optional)'], materials: ['Interest form'], requiresLogin: false },
+  'opp-career-fair': { prompts: [], materials: ['Registration', 'Ten printed resumes', 'List of five companies to visit'], requiresLogin: false },
+};
 
 export const careerPaths: CareerPath[] = [
   {
@@ -497,7 +1100,11 @@ export const initialState: AppState = {
   saved: [],
   dismissed: [],
   opened: [],
+  liked: [],
   doneSteps: ['step-ds'],
+  extraSteps: [],
+  // One application already under way, so the Applications page and the roadmap have something to show.
+  applications: { 'opp-northwind-swe': { status: 'to_apply', drafts: {}, materialsDone: ['Resume (PDF)'] } },
   goalId: 'path-swe',
   profile: {
     name: 'Maya',

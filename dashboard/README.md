@@ -35,8 +35,9 @@ committed.
 
 | Route | Page | What it shows |
 |---|---|---|
-| `/` | Feed | Two tabs. **For you**: a TikTok-style reel, one opportunity per screen with Save, Not for me, Details and Open; scroll, swipe, or use the arrow keys (or J and K). **Feed**: everything in a scrolling grid of cards, with search, a Filters menu (type, format, closing within two weeks) and sorting by best match, deadline or newest |
-| `/roadmap` | Roadmap | Phases and steps toward the chosen goal, each linked to a feed opportunity when there is one |
+| `/` | Feed | Two tabs. **For you**: a TikTok-style reel, one opportunity per screen with Save, Like, Dislike, Details and Open; scroll, swipe, or use the arrow keys (or J and K). **Feed**: a board that fills the window without scrolling the page: compact photo tiles on the left and the roadmap on the right (progress, the next step with a tick box, what follows). Hovering a roadmap step lights up its card. Search, a Filters menu (type, format, closing within two weeks) and sorting by best match, deadline or newest. Under 1024px wide it stacks and scrolls |
+| `/roadmap` | Roadmap | A goal picker for the four career paths, each with its own plan. "What this goal asks for" compares the goal's requirements with the student's skills and finished steps. Phases of action steps (learn, build, join, attend, apply), each linked to a feed opportunity, with the next one marked. Apply steps carry the application status. Cards the student saved or liked are offered as steps to add. Progress, upcoming deadlines, and a summary of where the student stands |
+| `/applications` | Applications | Everything the student is applying to. Status (interested, to apply, applying, applied), deadline, what is ready, the questions with a draft box each, a checklist of materials, reminders at 7 days, 2 days and the day of the deadline, an "Add to Google Calendar" link and an `.ics` file. Submitting happens on the organizer's own page |
 | `/discover` | Career discovery | Paths that fit the student, what each expects, "Make this my goal" |
 | `/saved` | Saved | Saved tiles in the same grid, soonest deadline first |
 | `/agents` | Agents | Master, manager and worker agents with status, and an activity log |
@@ -64,6 +65,10 @@ committed.
 The round button at the top right of every page (`src/components/ProfileMenu.tsx`) opens a menu with Profile and Settings. It closes on Escape, on a click elsewhere, and when the page changes. Settings also sits above Profile at the bottom of the dock.
 
 The logo is the team's artwork: a bear over a shield with a rising arrow, in blue and gold, with the background removed. It is a picture, not a vector: `src/assets/logo.png` (in the app), `public/favicon.png` (browser tab) and `electron/icon.png` (desktop app icon: the logo on a black rounded square), with `electron/icon.icns` built from `icon.png` using `sips` and `iconutil`. These were made from a 278px screenshot, so they are soft at large sizes; replace them from the original file when it is available.
+
+Clicking an opportunity opens one window sized to the screen, so nothing scrolls on a laptop. It has three columns: the photo with the title, place, deadline and fit score; the reason it was recommended, key dates (found, last checked, start, deadline, reminders once it is tracked, and a Google Calendar link), what applying takes, and Save, Like, the official posting and the application status; and a side column with its place on the roadmap (the step before it, its own step and the one after, each with a tick box, or an "Add as a step" button) and an **Ask about this** bar. The bar's answers are built from the card's own data in `src/lib/ask.ts` and say so when the posting does not state something; in the product the question goes to Grok. Under 1024px wide the columns stack and the window scrolls.
+
+The dock's small **Agents live** button opens a window with the week's usage, the agents working now and the latest activity.
 
 ## Navigation dock
 
@@ -94,9 +99,12 @@ in the `@theme` block at the top of `src/index.css`.
 
 ## State
 
-`src/state/store.ts` holds what the student did: saved, dismissed and opened cards, finished
-roadmap steps, the goal, and the profile. It is kept in `localStorage` under
-`bearrok.dashboard.v2`.
+`src/state/store.ts` holds what the student did: saved, liked, dismissed (disliked) and opened
+cards, finished roadmap steps, feed cards added to the roadmap, applications (status, draft
+answers, materials gathered), the goal, and the profile. The application rules (reminders,
+progress, calendar link and `.ics` file) are in `src/lib/applications.ts` and follow section 6 of
+`backend/AGENT_SYSTEM.md`. It is kept in `localStorage` under
+`bearrok.dashboard.v3`.
 
 ## Feed ranking
 
@@ -131,3 +139,19 @@ as "On your roadmap" or "Closing soon".
 - Roadmaps, career paths, agent status and the student's history have no API yet.
 
 To go live, replace the imports from `src/data/sample.ts` with fetches that return the same shapes.
+
+## Roadmap built from what people actually did
+
+The Roadmap page shows where the plan comes from. For each goal there is a set of profiles of people who got that role (`pathProfiles` in `src/data/sample.ts`), each with what they did beforehand and the roadmap steps that history matches. `src/lib/pathways.ts` counts how many of them did each step, splits the steps into common (60% or more) and rare (under 35%), and orders the steps inside each phase with the most common first. The page shows the counts as bars, a "N of M people did this" chip on every step, and the individual paths behind a "See the paths" button.
+
+Every profile here is invented sample data, and no names are kept. Nothing reads LinkedIn yet. In the product this is a job for a profiles worker in the backend fleet, which would need a permitted source of profile data (LinkedIn does not allow scraping, so that means its official API, a licensed data provider, or profiles students share themselves).
+
+## A roadmap per opportunity, only when asked
+
+An opportunity's window does not show a roadmap by default. It has a **Start the roadmap** button, and the student decides. Pressing it builds a plan for that one opportunity in `buildOpportunityRoadmap` (`src/lib/roadmap.ts`) from the posting's own details: read the posting, any skill it names that is missing from the profile, one step per required material, one per application question, a review, and submitting, with dates worked back from the deadline and never in the past. Hackathons, events and clubs get their own steps (register, find a team, attend, follow up). The steps have tick boxes in the window, appear as their own card on the Roadmap page, count toward progress, and can be removed from either place, which also clears their done marks.
+
+## Video in the For you reel, and a feed that reacts
+
+Each For you card plays a short muted, looping clip (`video` on the opportunity) instead of a still photo. Only the card on screen plays; clicking the picture pauses it, a thin bar shows progress, and the photo is the poster and the fallback when a clip is missing or fails. The sample clips are free stock videos loaded from Mixkit, so they need a network connection.
+
+The ranking runs again on every save, like and dislike. Cards the student already scrolled past keep their place; everything below the current card is re-ranked at once. A reaction counts in full for the same type and at half strength for sibling types (internship, research and scholarship are one family; event, hackathon and club the other).

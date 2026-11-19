@@ -3,6 +3,7 @@
 // the page moves over to make room.
 import {
   BookmarkSimple,
+  ClipboardText,
   Compass,
   GearSix,
   House,
@@ -11,11 +12,14 @@ import {
   PushPinSlash,
   Robot,
   UserCircle,
+  X,
   type Icon,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, NavLink } from 'react-router';
-import { agentUsage, opportunities, roadmaps } from '../data/sample.ts';
+import { agentEvents, agents, agentUsage, opportunities, roadmaps } from '../data/sample.ts';
+import { relativeTime } from '../lib/time.ts';
 import { useStore } from '../state/StoreProvider.tsx';
 import { BrandMark } from './Brand.tsx';
 
@@ -33,6 +37,7 @@ export const dockItems: DockItem[] = [
   { to: '/', label: 'Feed', icon: House, colors: ['#3ad6ff', '#4f6bff', '#b14bff'] },
   { to: '/roadmap', label: 'Roadmap', icon: Path, colors: ['#5cf2c0', '#19b5e6', '#3d6bff'] },
   { to: '/discover', label: 'Career discovery', icon: Compass, colors: ['#ff7ad9', '#9a5bff', '#4f8cff'] },
+  { to: '/applications', label: 'Applications', icon: ClipboardText, colors: ['#7cf29c', '#22c4a6', '#2f7bff'] },
   { to: '/saved', label: 'Saved', icon: BookmarkSimple, colors: ['#ffd15c', '#ff8a3d', '#ff4f8b'] },
   { to: '/agents', label: 'Agents', icon: Robot, colors: ['#ff5fa2', '#ff7a45', '#b04bff'] },
   { to: '/settings', label: 'Settings', icon: GearSix, colors: ['#c6d0e0', '#7f93b5', '#4f6bff'], bottom: true },
@@ -61,9 +66,13 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-/** Panel in the dock: an example week of agent usage, and where the student really stands. */
-function DockUsage() {
+/** Live panel in the dock: what the agents used this week and where the student stands. */
+/** The full agent report, opened from the small "Agents live" button in the dock. */
+function UsageWindow({ onClose }: { onClose: () => void }) {
   const { state } = useStore();
+  const ref = useRef<HTMLDialogElement>(null);
+  const all = [agents.master, ...agents.managers, ...agents.workers];
+  const running = all.filter((node) => node.status === 'running');
   const { pagesPerDay, budgetUsed, searchesToday } = agentUsage;
   const total = pagesPerDay.reduce((sum, pages) => sum + pages, 0);
   const peak = Math.max(...pagesPerDay);
@@ -74,60 +83,158 @@ function DockUsage() {
   const stats = [
     { label: 'in feed', value: opportunities.length - state.dismissed.length },
     { label: 'saved', value: state.saved.length },
+    { label: 'applications', value: Object.keys(state.applications).length },
     { label: 'roadmap', value: steps.length ? `${Math.round((done / steps.length) * 100)}%` : '0%' },
   ];
 
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+
   return (
-    <section className="dock-usage" aria-label="Example of agent usage">
-      <div className="flex items-center justify-between text-xs font-semibold">
-        <span>Example week</span>
-        <span className="text-white/65">sample figures</span>
-      </div>
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onClick={(event) => {
+        if (event.target === ref.current) ref.current.close();
+      }}
+      aria-labelledby="usage-title"
+      className="usage-window"
+    >
+      <div className="usage-hero">
+        <div className="flex items-center justify-between">
+          <h2 id="usage-title" className="flex items-center gap-2 text-sm font-semibold">
+            Example activity
+            <span className="font-normal text-white/65">
+              sample figures · {running.length} of {all.length} working
+            </span>
+          </h2>
+          <button type="button" onClick={() => ref.current?.close()} aria-label="Close" className="usage-close">
+            <X weight="bold" aria-hidden="true" />
+          </button>
+        </div>
 
-      <p className="mt-3 font-display text-4xl leading-none">{total}</p>
-      <p className="mt-1 text-xs text-white/65">pages read this week</p>
-
-      <div className="dock-bars mt-3" aria-hidden="true">
-        {pagesPerDay.map((pages, index) => (
-          <span
-            key={index}
-            className="dock-bar"
-            data-today={index === pagesPerDay.length - 1}
-            style={{ height: `${Math.round((pages / peak) * 100)}%`, animationDelay: `${index * 60}ms` }}
-          />
-        ))}
-      </div>
-      <div className="mt-1 grid grid-flow-col auto-cols-fr gap-[5px] text-center text-[10px] text-white/50" aria-hidden="true">
-        {pagesPerDay.map((_, index) => (
-          <span key={index}>{DAYS[(today - (pagesPerDay.length - 1 - index) + 7) % 7]}</span>
-        ))}
-      </div>
-
-      <div className="mt-3 flex items-center justify-between text-xs">
-        <span className="text-white/65">Grok budget today</span>
-        <span className="font-semibold">{Math.round(budgetUsed * 100)}%</span>
-      </div>
-      <div
-        className="dock-meter mt-1.5"
-        role="progressbar"
-        aria-label="Grok budget used today"
-        aria-valuenow={Math.round(budgetUsed * 100)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <span style={{ width: `${budgetUsed * 100}%` }} />
-      </div>
-      <p className="mt-1.5 text-[11px] text-white/50">{searchesToday} searches so far</p>
-
-      <dl className="mt-3 grid grid-cols-3 gap-1 border-t border-white/15 pt-3 text-center">
-        {stats.map((stat) => (
-          <div key={stat.label}>
-            <dd className="text-sm font-bold">{stat.value}</dd>
-            <dt className="text-[10px] text-white/55">{stat.label}</dt>
+        <div className="mt-5 flex items-end justify-between gap-6">
+          <div>
+            <p className="font-display text-6xl leading-none">{total}</p>
+            <p className="mt-1.5 text-sm text-white/65">pages read this week</p>
           </div>
-        ))}
-      </dl>
-    </section>
+          <div className="w-44">
+            <div className="dock-bars" aria-hidden="true">
+              {pagesPerDay.map((pages, index) => (
+                <span
+                  key={index}
+                  className="dock-bar"
+                  data-today={index === pagesPerDay.length - 1}
+                  style={{ height: `${Math.round((pages / peak) * 100)}%`, animationDelay: `${index * 60}ms` }}
+                />
+              ))}
+            </div>
+            <div className="mt-1 grid grid-flow-col auto-cols-fr gap-[5px] text-center text-[10px] text-white/50" aria-hidden="true">
+              {pagesPerDay.map((_, index) => (
+                <span key={index}>{DAYS[(today - (pagesPerDay.length - 1 - index) + 7) % 7]}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between text-sm">
+          <span className="text-white/65">Grok budget today · {searchesToday} searches so far</span>
+          <span className="font-semibold">{Math.round(budgetUsed * 100)}%</span>
+        </div>
+        <div
+          className="dock-meter mt-2"
+          role="progressbar"
+          aria-label="Grok budget used today"
+          aria-valuenow={Math.round(budgetUsed * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <span style={{ width: `${budgetUsed * 100}%` }} />
+        </div>
+
+        <dl className="mt-5 grid grid-cols-4 gap-1 border-t border-white/15 pt-4 text-center">
+          {stats.map((stat) => (
+            <div key={stat.label}>
+              <dd className="text-lg font-bold">{stat.value}</dd>
+              <dt className="text-xs text-white/55">{stat.label}</dt>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div className="grid gap-6 p-6 sm:grid-cols-2">
+        <section>
+          <h3 className="text-sm font-semibold">Working now</h3>
+          <ul className="mt-3 space-y-3">
+            {running.map((node) => (
+              <li key={node.id} className="flex gap-2.5">
+                <span className="live-dot mt-1.5 size-2 shrink-0 rounded-full bg-[#34c759]" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{node.name}</p>
+                  <p className="text-sm leading-snug text-ink-3">{node.detail}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section>
+          <h3 className="text-sm font-semibold">Latest activity</h3>
+          <ul className="mt-3 space-y-3">
+            {agentEvents.slice(0, 3).map((event) => (
+              <li key={event.id}>
+                <p className="text-sm leading-snug text-ink-2">{event.text}</p>
+                <p className="text-xs text-ink-3">
+                  {event.agent} · {relativeTime(event.at)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+      <div className="flex items-center justify-between border-t border-line px-6 py-4">
+        <span className="text-xs text-ink-3">Sample data</span>
+        <Link to="/agents" onClick={() => ref.current?.close()} className="btn-primary flex h-9 items-center rounded-lg px-4 text-sm text-white">
+          Open the Agents page
+        </Link>
+      </div>
+    </dialog>
+  );
+}
+
+/** A one-line summary in the dock. Clicking it opens the full report in a window. */
+function DockUsage() {
+  const [open, setOpen] = useState(false);
+  const all = [agents.master, ...agents.managers, ...agents.workers];
+  const running = all.filter((node) => node.status === 'running').length;
+  const { pagesPerDay } = agentUsage;
+  const peak = Math.max(...pagesPerDay);
+
+  return (
+    <>
+      <button type="button" className="dock-usage" aria-haspopup="dialog" aria-label="Example agent activity. Open the report" onClick={() => setOpen(true)}>
+        <span className="flex min-w-0 flex-col items-start">
+          <span className="flex items-center gap-2 text-xs font-semibold">
+            Example activity
+          </span>
+          <span className="mt-0.5 text-[11px] text-white/60">
+            {running} of {all.length} working
+          </span>
+        </span>
+        <span className="dock-bars dock-bars-mini" aria-hidden="true">
+          {pagesPerDay.map((pages, index) => (
+            <span
+              key={index}
+              className="dock-bar"
+              data-today={index === pagesPerDay.length - 1}
+              style={{ height: `${Math.round((pages / peak) * 100)}%`, animationDelay: `${index * 60}ms` }}
+            />
+          ))}
+        </span>
+      </button>
+      {/* Outside the dock, so it stays up when the dock slides away. */}
+      {open && createPortal(<UsageWindow onClose={() => setOpen(false)} />, document.body)}
+    </>
   );
 }
 

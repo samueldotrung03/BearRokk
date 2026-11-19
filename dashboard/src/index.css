@@ -460,16 +460,80 @@ body {
 /* The live panel that fills the middle of the dock. */
 .dock-usage {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
   margin: 0 0 8px;
-  padding: 14px;
-  border-radius: 16px;
+  padding: 10px 12px;
+  border-radius: 14px;
   color: white;
+  text-align: left;
   background:
     radial-gradient(140% 90% at 100% 0%, rgb(86 150 255 / 0.55), transparent 60%),
     linear-gradient(165deg, #1d3a5c 0%, #152b43 100%);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.18),
-    0 10px 22px -10px rgb(21 43 67 / 0.7);
+    0 8px 18px -10px rgb(21 43 67 / 0.7);
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.dock-usage:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 12px 22px -10px rgb(21 43 67 / 0.85);
+}
+
+.dock-bars-mini {
+  width: 54px;
+  height: 24px;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+/* The agent report window. */
+.usage-window {
+  margin: auto;
+  width: min(620px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  overflow-y: auto;
+  border-radius: 24px;
+  background: white;
+  color: var(--color-ink);
+  box-shadow: var(--shadow-lift);
+  animation: panel-in 0.2s ease-out;
+}
+
+.usage-window::backdrop {
+  background: rgb(21 43 67 / 0.45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.usage-hero {
+  padding: 22px 24px 20px;
+  color: white;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgb(86 150 255 / 0.55), transparent 60%),
+    linear-gradient(165deg, #1d3a5c 0%, #152b43 100%);
+}
+
+.usage-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.usage-close:hover {
+  background: rgb(255 255 255 / 0.25);
 }
 
 .dock-bars {
@@ -680,7 +744,216 @@ body {
   position: absolute;
   inset: 68px 0 0 0;
   overflow-y: auto;
-  padding: 20px 24px 48px;
+  padding: 12px 24px 24px;
+}
+
+/* The feed board: toolbar on top, then the cards and the roadmap side by side. */
+.feed-board {
+  display: flex;
+  flex-direction: column;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.feed-active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.feed-active:empty {
+  display: none;
+}
+
+.feed-main {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.feed-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 240px;
+  gap: 14px;
+}
+
+.feed-tile {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 22px;
+  background: var(--color-ink);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.45),
+    0 14px 30px -16px rgb(20 44 96 / 0.6);
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s;
+}
+
+.feed-tile img {
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.feed-tile:hover,
+.feed-tile[data-lit='true'] {
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 2px white,
+    0 22px 40px -16px rgb(20 44 96 / 0.75);
+}
+
+.feed-tile[data-lit='true'] {
+  box-shadow:
+    0 0 0 3px var(--color-brand),
+    0 22px 40px -16px rgb(20 44 96 / 0.75);
+}
+
+.feed-tile:hover img {
+  transform: scale(1.05);
+}
+
+.feed-tile-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgb(8 16 32 / 0.92) 0%, rgb(8 16 32 / 0.55) 38%, transparent 68%);
+}
+
+.feed-tile-actions {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+}
+
+.feed-tile-actions button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.18);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: background 0.15s;
+}
+
+.feed-tile-actions button:hover {
+  background: rgb(255 255 255 / 0.35);
+}
+
+.feed-tile-actions button[aria-pressed='true'] {
+  background: white;
+  color: #e11d48;
+}
+
+.feed-roadmap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 20px;
+  border-radius: 24px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.feed-roadmap-next {
+  padding: 14px;
+  border-radius: 16px;
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.feed-roadmap-list {
+  display: grid;
+  gap: 14px;
+}
+
+.feed-roadmap-list li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The line that strings the upcoming steps together. */
+.feed-roadmap-list li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 30px;
+  height: 12px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgb(21 43 67 / 0.15);
+}
+
+.feed-roadmap-dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--color-brand);
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.feed-roadmap-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid rgb(21 43 67 / 0.1);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-brand);
+}
+
+/* On a laptop or larger the board fills the window exactly: the page does not scroll, the cards
+   share the height between them, and only a long list scrolls, inside its own area. */
+@media (min-width: 1024px) and (min-height: 620px) {
+  .feed-scroller {
+    overflow: hidden;
+  }
+
+  .feed-board {
+    height: 100%;
+  }
+
+  .feed-main {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+
+  .feed-grid {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: minmax(190px, 1fr);
+    padding: 4px;
+    margin: -4px;
+  }
+
+  .feed-grid[data-count='1'],
+  .feed-grid[data-count='2'],
+  .feed-grid[data-count='3'] {
+    grid-auto-rows: minmax(190px, 62%);
+  }
+}
+
+@media (min-width: 1280px) and (min-height: 620px) {
+  .feed-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .feed-toolbar {
@@ -904,9 +1177,46 @@ body {
     0 30px 60px -20px rgb(20 44 96 / 0.55);
 }
 
+/* The whole picture is the play and pause control; the card's own buttons sit above it. */
+.reel-video-toggle {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.reel-video-play {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 999px;
+  color: white;
+  background: rgb(8 16 32 / 0.5);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.reel-video-progress {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 3;
+  height: 3px;
+  background: rgb(255 255 255 / 0.2);
+}
+
+.reel-video-progress div {
+  width: 0;
+  height: 100%;
+  background: white;
+}
+
 .reel-shade {
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background:
     linear-gradient(180deg, rgb(8 16 32 / 0.3) 0%, transparent 22%),
     linear-gradient(0deg, rgb(8 16 32 / 0.92) 0%, rgb(8 16 32 / 0.6) 34%, transparent 62%);
@@ -915,6 +1225,7 @@ body {
 .reel-body {
   position: absolute;
   inset: auto 0 0 0;
+  z-index: 2;
   padding: 22px;
 }
 
@@ -1133,6 +1444,458 @@ body {
   }
 }
 
+/* ---------- Roadmap evidence ---------- */
+
+.path-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+  background: #f1f5f9;
+}
+
+.path-chip[data-strong='true'] {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+/* One person's history as a short vertical line of stops. */
+.path-line {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+
+.path-line li {
+  position: relative;
+  padding-left: 18px;
+}
+
+.path-line li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-brand);
+}
+
+.path-line li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  width: 1px;
+  height: calc(100% + 1px);
+  background: rgb(36 91 216 / 0.3);
+}
+
+/* ---------- Applications ---------- */
+
+.status-select select {
+  height: 30px;
+  padding: 0 28px 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  appearance: none;
+  background: white
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12' fill='none' stroke='%2346617d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  cursor: pointer;
+}
+
+.status-select:not([data-status='none']) select {
+  border-color: var(--color-brand);
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.status-select[data-status='applied'] select {
+  border-color: #6ee7b7;
+  background-color: #ecfdf5;
+  color: #047857;
+}
+
+.app-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: #eef2f7;
+}
+
+.app-status button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.app-status button[aria-pressed='true'] {
+  background: white;
+  color: var(--color-brand);
+  box-shadow: var(--shadow-card);
+}
+
+.app-reminder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: var(--color-ink-2);
+}
+
+.app-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--color-brand);
+}
+
+.app-link:hover {
+  background: var(--color-brand-soft);
+}
+
+.app-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  background: white;
+  color: var(--color-ink-2);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s;
+}
+
+.app-tile > :first-child {
+  color: var(--color-ink);
+}
+
+.app-tile[aria-pressed='true'] {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+/* ---------- Opportunity details ---------- */
+
+/* One window, three columns: the photo and facts, the details, and the roadmap with the
+   question box. It is sized to the screen so nothing has to scroll on a laptop. */
+.detail-dialog {
+  margin: auto;
+  width: min(1180px, calc(100vw - 2rem));
+  height: min(760px, calc(100dvh - 2rem));
+  padding: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  background: white;
+  color: var(--color-ink);
+  box-shadow: var(--shadow-lift);
+  animation: detail-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detail-dialog::backdrop {
+  background: rgb(21 43 67 / 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+@keyframes detail-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+
+.detail-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: var(--color-ink-2);
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.detail-close:hover {
+  color: var(--color-ink);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.1fr) minmax(0, 1fr);
+  height: 100%;
+}
+
+.detail-photo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-ink);
+}
+
+.detail-photo-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgb(8 16 32 / 0.94) 0%, rgb(8 16 32 / 0.7) 36%, rgb(8 16 32 / 0.1) 68%, transparent 100%);
+}
+
+.detail-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 24px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.detail-side {
+  gap: 14px;
+  padding-top: 58px;
+  background: var(--color-canvas);
+}
+
+.detail-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-line);
+}
+
+.detail-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.detail-roadmap {
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #e3edff 0%, #f1f6ff 100%);
+  box-shadow: inset 0 0 0 1px rgb(36 91 216 / 0.12);
+}
+
+.detail-roadmap-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: var(--color-brand);
+}
+
+.detail-steps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  max-height: min(340px, 42dvh);
+  margin-top: 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.detail-steps li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 12px;
+}
+
+.detail-steps li[data-current='true'] {
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+/* The line joining one step to the next. */
+.detail-steps li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: calc(100% - 5px);
+  width: 2px;
+  height: 14px;
+  border-radius: 2px;
+  background: rgb(36 91 216 / 0.25);
+}
+
+@media (max-width: 1023px) {
+  .detail-dialog {
+    height: auto;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .detail-photo {
+    min-height: 380px;
+  }
+
+  .detail-col {
+    overflow: visible;
+  }
+
+  .detail-side {
+    padding-top: 24px;
+  }
+}
+
+.ask {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 200px;
+  padding: 16px;
+  border-radius: 18px;
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+/* The conversation takes the spare height and scrolls by itself; the box stays at the bottom. */
+.ask-thread {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* One row that slides sideways, so the suggestions never take height from the conversation. */
+.ask-chips {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ask-chips > * {
+  flex-shrink: 0;
+}
+
+.ask-question {
+  width: fit-content;
+  max-width: 90%;
+  margin-left: auto;
+  padding: 8px 12px;
+  border-radius: 14px 14px 4px 14px;
+  font-size: 14px;
+  color: white;
+  background: var(--color-brand);
+}
+
+.ask-answer {
+  max-width: 95%;
+  padding: 10px 12px;
+  border-radius: 14px 14px 14px 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-ink-2);
+  background: var(--color-canvas);
+}
+
+.ask-chip {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+  background: white;
+  transition: border-color 0.15s;
+}
+
+.ask-chip:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.ask-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 6px 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: white;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.ask-form:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgb(36 91 216 / 0.15);
+}
+
+.ask-form input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: 15px;
+  outline: none;
+  background: none;
+}
+
+.ask-form button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: white;
+  background: var(--color-brand);
+  transition: opacity 0.15s;
+}
+
+.ask-form button:disabled {
+  opacity: 0.35;
+}
+
 /* ---------- macOS desktop app: no title bar ---------- */
 
 /* The strip along the top where the window can be dragged. It sits above the page, so the
@@ -1239,6 +2002,8 @@ html.is-desktop .signin-page > :first-child {
 
   .dock-bar,
   .feed-filter-panel,
+  .detail-dialog,
+  .usage-window,
   .dock-tile::before {
     animation: none;
   }
