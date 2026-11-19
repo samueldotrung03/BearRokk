@@ -16,6 +16,7 @@ import { Timeline } from '../components/roadmap/Timeline.tsx';
 import { WeekPlanner } from '../components/roadmap/WeekPlanner.tsx';
 import { typeMeta } from '../components/meta.ts';
 import { Card, Page } from '../components/Page.tsx';
+import { pathGroups } from '../data/fields.ts';
 import { applicationInfo, careerPaths, opportunities, pathProfiles } from '../data/sample.ts';
 import { evidenceFor } from '../lib/pathways.ts';
 import { buildOpportunityRoadmap, currentRoadmap } from '../lib/roadmap.ts';
@@ -39,8 +40,12 @@ export function Roadmap() {
   const [incoming, setIncoming] = useState<{ id: number; question: string } | null>(null);
   const [toast, setToast] = useState<{ text: string; milestone: boolean } | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
+  // The field whose goals are listed. Until the student picks one, it is the current goal's field.
+  const [field, setField] = useState<string | null>(null);
 
   const roadmap = currentRoadmap(state.goalId);
+  const goalField = careerPaths.find((path) => path.id === roadmap.goalId)?.group ?? pathGroups[0]!;
+  const openField = field ?? goalField;
   const evidence = evidenceFor(roadmap, pathProfiles);
   const ctx = useMemo(() => buildCoachContext(state, hours), [state, hours]);
   const score = readiness(ctx);
@@ -134,13 +139,35 @@ export function Roadmap() {
       <Card className="mb-6 p-5">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <h2 className="font-semibold tracking-tight">Your goal</h2>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Choose a goal">
-            {careerPaths.map((path) => (
+          <div className="rm-toggle rm-fields" role="group" aria-label="Choose a field">
+            {pathGroups.map((group) => (
+              <button key={group} type="button" aria-pressed={group === openField} onClick={() => setField(group)}>
+                {group}
+                {group === goalField && group !== openField && (
+                  <>
+                    <span className="rm-field-dot" aria-hidden="true" />
+                    <span className="sr-only">, your goal is here</span>
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
+          <Link to="/discover" className="ml-auto text-sm font-medium text-brand">
+            Not sure? Explore career paths
+          </Link>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={`Goals in ${openField}`}>
+          {careerPaths
+            .filter((path) => (path.group ?? pathGroups[0]) === openField)
+            .map((path) => (
               <button
                 key={path.id}
                 type="button"
                 aria-pressed={path.id === roadmap.goalId}
-                onClick={() => dispatch({ type: 'setGoal', id: path.id })}
+                onClick={() => {
+                  dispatch({ type: 'setGoal', id: path.id });
+                  setField(null);
+                }}
                 className={`h-9 rounded-full border px-4 text-sm font-medium transition ${
                   path.id === roadmap.goalId ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink-2 hover:border-slate-300'
                 }`}
@@ -148,10 +175,6 @@ export function Roadmap() {
                 {path.title}
               </button>
             ))}
-          </div>
-          <Link to="/discover" className="ml-auto text-sm font-medium text-brand">
-            Not sure? Explore career paths
-          </Link>
         </div>
       </Card>
 

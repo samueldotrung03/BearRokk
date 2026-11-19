@@ -4,6 +4,7 @@ import { CalendarDays, CheckCircle2, CornerDownLeft, FileText, Search, Sparkles,
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { opportunities } from '../data/sample.ts';
+import { formatShortcut, matchesShortcut, useShortcuts } from '../lib/shortcuts.ts';
 import { spotlight, type SpotlightItem, type SpotlightKind } from '../lib/spotlight.ts';
 import { dueLabel } from '../lib/time.ts';
 import { useStore } from '../state/StoreProvider.tsx';
@@ -44,9 +45,10 @@ export function Spotlight() {
   const current = items[Math.min(active, items.length - 1)];
   const preview = current?.open ? opportunities.find((o) => o.id === current.open) : undefined;
 
+  const shortcut = useShortcuts().shortcuts['launcher'] ?? null;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === '/') {
+      if (matchesShortcut(event, shortcut)) {
         event.preventDefault();
         setOpen((value) => !value);
       }
@@ -58,7 +60,7 @@ export function Spotlight() {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('bearrok:spotlight', onOpen);
     };
-  }, []);
+  }, [shortcut]);
 
   useEffect(() => {
     if (!open) return;
@@ -206,10 +208,11 @@ export function Spotlight() {
                   {returnHint[current.kind]}
                 </span>
               )}
-              <span className="ml-auto">
-                <kbd>⌘</kbd>
-                <kbd>/</kbd> to open anywhere
-              </span>
+              {shortcut && (
+                <span className="ml-auto">
+                  <kbd>{formatShortcut(shortcut)}</kbd> to open anywhere
+                </span>
+              )}
             </div>
           </div>
         </div>

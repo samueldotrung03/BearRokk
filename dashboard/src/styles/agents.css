@@ -434,6 +434,28 @@ button.ag-chip-dark:hover {
   animation-name: ag-travel-back;
 }
 
+/* A backend pulse repeats for as long as the agent at its lower end is running. */
+.ag-pulse[data-loop='true'] {
+  animation-iteration-count: infinite;
+}
+
+/* Where connectors meet between rows, such as the backend's shared job queue. */
+.ag-hub {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  background: rgb(21 43 67 / 0.92);
+  color: rgb(255 255 255 / 0.7);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .ag-pulse-dot {
   display: block;
   width: 10px;

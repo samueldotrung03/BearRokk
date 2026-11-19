@@ -68,13 +68,13 @@ export interface WritingAssistant {
 export function classifyPrompt(prompt: string): PromptKind {
   const p = prompt.toLowerCase();
   if (/what does .* mean|first in your family|first-generation|background|identity/.test(p)) return 'identity';
-  if (/which .*interests? you|most interest|favorite|favourite/.test(p)) return 'interest';
-  if (/describe your experience|experience with|familiar with/.test(p)) return 'experience';
+  if (/which .*interests? you|most interest|favorite|favourite|you admire|you follow/.test(p)) return 'interest';
+  if (/describe your experience|experience with|familiar with|about a time you|a problem you solved/.test(p)) return 'experience';
   if (/with other people|team|collaborat|group/.test(p)) return 'teamwork';
-  if (/what did .* teach you|what did you learn|lesson|challenge you (faced|overcame)/.test(p)) return 'reflection';
-  if (/project|you built|you made|you shipped/.test(p)) return 'project';
-  if (/how (would|will) .*(change|help|affect)|impact on/.test(p)) return 'impact';
-  if (/what do you want to build|would you like to work on|what will you (build|make)|plan to build/.test(p)) return 'plan';
+  if (/what did .* teach you|what did you learn|lesson|challenge you (faced|overcame)|changed how you/.test(p)) return 'reflection';
+  if (/project|you built|you made|you shipped|you designed/.test(p)) return 'project';
+  if (/how (would|will) .*(change|help|affect)|impact on|for other people/.test(p)) return 'impact';
+  if (/what do you want to build|would you like to work on|what will you (build|make)|plan to build|you would (work on|report)|how would you (handle|approach)/.test(p)) return 'plan';
   if (/\bwhy\b/.test(p)) return 'motivation';
   return 'general';
 }

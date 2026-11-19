@@ -22,6 +22,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { isDesktop, signInThroughBrowser } from './desktop.ts';
 import { API_URL, auth } from './firebase.ts';
 import { requestGoogleAccess, type GoogleService } from './google.ts';
+import { storageKey } from '../state/store.ts';
 
 /** loading: still finding out. guest: looking around on sample data without an account. */
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn' | 'guest';
@@ -174,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetch(`${API_URL}/api/students/me`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
         try {
           localStorage.removeItem(`bearrok.onboarded.${current.uid}`);
+          localStorage.removeItem(storageKey(current.uid));
         } catch {
           // nothing to clear
         }

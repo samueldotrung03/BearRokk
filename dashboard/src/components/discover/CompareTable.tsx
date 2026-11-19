@@ -3,13 +3,16 @@ import type { ReactNode } from 'react';
 import type { ClassYear } from '../../types.ts';
 import type { AnswerAction } from '../../lib/discover/ask.ts';
 import { sameYearCount, type PathInsight } from '../../lib/discover/insight.ts';
-import type { PathMatch } from '../../lib/discover/match.ts';
+import { groupByField, type PathMatch } from '../../lib/discover/match.ts';
 import { MAX_COMPARE } from './MatchList.tsx';
 import { LevelPill, PathMark } from './PathMark.tsx';
 
 interface CompareTableProps {
   ids: string[];
+  /** Every path, best match first. */
   allIds: string[];
+  groups: Record<string, string>;
+  groupOrder: string[];
   insights: Record<string, PathInsight>;
   matches: Record<string, PathMatch>;
   hues: Record<string, string>;
@@ -18,6 +21,9 @@ interface CompareTableProps {
   onToggle: (pathId: string) => void;
   onAction: (action: AnswerAction) => void;
 }
+
+/** Quick picks shown as chips; every other path is in the "Add a path" menu, by field. */
+const QUICK_PICKS = 5;
 
 function Meter({ value, of, hue }: { value: number; of: number; hue: string }) {
   return (
@@ -29,7 +35,10 @@ function Meter({ value, of, hue }: { value: number; of: number; hue: string }) {
 
 /** Two or three paths side by side, on the facts the page already worked out for each. */
 export function CompareTable(props: CompareTableProps) {
-  const { ids, allIds, insights, matches, hues, goalId, year, onToggle, onAction } = props;
+  const { ids, allIds, groups, groupOrder, insights, matches, hues, goalId, year, onToggle, onAction } = props;
+  const quick = allIds.filter((id, index) => index < QUICK_PICKS || ids.includes(id));
+  const rest = allIds.filter((id) => !quick.includes(id));
+  const full = ids.length >= MAX_COMPARE;
   const shown = ids.filter((id) => insights[id] && matches[id]);
   const best = shown.length ? Math.max(...shown.map((id) => matches[id]!.percent)) : 0;
 
@@ -114,16 +123,39 @@ export function CompareTable(props: CompareTableProps) {
           <p className="text-sm text-ink-3">Pick up to {MAX_COMPARE} paths.</p>
         </div>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Paths to compare">
-          {allIds.map((id) => {
+          {quick.map((id) => {
             const on = ids.includes(id);
-            const full = !on && ids.length >= MAX_COMPARE;
             return (
-              <button key={id} type="button" aria-pressed={on} disabled={full} onClick={() => onToggle(id)} className={`dc-chip ${on ? 'is-on' : ''}`}>
+              <button key={id} type="button" aria-pressed={on} disabled={!on && full} onClick={() => onToggle(id)} className={`dc-chip ${on ? 'is-on' : ''}`}>
                 {on ? <X className="size-3.5" aria-hidden="true" /> : <Plus className="size-3.5" aria-hidden="true" />}
                 {insights[id]?.path.title}
               </button>
             );
           })}
+          {rest.length > 0 && (
+            <select
+              aria-label="Add another path to compare"
+              value=""
+              disabled={full}
+              onChange={(event) => event.target.value && onToggle(event.target.value)}
+              className="dc-select"
+            >
+              <option value="">Add another path</option>
+              {groupByField(
+                rest.map((pathId) => ({ pathId })),
+                groups,
+                groupOrder,
+              ).map((group) => (
+                <optgroup key={group.field} label={group.field}>
+                  {group.matches.map(({ pathId }) => (
+                    <option key={pathId} value={pathId}>
+                      {insights[pathId]?.path.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 

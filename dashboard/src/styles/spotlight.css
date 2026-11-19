@@ -16,8 +16,8 @@
   overflow: hidden;
   border-radius: 22px;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'DM Sans Variable', system-ui, sans-serif;
-  color: #1d1d1f;
-  background: rgb(246 246 248 / 0.78);
+  color: rgb(255 255 255 / 0.95);
+  background: rgb(26 26 28 / 0.68);
   -webkit-backdrop-filter: blur(50px) saturate(190%);
   backdrop-filter: blur(50px) saturate(190%);
   box-shadow:
@@ -46,7 +46,7 @@
   gap: 12px;
   height: 60px;
   padding: 0 18px;
-  color: rgb(60 60 67 / 0.6);
+  color: rgb(235 235 245 / 0.6);
 }
 
 .spotlight-field input {
@@ -55,14 +55,14 @@
   font-size: 24px;
   font-weight: 400;
   letter-spacing: -0.01em;
-  color: #1d1d1f;
+  color: rgb(255 255 255 / 0.95);
   outline: none;
   background: transparent;
-  caret-color: #007aff;
+  caret-color: #f5f5f7;
 }
 
 .spotlight-field input::placeholder {
-  color: rgb(60 60 67 / 0.35);
+  color: rgb(235 235 245 / 0.35);
 }
 
 .spotlight kbd {
@@ -75,14 +75,14 @@
   font-family: inherit;
   font-size: 11px;
   font-weight: 500;
-  color: rgb(60 60 67 / 0.7);
-  background: rgb(120 120 128 / 0.16);
+  color: rgb(235 235 245 / 0.7);
+  background: rgb(255 255 255 / 0.12);
 }
 
 .spotlight-body {
   display: flex;
   max-height: min(430px, 52vh);
-  border-top: 0.5px solid rgb(60 60 67 / 0.18);
+  border-top: 0.5px solid rgb(235 235 245 / 0.18);
 }
 
 .spotlight-list {
@@ -97,7 +97,7 @@
   padding: 8px 10px 4px;
   font-size: 11px;
   font-weight: 600;
-  color: rgb(60 60 67 / 0.6);
+  color: rgb(235 235 245 / 0.6);
 }
 
 .spotlight-row {
@@ -109,7 +109,7 @@
   padding: 0 10px;
   border-radius: 9px;
   font-size: 14px;
-  color: #1d1d1f;
+  color: rgb(255 255 255 / 0.95);
 }
 
 .spotlight-sub {
@@ -119,7 +119,7 @@
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: rgb(60 60 67 / 0.6);
+  color: rgb(235 235 245 / 0.6);
 }
 
 .spotlight-icon {
@@ -131,24 +131,24 @@
   overflow: hidden;
   border-radius: 7px;
   color: white;
-  background: linear-gradient(180deg, #5aa2ff, #2f6bff);
+  background: rgb(255 255 255 / 0.1);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
 }
 
 .spotlight-row[data-kind='step'] .spotlight-icon {
-  background: linear-gradient(180deg, #5fd97a, #2fb350);
+  background: rgb(255 255 255 / 0.1);
 }
 
 .spotlight-row[data-kind='action'] .spotlight-icon {
-  background: linear-gradient(180deg, #ffb340, #ff8a00);
+  background: rgb(255 255 255 / 0.1);
 }
 
 .spotlight-row[data-kind='ask'] .spotlight-icon {
-  background: linear-gradient(180deg, #b68cff, #7a4dff);
+  background: rgb(255 255 255 / 0.1);
 }
 
 .spotlight-row[data-kind='page'] .spotlight-icon {
-  background: linear-gradient(180deg, #a2a2a8, #6e6e73);
+  background: rgb(255 255 255 / 0.1);
 }
 
 .spotlight-icon img {
@@ -157,10 +157,10 @@
   object-fit: cover;
 }
 
-/* The selected row is the solid system blue, with everything on it turned white. */
+/* The selected row is a lighter pane of the same glass. */
 .spotlight-row[aria-selected='true'] {
   color: white;
-  background: #0a6cff;
+  background: rgb(255 255 255 / 0.18);
 }
 
 .spotlight-row[aria-selected='true'] .spotlight-sub {
@@ -172,7 +172,7 @@
   flex-shrink: 0;
   padding: 14px;
   overflow: hidden;
-  border-left: 0.5px solid rgb(60 60 67 / 0.18);
+  border-left: 0.5px solid rgb(235 235 245 / 0.18);
 }
 
 .spotlight-preview img {
@@ -188,7 +188,7 @@
   gap: 4px;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 0.5px solid rgb(60 60 67 / 0.18);
+  border-top: 0.5px solid rgb(235 235 245 / 0.18);
   font-size: 12px;
 }
 
@@ -199,7 +199,7 @@
 }
 
 .spotlight-preview dt {
-  color: rgb(60 60 67 / 0.6);
+  color: rgb(235 235 245 / 0.6);
 }
 
 .spotlight-preview dd {
@@ -215,9 +215,9 @@
   gap: 16px;
   height: 34px;
   padding: 0 14px;
-  border-top: 0.5px solid rgb(60 60 67 / 0.18);
+  border-top: 0.5px solid rgb(235 235 245 / 0.18);
   font-size: 11px;
-  color: rgb(60 60 67 / 0.6);
+  color: rgb(235 235 245 / 0.6);
 }
 
 .spotlight-foot span {
@@ -237,4 +237,14 @@
   .spotlight-scrim {
     animation: none;
   }
+}
+
+/* The preview sits on the dark glass, so the page's ink colours are swapped for light ones. */
+.spotlight-preview .text-ink,
+.spotlight-preview .text-ink-2 {
+  color: rgb(255 255 255 / 0.92);
+}
+
+.spotlight-preview .text-ink-3 {
+  color: rgb(235 235 245 / 0.6);
 }

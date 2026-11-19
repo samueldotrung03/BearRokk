@@ -3,6 +3,7 @@
 // company names, no statistics and no quotes from real people: when a student asks for those,
 // the page says it does not know. Counts about real-looking histories come from `pathProfiles`
 // in sample.ts, never from this file.
+import { fieldExtras } from './fields.ts';
 
 /** How much of an ordinary week an activity takes, in words rather than invented percentages. */
 export type WeekShare = 'most' | 'some' | 'little';
@@ -37,7 +38,7 @@ export interface PathExtra {
   feedTags: string[];
   /** Neighbouring paths that share most of the same groundwork. */
   neighbours: string[];
-  /** Accent hue for the path's mark, so the four paths are easy to tell apart at a glance. */
+  /** Accent hue for the path's mark, so the paths are easy to tell apart at a glance. */
   hue: string;
 }
 
@@ -135,6 +136,7 @@ export const pathExtras: PathExtra[] = [
     neighbours: ['path-swe'],
     hue: '#e07a1f',
   },
+  ...fieldExtras,
 ];
 
 export interface QuizOption {
@@ -152,65 +154,79 @@ export interface QuizQuestion {
   options: QuizOption[];
 }
 
+
+// Written so a student in any major can answer honestly: no question assumes coding. Each option
+// points at a few paths strongly and a few more partly, and the paths share options in different
+// combinations from question to question, so a pattern of answers can lead to any of them.
 export const quizQuestions: QuizQuestion[] = [
   {
     id: 'enjoy',
     prompt: 'What part of a project do you enjoy most?',
     options: [
-      { id: 'build', label: 'Getting it to work end to end', because: 'enjoy getting things working end to end', fit: { 'path-swe': 1, 'path-data': 0.5, 'path-ml': 0.3, 'path-pm': 0.2 } },
-      { id: 'patterns', label: 'Experimenting to see what works best', because: 'enjoy experimenting to see what works best', fit: { 'path-ml': 1, 'path-data': 0.5, 'path-swe': 0.3, 'path-pm': 0.2 } },
-      { id: 'organize', label: 'Making messy information clean and reliable', because: 'like making messy information clean and reliable', fit: { 'path-data': 1, 'path-swe': 0.4, 'path-ml': 0.4, 'path-pm': 0.2 } },
-      { id: 'decide', label: 'Deciding what to build and why', because: 'enjoy deciding what to build and why', fit: { 'path-pm': 1, 'path-swe': 0.3 } },
+      { id: 'build', label: 'Making the thing itself and getting it to work', because: 'enjoy making things and getting them to work', fit: { 'path-swe': 1, 'path-mecheng': 1, 'path-design': 0.6, 'path-data': 0.5, 'path-ml': 0.4, 'path-research': 0.3 } },
+      { id: 'why', label: 'Finding out why something happens', because: 'enjoy finding out why things happen', fit: { 'path-research': 1, 'path-ml': 0.6, 'path-health': 0.6, 'path-data': 0.6, 'path-policy': 0.4, 'path-finance': 0.3, 'path-media': 0.3 } },
+      { id: 'help', label: 'Helping the people it is for', because: 'enjoy helping the people a project is for', fit: { 'path-education': 1, 'path-health': 1, 'path-design': 0.8, 'path-policy': 0.6, 'path-pm': 0.6, 'path-marketing': 0.3 } },
+      { id: 'share', label: 'Telling people about it and winning them over', because: 'enjoy telling people about an idea and winning them over', fit: { 'path-marketing': 1, 'path-media': 1, 'path-consulting': 0.8, 'path-policy': 0.8, 'path-pm': 0.7, 'path-finance': 0.5 } },
     ],
   },
   {
     id: 'style',
     prompt: 'How do you like to work?',
     options: [
-      { id: 'deep', label: 'Heads-down on one hard problem', because: 'like going heads-down on one hard problem', fit: { 'path-swe': 0.8, 'path-ml': 0.8, 'path-data': 0.7, 'path-pm': 0 } },
-      { id: 'team', label: 'Building alongside a small team', because: 'like building alongside a small team', fit: { 'path-swe': 1, 'path-data': 0.6, 'path-pm': 0.6, 'path-ml': 0.4 } },
-      { id: 'people', label: 'Talking with lots of people and bringing them together', because: 'like bringing people together', fit: { 'path-pm': 1, 'path-swe': 0.2, 'path-data': 0.2 } },
-      { id: 'read', label: 'Reading, trying ideas, writing up what I found', because: 'like reading, trying ideas and writing up results', fit: { 'path-ml': 1, 'path-pm': 0.4, 'path-data': 0.3, 'path-swe': 0.2 } },
+      { id: 'deep', label: 'Heads-down on one hard problem', because: 'like going heads-down on one hard problem', fit: { 'path-research': 1, 'path-ml': 0.9, 'path-finance': 0.8, 'path-data': 0.8, 'path-mecheng': 0.6, 'path-swe': 0.5 } },
+      { id: 'team', label: 'Making something with a small team', because: 'like making something with a small team', fit: { 'path-mecheng': 1, 'path-design': 1, 'path-swe': 0.8, 'path-pm': 0.7, 'path-data': 0.5, 'path-media': 0.5 } },
+      { id: 'people', label: 'Face to face with lots of different people', because: 'like working face to face with lots of people', fit: { 'path-education': 1, 'path-health': 1, 'path-consulting': 0.8, 'path-marketing': 0.8, 'path-pm': 0.8, 'path-policy': 0.5 } },
+      { id: 'argue', label: 'Reading, writing and making an argument', because: 'like reading, writing and making an argument', fit: { 'path-policy': 1, 'path-media': 1, 'path-research': 0.5, 'path-consulting': 0.5, 'path-pm': 0.4, 'path-marketing': 0.4, 'path-education': 0.4 } },
     ],
   },
   {
-    id: 'broken',
-    prompt: 'Something you built gives a wrong answer. What do you do first?',
+    id: 'wrong',
+    prompt: 'A plan you worked on is going wrong. What do you do first?',
     options: [
-      { id: 'trace', label: 'Trace through the code until I find the cause', because: 'trace a bug until you find the cause', fit: { 'path-swe': 1, 'path-data': 0.7, 'path-ml': 0.4 } },
-      { id: 'experiment', label: 'Run a few versions side by side and compare', because: 'compare versions side by side to find what changed', fit: { 'path-ml': 1, 'path-data': 0.4, 'path-swe': 0.4 } },
-      { id: 'guard', label: 'Add a check so it can never fail silently again', because: 'add checks so things never fail silently', fit: { 'path-data': 1, 'path-swe': 0.6, 'path-ml': 0.3 } },
-      { id: 'impact', label: 'Find out who it affects and what matters most', because: 'start by asking who a problem affects', fit: { 'path-pm': 1, 'path-swe': 0.2, 'path-data': 0.3 } },
+      { id: 'trace', label: 'Trace it step by step until I find the cause', because: 'trace a problem step by step until you find the cause', fit: { 'path-swe': 1, 'path-data': 1, 'path-health': 0.8, 'path-mecheng': 0.7, 'path-ml': 0.5 } },
+      { id: 'test', label: 'Try a few versions side by side and compare', because: 'try a few versions side by side and compare', fit: { 'path-research': 1, 'path-marketing': 1, 'path-mecheng': 1, 'path-design': 0.8, 'path-ml': 0.7, 'path-data': 0.4, 'path-swe': 0.3 } },
+      { id: 'ask', label: 'Ask the people it affects what they need', because: 'start by asking the people a problem affects', fit: { 'path-pm': 1, 'path-design': 1, 'path-education': 1, 'path-health': 0.9, 'path-policy': 0.8, 'path-media': 0.6 } },
+      { id: 'cost', label: 'Check the numbers and what each fix would cost', because: 'check the numbers and the cost of each fix', fit: { 'path-finance': 1, 'path-consulting': 1, 'path-data': 0.6, 'path-policy': 0.5, 'path-ml': 0.3 } },
     ],
   },
   {
-    id: 'math',
+    id: 'think',
     prompt: 'Which kind of thinking feels most natural?',
     options: [
-      { id: 'linalg', label: 'Linear algebra and probability', because: 'are comfortable with linear algebra and probability', fit: { 'path-ml': 1, 'path-data': 0.4, 'path-swe': 0.3 } },
-      { id: 'logic', label: 'Logic, proofs and algorithms', because: 'think naturally in logic and algorithms', fit: { 'path-swe': 1, 'path-ml': 0.5, 'path-data': 0.5, 'path-pm': 0.2 } },
-      { id: 'tables', label: 'Tables, counts and statistics', because: 'think in tables, counts and statistics', fit: { 'path-data': 1, 'path-ml': 0.6, 'path-pm': 0.3, 'path-swe': 0.3 } },
-      { id: 'words', label: 'Words, stories and diagrams', because: 'reason best in words and diagrams', fit: { 'path-pm': 1, 'path-swe': 0.2 } },
+      { id: 'numbers', label: 'Numbers, chances and statistics', because: 'think naturally in numbers and statistics', fit: { 'path-finance': 1, 'path-data': 1, 'path-research': 1, 'path-ml': 0.9, 'path-consulting': 0.7, 'path-marketing': 0.3 } },
+      { id: 'logic', label: 'Logic and cause and effect, step by step', because: 'think in logic and cause and effect', fit: { 'path-swe': 1, 'path-mecheng': 0.8, 'path-data': 0.7, 'path-health': 0.7, 'path-ml': 0.5, 'path-policy': 0.4, 'path-pm': 0.3 } },
+      { id: 'words', label: 'Words, stories and arguments', because: 'reason best in words, stories and arguments', fit: { 'path-media': 1, 'path-policy': 1, 'path-education': 0.8, 'path-marketing': 0.8, 'path-pm': 0.6, 'path-consulting': 0.5 } },
+      { id: 'visual', label: 'Pictures, shapes and how things fit together', because: 'think in pictures and how things fit together', fit: { 'path-design': 1, 'path-mecheng': 1, 'path-marketing': 0.5, 'path-health': 0.3, 'path-swe': 0.2 } },
     ],
   },
   {
     id: 'proud',
     prompt: 'Which result would make you proudest?',
     options: [
-      { id: 'service', label: 'A service lots of people use without thinking about it', because: 'would be proudest of a service people rely on', fit: { 'path-swe': 1, 'path-data': 0.5, 'path-ml': 0.3, 'path-pm': 0.4 } },
-      { id: 'model', label: 'A model that clearly beats the old way', because: 'would be proudest of a model that beats the old way', fit: { 'path-ml': 1, 'path-data': 0.3, 'path-swe': 0.2 } },
-      { id: 'pipeline', label: 'Numbers a whole team trusts every morning', because: 'would be proudest of data a team trusts every day', fit: { 'path-data': 1, 'path-ml': 0.3, 'path-swe': 0.4 } },
-      { id: 'launch', label: 'A feature that shipped because I made the case', because: 'would be proudest of a feature you argued for', fit: { 'path-pm': 1, 'path-swe': 0.3 } },
+      { id: 'used', label: 'Something people use every day without thinking about it', because: 'would be proudest of something people use every day', fit: { 'path-swe': 1, 'path-design': 1, 'path-mecheng': 1, 'path-pm': 0.8, 'path-data': 0.7 } },
+      { id: 'finding', label: 'A finding that holds up when others check it', because: 'would be proudest of a finding that holds up', fit: { 'path-research': 1, 'path-ml': 0.6, 'path-health': 0.6, 'path-data': 0.5, 'path-media': 0.4, 'path-policy': 0.3 } },
+      { id: 'helped', label: 'A person or a community clearly better off', because: 'would be proudest of people clearly better off', fit: { 'path-health': 1, 'path-education': 1, 'path-policy': 1, 'path-media': 0.4, 'path-pm': 0.3 } },
+      { id: 'minds', label: 'A story, campaign or deal that changed people’s minds', because: 'would be proudest of work that changed people’s minds', fit: { 'path-media': 1, 'path-marketing': 1, 'path-consulting': 1, 'path-finance': 0.8, 'path-policy': 0.6, 'path-pm': 0.5 } },
     ],
   },
   {
     id: 'pace',
     prompt: 'What pace suits you?',
     options: [
-      { id: 'weekly', label: 'Ship something small every week', because: 'like shipping something small every week', fit: { 'path-swe': 1, 'path-pm': 0.6, 'path-data': 0.5, 'path-ml': 0.2 } },
-      { id: 'long', label: 'Long experiments, one solid result at a time', because: 'prefer long experiments with one solid result at a time', fit: { 'path-ml': 1, 'path-data': 0.3, 'path-swe': 0.2 } },
-      { id: 'steady', label: 'Steady and reliable, few surprises', because: 'prefer a steady, reliable pace', fit: { 'path-data': 1, 'path-swe': 0.5, 'path-ml': 0.3 } },
-      { id: 'fast', label: 'Fast, with priorities that shift', because: 'like a fast pace with shifting priorities', fit: { 'path-pm': 1, 'path-swe': 0.4 } },
+      { id: 'weekly', label: 'Something new out every week', because: 'like putting something new out every week', fit: { 'path-swe': 1, 'path-marketing': 1, 'path-media': 1, 'path-pm': 0.8, 'path-design': 0.6 } },
+      { id: 'long', label: 'Long projects, one solid result at a time', because: 'prefer long projects with one solid result at a time', fit: { 'path-research': 1, 'path-mecheng': 1, 'path-design': 0.7, 'path-ml': 0.6, 'path-policy': 0.6, 'path-data': 0.3 } },
+      { id: 'steady', label: 'Steady and reliable, with a routine', because: 'prefer a steady, reliable routine', fit: { 'path-data': 1, 'path-education': 1, 'path-health': 0.7, 'path-policy': 0.5, 'path-swe': 0.3, 'path-finance': 0.3 } },
+      { id: 'fast', label: 'Fast and high-stakes, with priorities that shift', because: 'like a fast, high-stakes pace', fit: { 'path-finance': 1, 'path-consulting': 1, 'path-pm': 1, 'path-health': 0.9, 'path-media': 0.7, 'path-marketing': 0.5 } },
+    ],
+  },
+  {
+    id: 'place',
+    prompt: 'Where would you most like to spend a working day?',
+    options: [
+      { id: 'desk', label: 'At a desk or screen, deep in my own work', because: 'want to spend the day deep in your own work at a desk', fit: { 'path-swe': 1, 'path-data': 1, 'path-ml': 1, 'path-design': 0.8, 'path-finance': 0.5, 'path-media': 0.5 } },
+      { id: 'lab', label: 'In a lab, a studio or a workshop', because: 'want to spend the day in a lab, a studio or a workshop', fit: { 'path-research': 1, 'path-mecheng': 1, 'path-design': 1, 'path-media': 0.6, 'path-health': 0.5 } },
+      { id: 'community', label: 'In a clinic, a classroom or a community', because: 'want to spend the day in a clinic, a classroom or a community', fit: { 'path-health': 1, 'path-education': 1, 'path-policy': 0.8, 'path-media': 0.3 } },
+      { id: 'meetings', label: 'In meetings with clients, teams or decision-makers', because: 'want to spend the day with clients and decision-makers', fit: { 'path-consulting': 1, 'path-finance': 1, 'path-pm': 1, 'path-policy': 0.8, 'path-marketing': 0.8 } },
     ],
   },
 ];

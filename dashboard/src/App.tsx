@@ -3,12 +3,12 @@ import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { useAuth } from './auth/AuthProvider.tsx';
 import { isOnboarded } from './auth/onboarding.ts';
 import { Assistant } from './components/Assistant.tsx';
+import { DeadlineNotifier } from './components/DeadlineNotifier.tsx';
 import { Dock } from './components/Dock.tsx';
 import { Spotlight } from './components/Spotlight.tsx';
 import './styles/assistant.css';
 import './styles/spotlight.css';
 import { Agents } from './pages/Agents.tsx';
-import { AgentsLive } from './pages/AgentsLive.tsx';
 import { Applications } from './pages/Applications.tsx';
 import { Calendar } from './pages/Calendar.tsx';
 import { Discover } from './pages/Discover.tsx';
@@ -20,6 +20,7 @@ import { Saved } from './pages/Saved.tsx';
 import { Settings } from './pages/Settings.tsx';
 import { SignIn } from './pages/SignIn.tsx';
 import { SignUp } from './pages/SignUp.tsx';
+import { Today } from './pages/Today.tsx';
 
 /** Pages for getting into an account. They have no sidebar and need no sign-in. */
 const accountPages = ['/signin', '/signup', '/forgot-password'];
@@ -45,13 +46,13 @@ export function App() {
       {!onAccountPage && <Dock />}
       <Routes>
         <Route path="/" element={<Feed />} />
+        <Route path="/today" element={<Today />} />
         <Route path="/roadmap" element={<Roadmap />} />
         <Route path="/discover" element={<Discover />} />
         <Route path="/applications" element={<Applications />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/saved" element={<Saved />} />
         <Route path="/agents" element={<Agents />} />
-        <Route path="/agents/live" element={<AgentsLive />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/signin" element={<SignIn />} />
@@ -60,6 +61,7 @@ export function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {!onAccountPage && <Assistant />}
+      {!onAccountPage && <DeadlineNotifier />}
       {!onAccountPage && <Spotlight />}
     </>
   );

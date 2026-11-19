@@ -11,10 +11,11 @@ import { Quiz } from '../components/discover/Quiz.tsx';
 import { Details } from '../components/OpportunityCard.tsx';
 import { Page } from '../components/Page.tsx';
 import { pathExtras, quizQuestions } from '../data/discover-extra.ts';
+import { pathGroups } from '../data/fields.ts';
 import { careerPaths, opportunities, pathProfiles } from '../data/sample.ts';
 import type { AnswerAction, AskCareerContext } from '../lib/discover/ask.ts';
 import { pathInsight, type PathInsight } from '../lib/discover/insight.ts';
-import { answeredCount, rankPaths, type PathMatch, type QuizAnswers } from '../lib/discover/match.ts';
+import { answeredCount, numberWord, rankPaths, type PathMatch, type QuizAnswers } from '../lib/discover/match.ts';
 import { currentRoadmap } from '../lib/roadmap.ts';
 import { useLocal } from '../lib/useLocal.ts';
 import { useStore } from '../state/StoreProvider.tsx';
@@ -27,6 +28,7 @@ const oneLines = Object.fromEntries(careerPaths.map((p) => [p.id, p.oneLine]));
 const paces = Object.fromEntries(pathExtras.map((e) => [e.pathId, e.paceShort]));
 const hues = Object.fromEntries(pathExtras.map((e) => [e.pathId, e.hue]));
 const pathIds = careerPaths.map((p) => p.id);
+const groups = Object.fromEntries(careerPaths.map((p) => [p.id, p.group ?? 'Other']));
 
 export function Discover() {
   const { state, dispatch } = useStore();
@@ -146,7 +148,7 @@ export function Discover() {
   return (
     <Page
       title="Career discovery"
-      subtitle="Answer six quick questions. We weigh them with your profile and your feed, rank the paths that fit, and show what each one really involves."
+      subtitle={`Answer ${numberWord(quizQuestions.length)} quick questions, whatever your major. We weigh them with your profile and your feed, rank the paths that fit across ${numberWord(pathGroups.length)} fields, and show what each one really involves.`}
       aside={
         goal && (
           <button type="button" onClick={() => navigate('/roadmap')} className="dc-goal-pill">
@@ -180,6 +182,8 @@ export function Discover() {
             titles={titles}
             oneLines={oneLines}
             hues={hues}
+            groups={groups}
+            groupOrder={pathGroups}
             selectedId={selectedId}
             goalId={state.goalId}
             compare={compare}
@@ -213,6 +217,8 @@ export function Discover() {
           <CompareTable
             ids={compare}
             allIds={ranked.map((m) => m.pathId)}
+            groups={groups}
+            groupOrder={pathGroups}
             insights={insights}
             matches={matches}
             hues={hues}

@@ -1,12 +1,13 @@
-// The Agents page: a simulated live run of the Grok agent system on sample data. The run itself
-// is the pure engine in src/lib/agents; this page owns the clock (how fast beats arrive), the
-// student's standing instructions, and which agent is selected.
+// The Agents page. When the agent backend has a run, the map, detail panel and activity list show
+// that real run (src/lib/agents/fromLive.ts). Without one it plays a simulated run of the agent
+// system on sample data: the pure engine in src/lib/agents, with this page owning the clock (how
+// fast beats arrive), the student's standing instructions, and which agent is selected.
 import { Pause, Play, RotateCcw, Server, SkipForward } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { AnimatedNumber, clockText, compact } from '../components/agents/AnimatedNumber.tsx';
 import { Funnel } from '../components/agents/Funnel.tsx';
 import { useBackendStatus, useReducedMotion, type BackendState } from '../components/agents/hooks.ts';
-import { ActivityStream, NodeDetail } from '../components/agents/NodeDetail.tsx';
+import { ActivityStream, LiveNodeDetail, NodeDetail } from '../components/agents/NodeDetail.tsx';
 import { RunGraph } from '../components/agents/RunGraph.tsx';
 import { BriefCard, TellBar, type StandingInstruction } from '../components/agents/TellAgents.tsx';
 import { MemoryCard, UsageCard } from '../components/agents/UsageMemory.tsx';
@@ -14,7 +15,10 @@ import { Page, StatusPill } from '../components/Page.tsx';
 import { opportunities } from '../data/sample.ts';
 import { assignSlots, buildBrief, memoryFrom } from '../lib/agents/brief.ts';
 import { funnel, idleRun, runReducer, totals, type RunInput } from '../lib/agents/engine.ts';
+import { fromLive, liveStats, sourceLabel, type Provider } from '../lib/agents/fromLive.ts';
+import { fromRun } from '../lib/agents/view.ts';
 import { useLocal } from '../lib/useLocal.ts';
+import { useLive } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import '../styles/agents.css';
 
@@ -22,17 +26,24 @@ const SPEEDS = [0.5, 1, 2, 4] as const;
 /** Real time per beat at 1x. A full run is about 17 beats, so roughly 22 seconds. */
 const BEAT_MS = 1300;
 
-function BackendChip({ status }: { status: BackendState }) {
+/** Says more about a backend run after its label, without ever calling Claude output Grok. */
+const sourceNote: Record<Provider, string> = {
+  grok: 'The agent backend’s latest run, as it happens.',
+  claude: 'The agent backend’s latest run, with Claude standing in for Grok while testing.',
+  simulated: 'The agent backend’s latest run. Its agents are simulated and its postings invented.',
+};
+
+function BackendChip({ status, showing }: { status: BackendState; showing: boolean }) {
   const text =
-    status.kind === 'checking'
-      ? 'Backend: checking…'
-      : status.kind === 'connected'
-        ? `Backend: connected${status.live ? '' : ' (no Grok key)'}`
-        : 'Backend: not running';
+    status.kind === 'checking' ? 'Backend: checking…' : status.kind === 'connected' ? `Backend: connected${status.live ? '' : ' (no Grok key)'}` : 'Backend: not running';
   return (
     <span
       className="ag-chip-dark"
-      title="The teammates' agent server on port 8787. This page runs its own simulation either way."
+      title={
+        showing
+          ? "The teammates' agent server on port 8787. This page shows its latest run."
+          : "The teammates' agent server on port 8787. Without a run from it, this page plays its own simulation."
+      }
       aria-live="polite"
     >
       <Server className="size-3.5" aria-hidden="true" />
@@ -50,6 +61,9 @@ export function Agents() {
   const [storedSpeed, setSpeed] = useLocal<number>('bearrok.agents.speed', 1);
   const speed = (SPEEDS as readonly number[]).includes(storedSpeed) ? storedSpeed : 1;
   const [selected, setSelected] = useState('master');
+  const live = useLive();
+  // The backend's run, when there is one, replaces the simulation on the map and in the panels.
+  const real = live.agents;
 
   const memory = useMemo(() => memoryFrom(state, opportunities), [state]);
   const texts = useMemo(() => instructions.map((i) => i.text), [instructions]);
@@ -72,10 +86,10 @@ export function Agents() {
   // The clock: one beat per tick while running. Cleared on pause, on every beat and on unmount.
   const beatMs = BEAT_MS / speed;
   useEffect(() => {
-    if (run.status !== 'running') return;
+    if (real || run.status !== 'running') return;
     const timer = window.setTimeout(() => dispatch({ type: 'tick' }), beatMs);
     return () => window.clearTimeout(timer);
-  }, [run.status, run.cursor, beatMs]);
+  }, [real, run.status, run.cursor, beatMs]);
 
   const start = (list: string[], trigger: string) => dispatch({ type: 'start', input: inputFor(list, trigger) });
 
@@ -95,11 +109,12 @@ export function Agents() {
   const nextSlots = useMemo(() => assignSlots(nextBrief), [nextBrief]);
   const stale = run.status !== 'idle' && (nextBrief.summary !== run.brief.summary || JSON.stringify(nextSlots) !== JSON.stringify(run.slots));
 
-  const node = run.nodes.find((n) => n.id === selected) ?? run.nodes[0]!;
   const t = totals(run);
   const { counts } = funnel(run.candidates);
   const shown = counts[4] ?? 0;
-  const stats: [string, number, ((n: number) => string) | undefined][] = [
+  const view = useMemo(() => (real ? fromLive(real) : fromRun(run, shown)), [real, run, shown]);
+  const node = view.nodes.find((n) => n.id === selected) ?? view.nodes[0];
+  const simStats: [string, number, ((n: number) => string) | undefined][] = [
     ['agents working', t.working, undefined],
     ['Grok calls', t.calls, undefined],
     ['tokens', t.tokens, compact],
@@ -108,19 +123,38 @@ export function Agents() {
     ['in your feed', shown, undefined],
   ];
 
-  const runLabel = run.status === 'idle' ? 'Ready' : run.status === 'paused' ? 'Paused' : run.status === 'done' ? 'Done' : 'Running';
+  const stats = real ? liveStats(real).map(([label, value]): [string, number, undefined] => [label, value, undefined]) : simStats;
+
+  const runLabel = real ? (real.running ? 'Running' : 'Done') : run.status === 'idle' ? 'Ready' : run.status === 'paused' ? 'Paused' : run.status === 'done' ? 'Done' : 'Running';
+  const chipStatus = real
+    ? real.running
+      ? 'working'
+      : 'done'
+    : run.status === 'running'
+      ? 'working'
+      : run.status === 'paused'
+        ? 'waiting'
+        : run.status === 'done'
+          ? 'done'
+          : 'idle';
 
   return (
     <Page
       title="Your agents"
-      subtitle="Watch the Grok agents search for you: the master briefs the managers, workers read the web, and validators decide what reaches you."
+      subtitle={
+        real
+          ? 'Watch your agents search for you: the master briefs the managers, workers read the web, and validators decide what reaches you.'
+          : 'Watch the Grok agents search for you: the master briefs the managers, workers read the web, and validators decide what reaches you.'
+      }
       aside={
         <StatusPill>
-          {run.status === 'running'
-            ? `Run ${run.run} · ${t.working} of ${t.agents} agents working`
-            : run.status === 'done'
-              ? `Run ${run.run} done · ${shown} new in your feed`
-              : `${runLabel} · ${t.agents} agents`}
+          {real
+            ? real.summary
+            : run.status === 'running'
+              ? `Run ${run.run} · ${t.working} of ${t.agents} agents working`
+              : run.status === 'done'
+                ? `Run ${run.run} done · ${shown} new in your feed`
+                : `${runLabel} · ${t.agents} agents`}
         </StatusPill>
       }
     >
@@ -128,57 +162,88 @@ export function Agents() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <h2 id="ag-run-title" className="font-display text-3xl leading-none">
-              Live run{run.run > 0 && <span className="text-white/55"> #{run.run}</span>}
+              {real ? 'Latest run' : 'Live run'}
+              {!real && run.run > 0 && <span className="text-white/55"> #{run.run}</span>}
             </h2>
             <span className="ag-chip-dark">
-              <span className="ag-dot" data-status={run.status === 'running' ? 'working' : run.status === 'paused' ? 'waiting' : run.status === 'done' ? 'done' : 'idle'} aria-hidden="true" />
-              {runLabel} · <span className="tabular-nums">{clockText(run.clock)}</span> simulated
+              <span className="ag-dot" data-status={chipStatus} aria-hidden="true" />
+              {real ? (
+                runLabel
+              ) : (
+                <>
+                  {runLabel} · <span className="tabular-nums">{clockText(run.clock)}</span> simulated
+                </>
+              )}
             </span>
-            <BackendChip status={backend} />
+            <BackendChip status={backend} showing={real !== null} />
           </div>
           <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Run controls">
-            <button type="button" className="ag-btn" data-primary="true" onClick={() => start(texts, 'Started by hand with Run now.')}>
-              <Play className="size-4" aria-hidden="true" />
-              Run now
-            </button>
-            <button
-              type="button"
-              className="ag-btn"
-              disabled={run.status !== 'running' && run.status !== 'paused'}
-              onClick={() => dispatch({ type: run.status === 'paused' ? 'resume' : 'pause' })}
-            >
-              {run.status === 'paused' ? <Play className="size-4" aria-hidden="true" /> : <Pause className="size-4" aria-hidden="true" />}
-              {run.status === 'paused' ? 'Resume' : 'Pause'}
-            </button>
-            <div className="ag-seg" role="group" aria-label="Speed">
-              {SPEEDS.map((s) => (
-                <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)}>
-                  {s === 0.5 ? '½' : s}×
+            {real ? (
+              <button type="button" className="ag-btn" data-primary="true" disabled={real.running} onClick={() => void live.runNow()}>
+                <Play className="size-4" aria-hidden="true" />
+                Run now
+              </button>
+            ) : (
+              <>
+                <button type="button" className="ag-btn" data-primary="true" onClick={() => start(texts, 'Started by hand with Run now.')}>
+                  <Play className="size-4" aria-hidden="true" />
+                  Run now
                 </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="ag-btn"
-              disabled={run.status !== 'running' && run.status !== 'paused'}
-              onClick={() => dispatch({ type: 'finish' })}
-              aria-label="Skip to the end of the run"
-              title="Skip to the end"
-            >
-              <SkipForward className="size-4" aria-hidden="true" />
-            </button>
-            <button type="button" className="ag-btn" onClick={() => dispatch({ type: 'reset', input: inputFor(texts, 'Nothing yet. Press Run now.') })} aria-label="Reset the run" title="Reset">
-              <RotateCcw className="size-4" aria-hidden="true" />
-            </button>
+                <button
+                  type="button"
+                  className="ag-btn"
+                  disabled={run.status !== 'running' && run.status !== 'paused'}
+                  onClick={() => dispatch({ type: run.status === 'paused' ? 'resume' : 'pause' })}
+                >
+                  {run.status === 'paused' ? <Play className="size-4" aria-hidden="true" /> : <Pause className="size-4" aria-hidden="true" />}
+                  {run.status === 'paused' ? 'Resume' : 'Pause'}
+                </button>
+                <div className="ag-seg" role="group" aria-label="Speed">
+                  {SPEEDS.map((s) => (
+                    <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)}>
+                      {s === 0.5 ? '½' : s}×
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="ag-btn"
+                  disabled={run.status !== 'running' && run.status !== 'paused'}
+                  onClick={() => dispatch({ type: 'finish' })}
+                  aria-label="Skip to the end of the run"
+                  title="Skip to the end"
+                >
+                  <SkipForward className="size-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="ag-btn"
+                  onClick={() => dispatch({ type: 'reset', input: inputFor(texts, 'Nothing yet. Press Run now.') })}
+                  aria-label="Reset the run"
+                  title="Reset"
+                >
+                  <RotateCcw className="size-4" aria-hidden="true" />
+                </button>
+              </>
+            )}
           </div>
         </div>
-        <p className="ag-honest mt-2">Simulated run on sample data. With a Grok key the same view shows the real agents.</p>
+        {real ? (
+          <p className="ag-honest mt-2">
+            <strong className="font-semibold text-white">{sourceLabel(live.provider)}.</strong> {sourceNote[live.provider]}
+          </p>
+        ) : (
+          <p className="ag-honest mt-2">{sourceLabel(null)}</p>
+        )}
 
-        <div className="mt-4">
-          <TellBar onSend={send} standing={instructions.length} />
-        </div>
+        {/* Standing instructions feed the local simulation only; they cannot reach the backend's agents. */}
+        {!real && (
+          <div className="mt-4">
+            <TellBar onSend={send} standing={instructions.length} />
+          </div>
+        )}
 
-        <dl className="mt-5 grid grid-cols-3 gap-4 border-y border-white/10 py-4 sm:grid-cols-6">
+        <dl className={`mt-5 grid grid-cols-3 gap-4 border-y border-white/10 py-4 ${real ? 'sm:grid-cols-5' : 'sm:grid-cols-6'}`}>
           {stats.map(([label, value, format]) => (
             <div key={label}>
               <dd className="ag-stat-num">
@@ -190,33 +255,47 @@ export function Agents() {
         </dl>
 
         <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
-          <RunGraph run={run} selected={node.id} onSelect={setSelected} reduced={reduced} pulseMs={Math.min(beatMs * 0.9, 1400)} shown={shown} />
+          <RunGraph view={view} selected={node?.id ?? ''} onSelect={setSelected} reduced={reduced} pulseMs={real ? 1400 : Math.min(beatMs * 0.9, 1400)} />
           <div className="grid gap-4 md:h-[420px] md:grid-cols-2 xl:h-[540px] xl:grid-cols-1 xl:grid-rows-[minmax(0,1.15fr)_minmax(0,1fr)]">
-            <NodeDetail run={run} node={node} />
+            {!node ? (
+              <section className="ag-panel p-4 text-[13px] text-white/60">The run has not reported any agents yet.</section>
+            ) : real ? (
+              <LiveNodeDetail node={node} agent={view.agents[node.id]!} info={view.info[node.id]} />
+            ) : (
+              <NodeDetail run={run} node={node} />
+            )}
             <div className="h-[300px] min-h-0 md:h-auto">
-              <ActivityStream log={run.log} nodes={run.nodes} />
+              <ActivityStream log={view.log} nodes={view.nodes} empty={real ? 'The backend has not reported any activity for this run yet.' : undefined} />
             </div>
           </div>
         </div>
       </section>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-        <Funnel run={run} reduced={reduced} />
-        <BriefCard
-          instructions={instructions}
-          onRemove={(id) => setInstructions((list) => list.filter((i) => i.id !== id))}
-          onClear={() => setInstructions([])}
-          brief={nextBrief}
-          slots={nextSlots}
-          stale={stale}
-          onApply={() => start(texts, 'Started with your updated instructions.')}
-        />
-      </div>
+      {real ? (
+        <p className="mt-6 text-sm text-ink-3">
+          The validation funnel, the brief, usage and memory cards belong to the simulated run on sample data, so they are hidden while the backend&rsquo;s run is shown.
+        </p>
+      ) : (
+        <>
+          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+            <Funnel run={run} reduced={reduced} />
+            <BriefCard
+              instructions={instructions}
+              onRemove={(id) => setInstructions((list) => list.filter((i) => i.id !== id))}
+              onClear={() => setInstructions([])}
+              brief={nextBrief}
+              slots={nextSlots}
+              stale={stale}
+              onApply={() => start(texts, 'Started with your updated instructions.')}
+            />
+          </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <UsageCard run={run} reduced={reduced} />
-        <MemoryCard profile={state.profile} memory={memory} instructions={instructions.length} />
-      </div>
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <UsageCard run={run} reduced={reduced} />
+            <MemoryCard profile={state.profile} memory={memory} instructions={instructions.length} />
+          </div>
+        </>
+      )}
     </Page>
   );
 }

@@ -84,6 +84,17 @@ ipcMain.handle('permissions:open', (_event, kind) => {
   return true;
 });
 
+// Clicking a deadline notification: the page's own window.focus() is not relied on to raise or
+// un-minimize the window, so the page asks the shell to bring it to the front.
+ipcMain.on('window:focus', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  if (process.platform === 'darwin') app.focus({ steal: true });
+});
+
 app.whenReady().then(() => {
   // The packaged app carries its own icon; this covers `npm run app`, which runs inside Electron's.
   if (process.platform === 'darwin' && !app.isPackaged) app.dock.setIcon(path.join(__dirname, 'icon.png'));

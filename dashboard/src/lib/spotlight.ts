@@ -30,6 +30,7 @@ const PAGES: { to: string; title: string; subtitle: string; words: string }[] = 
   { to: '/roadmap', title: 'Roadmap', subtitle: 'Your goal, the steps and your progress', words: 'roadmap plan goal steps progress' },
   { to: '/discover', title: 'Career discovery', subtitle: 'Paths that fit you', words: 'career discovery paths explore' },
   { to: '/applications', title: 'Applications', subtitle: 'Statuses, drafts and reminders', words: 'applications apply status tracker drafts' },
+  { to: '/today', title: 'Today', subtitle: 'What to do today and what closes this week', words: 'today home brief morning now' },
   { to: '/calendar', title: 'Calendar', subtitle: 'What you have to do and should do', words: 'calendar deadlines dates schedule week' },
   { to: '/saved', title: 'Saved', subtitle: 'Cards you kept for later', words: 'saved bookmarks later' },
   { to: '/agents', title: 'Agents', subtitle: 'What your agents are doing', words: 'agents grok ai activity usage' },

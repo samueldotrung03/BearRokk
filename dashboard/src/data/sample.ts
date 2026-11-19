@@ -2,6 +2,8 @@
 // Every organization here is made up and every link points to example.org. Dates are set
 // relative to today so the template never looks stale.
 import type { AppState } from '../state/store.ts';
+import { moreApplicationInfo, moreOpportunities } from './opportunities-more.ts';
+import { fieldPaths, fieldProfiles, fieldRoadmaps } from './fields.ts';
 import type { AgentEvent, AgentNode, ApplicationInfo, CareerPath, Opportunity, PathProfile, Roadmap } from '../types.ts';
 
 const HOUR = 3_600_000;
@@ -17,7 +19,27 @@ const photo = (id: string) => `https://images.unsplash.com/photo-${id}?w=640&q=7
 const clip = (id: number) => `https://assets.mixkit.co/videos/${id}/${id}-720.mp4`;
 const still = (id: number) => `https://assets.mixkit.co/videos/${id}/${id}-thumb-720-0.jpg`;
 
-export const opportunities: Opportunity[] = [
+// Stock clips by kind of opportunity, for cards that arrive without a picture of their own.
+const coverClips: Record<Opportunity['type'], number[]> = {
+  internship: [1728, 46680, 41644, 46635],
+  research: [46748, 41658],
+  hackathon: [9011, 48166],
+  scholarship: [4560, 4519],
+  club: [29991, 4794],
+  event: [48165, 4788, 42666, 13231],
+};
+
+/**
+ * A stock clip and its still for a card with no picture. `pick` is any number from 0 to 1; the
+ * same card always gets the same clip.
+ */
+export function coverFor(type: Opportunity['type'], pick: number): { image: string; video: string } {
+  const pool = coverClips[type];
+  const id = pool[Math.min(pool.length - 1, Math.floor(pick * pool.length))]!;
+  return { image: still(id), video: clip(id) };
+}
+
+const techOpportunities: Opportunity[] = [
   {
     id: 'opp-northwind-swe',
     type: 'internship',
@@ -388,6 +410,9 @@ export const opportunities: Opportunity[] = [
   },
 ];
 
+/** Every sample opportunity: the technology ones above and the ones for other fields. */
+export const opportunities: Opportunity[] = [...techOpportunities, ...moreOpportunities];
+
 export const roadmaps: Roadmap[] = [
   {
     goalId: 'path-swe',
@@ -747,6 +772,7 @@ export const roadmaps: Roadmap[] = [
       },
     ],
   },
+  ...fieldRoadmaps,
 ];
 
 /**
@@ -1043,6 +1069,7 @@ export const pathProfiles: PathProfile[] = [
     timeline: ['Product briefs', 'Hackathon lead', 'Info session'],
     did: ['step-pm-writing', 'step-pm-lead', 'step-pm-info'],
   },
+  ...fieldProfiles,
 ];
 
 /**
@@ -1050,6 +1077,7 @@ export const pathProfiles: PathProfile[] = [
  * worker fleet fills this in; here it is written by hand.
  */
 export const applicationInfo: Record<string, ApplicationInfo> = {
+  ...moreApplicationInfo,
   'opp-cinder-backend': {
     prompts: ['Describe a service or API you built. What would you change now? (200 words)'],
     materials: ['Resume (PDF)', 'Link to a code sample'],
@@ -1108,6 +1136,7 @@ export const applicationInfo: Record<string, ApplicationInfo> = {
 export const careerPaths: CareerPath[] = [
   {
     id: 'path-swe',
+    group: 'Technology',
     title: 'Software engineering',
     oneLine: 'Build and run the systems behind products people use.',
     match: 'strong',
@@ -1118,6 +1147,7 @@ export const careerPaths: CareerPath[] = [
   },
   {
     id: 'path-ml',
+    group: 'Technology',
     title: 'Machine learning engineering',
     oneLine: 'Train models and turn them into something a product can rely on.',
     match: 'good',
@@ -1128,6 +1158,7 @@ export const careerPaths: CareerPath[] = [
   },
   {
     id: 'path-data',
+    group: 'Technology',
     title: 'Data engineering',
     oneLine: 'Move and shape data so analysts and models can trust it.',
     match: 'good',
@@ -1138,6 +1169,7 @@ export const careerPaths: CareerPath[] = [
   },
   {
     id: 'path-pm',
+    group: 'Technology',
     title: 'Product management',
     oneLine: 'Decide what gets built, and why, with engineers and designers.',
     match: 'explore',
@@ -1146,6 +1178,7 @@ export const careerPaths: CareerPath[] = [
     expects: ['Clear writing', 'Evidence of leading a team to a result', 'Enough technical depth to earn trust'],
     firstSteps: ['Lead a hackathon team', 'Write one product teardown', 'Attend a PM info session'],
   },
+  ...fieldPaths,
 ];
 
 export const agents: { master: AgentNode; managers: AgentNode[]; workers: AgentNode[] } = {

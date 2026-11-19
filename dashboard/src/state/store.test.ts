@@ -10,7 +10,7 @@ import { evidenceFor, orderByEvidence } from '../lib/pathways.ts';
 import { buildOpportunityRoadmap, planFor } from '../lib/roadmap.ts';
 import { applicationInfo } from '../data/sample.ts';
 import type { PathProfile, Roadmap } from '../types.ts';
-import { reducer, type AppState } from './store.ts';
+import { clearDemoStorage, fromBackendProfile, loadState, reducer, saveState, startingState, storageKey, type AppState } from './store.ts';
 
 // One clock for every call: the score includes recency, so two calls a millisecond apart would
 // otherwise differ in the last digits and break exact comparisons.
@@ -338,5 +338,100 @@ describe('calendar', () => {
       expect(a.day <= b.day).toBe(true);
       if (a.day === b.day) expect(a.priority === 'should' && b.priority === 'must').toBe(false);
     }
+  });
+});
+
+describe('a student starts from their own profile', () => {
+  const fresh = startingState(initialState, true);
+
+  it('keeps the sample student for a guest and starts a signed-in student with nothing done', () => {
+    expect(startingState(initialState, false)).toBe(initialState);
+    expect(fresh.doneSteps).toEqual([]);
+    expect(fresh.applications).toEqual({});
+    expect(fresh.profile.name).toBe('');
+    expect(fresh.preferences).toBeUndefined();
+  });
+
+  it('follows a suggested goal until the student picks one by hand', () => {
+    let state = reducer(fresh, { type: 'suggestGoal', id: 'path-health' });
+    expect(state.goalId).toBe('path-health');
+    expect(reducer(state, { type: 'suggestGoal', id: null }).goalId).toBe('path-health');
+    state = reducer(state, { type: 'setGoal', id: 'path-media' });
+    expect(state.goalChosen).toBe(true);
+    expect(reducer(state, { type: 'suggestGoal', id: 'path-finance' }).goalId).toBe('path-media');
+  });
+
+  it('fills a blank profile once and never overwrites a name already there', () => {
+    const state = reducer(fresh, { type: 'adoptProfile', profile: { name: 'Ana', major: 'Nursing' }, goalId: 'path-health' });
+    expect(state.profile).toMatchObject({ name: 'Ana', major: 'Nursing' });
+    expect(state.goalId).toBe('path-health');
+    expect(reducer(state, { type: 'adoptProfile', profile: { name: 'Someone else' } }).profile.name).toBe('Ana');
+    expect(reducer(fresh, { type: 'adoptProfile', profile: { major: 'Nursing' } })).toBe(fresh);
+  });
+
+  it("reads the student's profile from the backend but not the backend's demo student", () => {
+    const seed = { name: 'Maya', school: 'UC Berkeley', major: 'Computer Science', year: 'Freshman', careerInterests: [], preferences: null };
+    expect(fromBackendProfile(seed)).toBeNull();
+    expect(fromBackendProfile(null)).toBeNull();
+    const own = fromBackendProfile({ name: 'Ana', school: 'SRJC', major: 'Nursing', year: 'Junior', careerInterests: ['Healthcare'], preferences: { fields: ['Public health'], topField: null } });
+    expect(own?.profile).toMatchObject({ name: 'Ana', school: 'SRJC', major: 'Nursing', year: 'Junior', careerInterests: ['Healthcare'] });
+    expect(own?.preferences?.fields).toEqual(['Public health']);
+    expect(own?.preferences?.notes).toEqual([]);
+  });
+});
+
+describe('saved state on this device', () => {
+  function fakeStorage(entries: Record<string, string>) {
+    const data = new Map(Object.entries(entries));
+    return {
+      data,
+      get length() {
+        return data.size;
+      },
+      key: (i: number) => [...data.keys()][i] ?? null,
+      getItem: (k: string) => data.get(k) ?? null,
+      setItem: (k: string, v: string) => void data.set(k, v),
+      removeItem: (k: string) => void data.delete(k),
+    };
+  }
+
+  it('keeps each account apart from the guest and from other accounts', () => {
+    const storage = fakeStorage({});
+    (globalThis as { localStorage?: unknown }).localStorage = storage;
+    try {
+      saveState({ ...initialState, goalId: 'path-media' }, 'uid-a');
+      expect(storage.data.has(storageKey('uid-a'))).toBe(true);
+      expect(loadState(initialState).goalId).toBe(initialState.goalId);
+      expect(loadState(initialState, 'uid-a').goalId).toBe('path-media');
+      expect(loadState(startingState(initialState, true), 'uid-b').doneSteps).toEqual([]);
+    } finally {
+      delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
+  });
+
+  it('loads state saved before goalChosen existed', () => {
+    expect('goalChosen' in initialState).toBe(false);
+    (globalThis as { localStorage?: unknown }).localStorage = fakeStorage({ [storageKey(null)]: JSON.stringify(initialState) });
+    try {
+      const state = loadState(initialState);
+      expect(state.goalChosen).toBeFalsy();
+      expect(reducer(state, { type: 'suggestGoal', id: 'path-health' }).goalId).toBe('path-health');
+    } finally {
+      delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
+  });
+
+  it('a clean demo clears the app keys but keeps sign-up records and other sites', () => {
+    const storage = fakeStorage({
+      'bearrok.dashboard.v3': '{}',
+      'bearrok.dashboard.v3.uid-a': '{}',
+      'bearrok.settings': '{}',
+      'bearrok.roadmap.notes': '{}',
+      'bearrok.onboarded.uid-a': '1',
+      'firebase:authUser:key:[DEFAULT]': '{}',
+    });
+    const removed = clearDemoStorage(storage);
+    expect(removed.sort()).toEqual(['bearrok.dashboard.v3', 'bearrok.dashboard.v3.uid-a', 'bearrok.roadmap.notes', 'bearrok.settings']);
+    expect([...storage.data.keys()].sort()).toEqual(['bearrok.onboarded.uid-a', 'firebase:authUser:key:[DEFAULT]']);
   });
 });

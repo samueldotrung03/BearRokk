@@ -1,6 +1,7 @@
 // Where each agent sits on the hierarchy map, and the curve of each connector. Pure geometry in
 // pixels, so the page can measure its width once and the pulses can follow the exact same paths.
 import { edgesFor, FEED_ID, type GraphNode, type Level } from './engine.ts';
+import type { Edge, Hub } from './view.ts';
 
 export const GRAPH_HEIGHT = 540;
 /** Below this width the map scrolls sideways instead of squeezing eight workers into one row. */
@@ -21,7 +22,10 @@ export const ROWS: Record<Level, { y: number; h: number; label: string }> = {
   presenter: { y: 492, h: 58, label: 'Presentation' },
 };
 
-export function layoutGraph(nodes: GraphNode[], width: number) {
+/** Hub points sit between rows; this is their drawn size. */
+const HUB = { w: 92, h: 20 };
+
+export function layoutGraph(nodes: GraphNode[], width: number, edges: Edge[] = edgesFor(nodes), hubs: Hub[] = []) {
   const w = Math.max(width, GRAPH_MIN_WIDTH);
   const lanes = Math.max(1, nodes.filter((n) => n.level === 'manager').length);
   const lane = w / lanes;
@@ -30,7 +34,12 @@ export function layoutGraph(nodes: GraphNode[], width: number) {
     const row = ROWS[node.level];
     const i = node.lane ?? 0;
     const center = lane * (i + 0.5);
-    if (node.level === 'master') placed.set(node.id, { x: w / 2, y: row.y, w: 232, h: row.h });
+    if (node.col && (node.level === 'worker' || node.level === 'validator')) {
+      // An even row across the whole width, for runs whose workers are not tied to one lane.
+      const cell = w / node.col.of;
+      const cap = node.level === 'worker' ? 132 : 148;
+      placed.set(node.id, { x: cell * (node.col.index + 0.5), y: row.y, w: Math.min(cell - 10, cap), h: row.h });
+    } else if (node.level === 'master') placed.set(node.id, { x: w / 2, y: row.y, w: 232, h: row.h });
     else if (node.level === 'manager') placed.set(node.id, { x: center, y: row.y, w: Math.min(lane - 20, 212), h: row.h });
     else if (node.level === 'validator') placed.set(node.id, { x: center, y: row.y, w: Math.min(lane - 44, 156), h: row.h });
     else if (node.level === 'presenter') placed.set(node.id, { x: w / 2, y: row.y, w: 212, h: row.h });
@@ -41,9 +50,10 @@ export function layoutGraph(nodes: GraphNode[], width: number) {
     }
   }
   placed.set(FEED_ID, { x: w / 2 + 196, y: ROWS.presenter.y, w: 118, h: 50 });
+  for (const hub of hubs) placed.set(hub.id, { x: w / 2, y: hub.y, ...HUB });
 
   const paths = new Map<string, string>();
-  for (const edge of edgesFor(nodes)) {
+  for (const edge of edges) {
     const a = placed.get(edge.from);
     const b = placed.get(edge.to);
     if (!a || !b) continue;

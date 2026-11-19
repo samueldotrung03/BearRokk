@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Check, RotateCcw, Sparkles, Target } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import type { QuizAnswers, PathMatch } from '../../lib/discover/match.ts';
+import { numberWord, type QuizAnswers, type PathMatch } from '../../lib/discover/match.ts';
 import type { AnswerAction } from '../../lib/discover/ask.ts';
 import type { QuizQuestion } from '../../data/discover-extra.ts';
 import { LevelPill, PathMark, Percent } from './PathMark.tsx';
@@ -24,6 +24,9 @@ interface QuizProps {
 }
 
 const KEYS = ['1', '2', '3', '4', '5', '6'];
+
+/** How many paths after the best fit the result lists; the rest stay in the match list. */
+const RUNNERS_UP = 4;
 
 function firstStep(questions: QuizQuestion[], answers: QuizAnswers): Step {
   const next = questions.findIndex((q) => !answers[q.id]);
@@ -121,10 +124,12 @@ export function Quiz(props: QuizProps) {
 
       {step === 'intro' && (
         <div className="dc-fade relative flex flex-1 flex-col">
-          <p className="dc-eyebrow mt-6">Six questions · about a minute</p>
-          <h3 className="mt-2 font-display text-[40px] leading-[1.05] text-ink">Like coding, not sure what to aim for?</h3>
+          <p className="dc-eyebrow mt-6">
+            {numberWord(questions.length).replace(/^./, (c) => c.toUpperCase())} questions · about a minute
+          </p>
+          <h3 className="mt-2 font-display text-[40px] leading-[1.05] text-ink">Not sure where your major could take you?</h3>
           <p className="mt-3 max-w-md text-[15px] leading-relaxed text-ink-2">
-            Tell us how you like to work. Your answers are weighed with the interests and skills on your profile
+            Tell us how you like to work, whatever your major. Your answers are weighed with the interests and skills on your profile
             {hasFeedHistory ? ' and what you saved in the feed' : ''}, and every match says why.
           </p>
           <div className="mt-auto flex flex-wrap items-center gap-3 pt-7">
@@ -260,8 +265,8 @@ function Result(props: {
         {!done && <span className="dc-caret" aria-hidden="true" />}
       </p>
 
-      <ul className="mt-4 grid gap-1.5" aria-label="Your other matches">
-        {ranked.slice(1).map((m, index) => (
+      <ul className="mt-4 grid gap-1.5" aria-label="Your next best matches">
+        {ranked.slice(1, RUNNERS_UP + 1).map((m, index) => (
           <li key={m.pathId}>
             <button type="button" onClick={() => onAction({ kind: 'viewPath', pathId: m.pathId, label: '' })} className="dc-runner">
               <span className="w-4 text-xs text-ink-3">{index + 2}</span>
@@ -275,6 +280,11 @@ function Result(props: {
           </li>
         ))}
       </ul>
+      {ranked.length > RUNNERS_UP + 1 && (
+        <p className="mt-2 text-xs text-ink-3">
+          {ranked.length - RUNNERS_UP - 1} more {ranked.length - RUNNERS_UP - 1 === 1 ? 'path is' : 'paths are'} ranked under Your matches.
+        </p>
+      )}
 
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
         {isGoal ? (

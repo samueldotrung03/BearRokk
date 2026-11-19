@@ -2,9 +2,11 @@
 // These are planning estimates picked for the demo, not measurements, and the page labels them
 // that way. In the product the agents would set them from the posting and from what the
 // profiles say people spent.
+import { fieldStepHours } from './fields.ts';
 
 /** Rough hours each goal step takes, for "Plan my week". Steps not listed fall back to their kind. */
 export const stepHours: Record<string, number> = {
+  ...fieldStepHours,
   'step-ds': 10,
   'step-sql': 8,
   'step-club': 3,

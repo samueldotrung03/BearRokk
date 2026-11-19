@@ -1,4 +1,20 @@
-import { Brain, Code, Compass, Database, type LucideIcon } from 'lucide-react';
+import {
+  Brain,
+  Briefcase,
+  ChartLine,
+  Code,
+  Cog,
+  Compass,
+  Database,
+  FlaskConical,
+  GraduationCap,
+  Landmark,
+  Megaphone,
+  Newspaper,
+  PenTool,
+  Stethoscope,
+  type LucideIcon,
+} from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { matchMeta } from '../meta.ts';
 import type { PathMatch } from '../../lib/discover/match.ts';
@@ -9,9 +25,19 @@ const icons: Record<string, LucideIcon> = {
   'path-ml': Brain,
   'path-data': Database,
   'path-pm': Compass,
+  'path-health': Stethoscope,
+  'path-research': FlaskConical,
+  'path-finance': ChartLine,
+  'path-consulting': Briefcase,
+  'path-marketing': Megaphone,
+  'path-policy': Landmark,
+  'path-design': PenTool,
+  'path-education': GraduationCap,
+  'path-media': Newspaper,
+  'path-mecheng': Cog,
 };
 
-/** A small tile in the path's own colour, so the four paths are easy to tell apart everywhere. */
+/** A small tile in the path's own colour, so the paths are easy to tell apart everywhere. */
 export function PathMark({ pathId, hue, size = 'md' }: { pathId: string; hue: string; size?: 'sm' | 'md' | 'lg' }) {
   const Icon = icons[pathId] ?? Compass;
   return (

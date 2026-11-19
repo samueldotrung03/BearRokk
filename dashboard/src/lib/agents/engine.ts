@@ -25,6 +25,8 @@ export interface GraphNode {
   sub: string;
   /** Which manager's lane it sits in, for workers and validators. */
   lane: number | null;
+  /** Position in an evenly spaced row, for rows that are not split into manager lanes. */
+  col?: { index: number; of: number };
 }
 
 export interface AgentLive {
@@ -77,6 +79,8 @@ export interface LogEntry {
   id: string;
   /** Simulated time since the run started, in milliseconds. */
   t: number;
+  /** Real time of the event, for a backend run. Shown instead of t when present. */
+  at?: string;
   agent: string;
   text: string;
   tone: Tone;

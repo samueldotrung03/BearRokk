@@ -23,11 +23,15 @@ import { toggleDock } from '../components/Dock.tsx';
 import { formatLabel, typeMeta } from '../components/meta.ts';
 import { Cover, Details, OpportunityTile } from '../components/OpportunityCard.tsx';
 import { RoadmapPanel } from '../components/RoadmapPanel.tsx';
+import { WhyThis } from '../components/WhyThis.tsx';
 import { ProfileMenu } from '../components/ProfileMenu.tsx';
 import {
   countActive,
   deadlineLabel,
   emptyFilters,
+  fieldOfGoal,
+  fieldOptions,
+  fieldsOf,
   fitOptions,
   matches,
   onlyLabel,
@@ -39,7 +43,7 @@ import {
 } from '../lib/filters.ts';
 import { planFor } from '../lib/roadmap.ts';
 import { daysUntil, dueLabel, shortDate } from '../lib/time.ts';
-import { rankFeedDetailed, signalLabel, type RankedOpportunity } from '../state/ranking.ts';
+import { explain, rankFeedDetailed, signalLabel, type RankedOpportunity } from '../state/ranking.ts';
 import { DataBadge, useOpportunities } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import type { Format, Opportunity, OpportunityType } from '../types.ts';
@@ -84,7 +88,7 @@ function RailButton({
  * The moving picture behind a reel card. It plays, muted and looping, only while its card is
  * the one on screen, and falls back to the photo when there is no clip or it cannot load.
  */
-function ReelVideo({ opportunity: o, active }: { opportunity: Opportunity; active: boolean }) {
+function ReelVideo({ opportunity: o, active, near }: { opportunity: Opportunity; active: boolean; near: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   const bar = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -103,7 +107,8 @@ function ReelVideo({ opportunity: o, active }: { opportunity: Opportunity; activ
     }
   }, [active, paused]);
 
-  if (!o.video || failed) return <Cover opportunity={o} className="absolute inset-0 size-full" />;
+  // Only the card on screen and its neighbours load a video; the rest show their still.
+  if (!o.video || failed || !near) return <Cover opportunity={o} className="absolute inset-0 size-full" />;
   return (
     <>
       <video
@@ -143,17 +148,27 @@ function ReelVideo({ opportunity: o, active }: { opportunity: Opportunity; activ
 function Slide({
   ranked,
   active,
+  near,
   onDismiss,
   onDetails,
+  opportunities,
+  onWhyDismiss,
 }: {
   ranked: RankedOpportunity;
   /** This card is the one on screen. */
   active: boolean;
+  /** On screen or right next to it, so its video is worth loading. */
+  near: boolean;
   onDismiss: (o: Opportunity) => void;
   onDetails: (o: Opportunity) => void;
+  /** Everything that was ranked, which the reasons are worked out from. */
+  opportunities: Opportunity[];
+  /** Dismisses from the "Why this?" window, which closes with the card. */
+  onWhyDismiss: (o: Opportunity) => void;
 }) {
   const { state, dispatch } = useStore();
   const o = ranked.opportunity;
+  const reasons = useMemo(() => explain(ranked, state, opportunities), [ranked, state, opportunities]);
   const meta = typeMeta[o.type];
   const saved = state.saved.includes(o.id);
   const liked = state.liked.includes(o.id);
@@ -164,7 +179,7 @@ function Slide({
     <section className="reel-slide" aria-labelledby={`${o.id}-title`}>
       <div className="reel-stage">
         <article className="reel-card">
-          <ReelVideo opportunity={o} active={active} />
+          <ReelVideo opportunity={o} active={active} near={near} />
           <div className="reel-shade" aria-hidden="true" />
 
           <div className="reel-body">
@@ -178,6 +193,9 @@ function Slide({
                   {signalLabel[signal]}
                 </li>
               ))}
+              <li className="flex">
+                <WhyThis reasons={reasons} active={active} onLess={() => onWhyDismiss(o)} onNotMyField={() => onWhyDismiss(o)} />
+              </li>
             </ul>
 
             <h2 id={`${o.id}-title`} className="mt-3 font-display text-[34px] leading-[1.05] text-balance">
@@ -278,6 +296,12 @@ export function Feed() {
 
   const present = new Set(slides.map((r) => r.opportunity.type));
   const typeOptions = (Object.keys(typeMeta) as OpportunityType[]).filter((t) => present.has(t));
+  // Fields some card actually leads into, plus the goal's own field for the "My field" shortcut.
+  const goalField = fieldOfGoal(state.goalId);
+  const presentFields = new Set(slides.flatMap((r) => fieldsOf(r.opportunity)));
+  const fieldChoices = fieldOptions.filter((field) => presentFields.has(field) || field === goalField);
+  const chosenFields = filters.fields ?? [];
+  const myFieldOn = goalField !== null && chosenFields.length === 1 && chosenFields[0] === goalField;
   const activeCount = countActive(filters);
   const filtersOn = query.trim() !== '' || activeCount > 0;
   const patch = (change: Partial<Filters>) => setFilters((current) => ({ ...current, ...change }));
@@ -303,6 +327,7 @@ export function Feed() {
     ...(filters.deadline !== 'any' ? [{ label: deadlineLabel[filters.deadline], remove: () => patch({ deadline: 'any' }) }] : []),
     ...(filters.minFit > 0 ? [{ label: `Fit ${filters.minFit}+`, remove: () => patch({ minFit: 0 }) }] : []),
     ...filters.only.map((value) => ({ label: onlyLabel[value], remove: () => patch({ only: toggled(filters.only, value) }) })),
+    ...chosenFields.map((value) => ({ label: value, remove: () => patch({ fields: toggled(chosenFields, value) }) })),
   ];
   // "Best match" keeps the ranker's order; the other two sort on one field, with blanks last.
   if (sort === 'deadline') {
@@ -362,6 +387,11 @@ export function Feed() {
     dispatch({ type: 'dismiss', id: o.id });
     setLastDismissed(o);
   };
+  // The card and its "Why this?" window go away together, so focus moves back to the reel.
+  const dismissFromWhy = (o: Opportunity) => {
+    dismiss(o);
+    scroller.current?.focus({ preventScroll: true });
+  };
   const refresh = () => {
     setSeen([]);
     setLastDismissed(null);
@@ -420,7 +450,7 @@ export function Feed() {
             aria-label="Recommended opportunities. Scroll or use the arrow keys to move between them."
           >
             {slides.map((r, position) => (
-              <Slide key={r.opportunity.id} ranked={r} active={tab === 'foryou' && position === index && !details} onDismiss={dismiss} onDetails={setDetails} />
+              <Slide key={r.opportunity.id} ranked={r} active={tab === 'foryou' && position === index && !details} near={Math.abs(position - index) <= 1} onDismiss={dismiss} onDetails={setDetails} opportunities={opportunities} onWhyDismiss={dismissFromWhy} />
             ))}
 
             <section className="reel-slide" aria-label="End of feed">
@@ -525,6 +555,43 @@ export function Feed() {
                           );
                         })}
                       </div>
+                    </fieldset>
+
+                    <fieldset>
+                      <legend>Field</legend>
+                      <div className="filter-pills">
+                        {goalField && (
+                          <button
+                            type="button"
+                            className="filter-pill"
+                            aria-pressed={myFieldOn}
+                            disabled={countWith({ fields: [goalField] }) === 0 && !myFieldOn}
+                            onClick={() => patch({ fields: myFieldOn ? [] : [goalField] })}
+                            title={`Only ${goalField}, the field of your goal`}
+                          >
+                            My field
+                            <span className="filter-pill-count">{countWith({ fields: [goalField] })}</span>
+                          </button>
+                        )}
+                        {fieldChoices.map((value) => {
+                          const on = chosenFields.includes(value);
+                          const count = countWith({ fields: [value] });
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              className="filter-pill"
+                              aria-pressed={on}
+                              disabled={count === 0 && !on}
+                              onClick={() => patch({ fields: toggled(chosenFields, value) })}
+                            >
+                              {value}
+                              <span className="filter-pill-count">{count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-1.5 text-xs text-ink-3">Cards open to any field stay in every choice.</p>
                     </fieldset>
 
                     <fieldset>

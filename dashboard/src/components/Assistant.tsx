@@ -1,9 +1,10 @@
-// "Ask BearRok": one assistant on every page. A button in the corner (or Cmd/Ctrl+K) opens a
+// "Ask BearRok": one assistant on every page. A button in the corner (or its shortcut) opens a
 // small chat that answers from the student's own data and offers the next action as a button.
 import { ArrowUp, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { opportunities } from '../data/sample.ts';
+import { matchesShortcut, useShortcuts } from '../lib/shortcuts.ts';
 import { respond, suggestionsFor, type AssistantAction, type AssistantReply } from '../lib/assistant.ts';
 import { useStore } from '../state/StoreProvider.tsx';
 import type { Opportunity } from '../types.ts';
@@ -31,9 +32,10 @@ export function Assistant() {
   const end = useRef<HTMLDivElement>(null);
   const timer = useRef<number | undefined>(undefined);
 
+  const shortcut = useShortcuts().shortcuts['assistant'];
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      if (matchesShortcut(event, shortcut)) {
         event.preventDefault();
         setOpen((value) => !value);
       } else if (event.key === 'Escape' && !document.querySelector('dialog[open]')) {
@@ -51,7 +53,7 @@ export function Assistant() {
       window.removeEventListener('bearrok:ask', onAsk);
       window.clearTimeout(timer.current);
     };
-  }, []);
+  }, [shortcut]);
 
   useEffect(() => {
     if (open) input.current?.focus();
@@ -96,10 +98,9 @@ export function Assistant() {
   return (
     <>
       {!open && (
-        <button type="button" className="assistant-launch" onClick={() => setOpen(true)} aria-label="Ask BearRok (Command K)">
+        <button type="button" className="assistant-launch" onClick={() => setOpen(true)} aria-label="Ask BearRok">
           <Sparkles className="size-[18px]" aria-hidden="true" />
           <span>Ask BearRok</span>
-          <kbd>⌘K</kbd>
         </button>
       )}
 

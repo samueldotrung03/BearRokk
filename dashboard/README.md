@@ -176,3 +176,22 @@ All of these are generated locally by rules over the sample data, each behind on
 - **Applications** (`src/lib/apps/`): "Outline my answer" and "Check my draft" on every question (outlines use only profile and posting facts and leave marked blanks), readiness score, "What to do next", board view, follow-up checklist, notes, one .ics export.
 - **Calendar** (`src/lib/cal/`): Today's brief, Plan my week with accept and undo, clash warnings, month, week and agenda views, personal items, filters, .ics export.
 - **Agents** (`src/lib/agents/`): a live map of the hierarchy (master, search managers, scouts and readers, validators, presentation) with pulses along the connectors, driven by a seeded run engine with Run, Pause, speed and Reset. "Tell your agents" turns a typed instruction into the master agent's brief; a validation funnel shows what was dropped and why; usage, budget and memory cards. The run is a simulation on sample data and the page says so. A chip shows whether the backend on port 8787 is reachable.
+
+## Every field, not only technology
+
+- **14 career paths in five fields** (technology, finance and business, science, engineering and health, policy, law and society, media and creative). The four technology paths are in `src/data/sample.ts`; the other ten are compact specs in `src/data/fields.ts`, expanded into the same shapes: a roadmap, sample profiles for the "what people actually did" evidence, discovery details and step hours.
+- **Roadmap goal picker:** pick a field, then a goal in it. **Career discovery:** a seven-question quiz that never assumes coding, the top matches with "Show all fields", and compare across fields.
+- **Sample opportunities for every field** are in `src/data/opportunities-more.ts`, with `opportunityPaths` recording which paths each one leads toward.
+- **The feed follows the goal** (`src/state/ranking.ts`): an opportunity that leads to the chosen career is boosted and labelled "Toward your goal", one from another field is pushed down, and anything open to all majors is left alone.
+- While the backend runs simulated agents, the feed shows this sample set together with the backend's cards; real agent results are shown on their own. A backend card with no picture gets a stock clip for its type.
+
+## Today, explanations, notifications and personal start
+
+- **Today** (`/today`, `src/lib/today/`): one brief sentence, up to three things to do today with their reasons and a one-click action, what closes this week, new opportunities, and progress.
+- **"Why this?"** on each reel card (`explain` in `src/state/ranking.ts`, `src/components/WhyThis.tsx`): the reasons behind the card's rank, taken from the same numbers the score uses, with "Show me less like this".
+- **Field filter** in the Feed's Filters (`src/lib/filters.ts`), with a "My field" shortcut for the current goal's field.
+- **Agents page shows the backend's run** when the backend has one (`src/lib/agents/fromLive.ts`), labelled by what ran it: Grok, the Claude test set-up, or simulated agents. With no backend it plays the local simulation.
+- **Notifications** (`src/lib/notify/`, `src/components/DeadlineNotifier.tsx`): system notifications for deadlines, reminders, events and roadmap steps, switched on in Settings. Off by default; permission is only asked when the student switches it on.
+- **Personal start** (`src/lib/personalize.ts`): a signed-in student's profile and field set the starting goal, and each account keeps its own saved state (`bearrok.dashboard.v3.<uid>`). A guest sees the sample student. Settings has "Start a clean demo".
+- The sidebar, the Command-/ launcher and the Ask BearRok panel share one dark glass style; Command (or Ctrl) with 1 to 9 opens the first nine pages.
+- **Keyboard shortcuts** (`src/lib/shortcuts.ts`, `src/components/ShortcutSettings.tsx`): Settings lists every shortcut (launcher, Ask BearRok, each page) and lets the student record a different one, remove one, or go back to the defaults. Only changes are saved (`bearrok.shortcuts`). The sidebar and the Ask button no longer show shortcut hints.

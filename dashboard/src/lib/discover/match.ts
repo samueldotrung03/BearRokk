@@ -74,6 +74,11 @@ export function lowerLabel(label: string): string {
   return label.charAt(0).toLowerCase() + label.slice(1);
 }
 
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+
+/** Small counts as words, so copy such as "seven questions" follows the data instead of a fixed number. */
+export const numberWord = (n: number) => WORDS[n] ?? String(n);
+
 export const joinList = (items: string[]) =>
   items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 
@@ -189,4 +194,11 @@ function summarize(path: CareerPath, reasons: Reason[]): string {
   const soften = (text: string) => text.charAt(0).toLowerCase() + text.slice(1).replace(/\.$/, '');
   const head = plus.slice(0, 2).map((r) => soften(r.text));
   return `It fits because ${head.join(', and ')}.${minus ? ` ${minus.text}` : ''}`;
+}
+
+/** The ranked paths under their fields, in the given field order, best match first in each. */
+export function groupByField<T extends { pathId: string }>(ranked: T[], groups: Record<string, string>, groupOrder: string[]) {
+  const fieldOf = (m: T) => groups[m.pathId] ?? 'Other';
+  const order = [...new Set([...groupOrder, ...ranked.map(fieldOf)])];
+  return order.map((field) => ({ field, matches: ranked.filter((m) => fieldOf(m) === field) })).filter((group) => group.matches.length > 0);
 }

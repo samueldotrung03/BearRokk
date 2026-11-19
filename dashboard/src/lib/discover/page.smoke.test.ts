@@ -35,7 +35,7 @@ afterEach(() => {
 describe('Discover page', () => {
   it('renders the quiz, the ranked matches, the detail, the chat and the compare table', () => {
     const html = render();
-    for (const text of ['Find my path', 'Start the quiz', 'Your matches', 'Skills it expects', 'How people got in', 'Ask about this career', 'Side by side', 'Grok will answer once the agents are connected']) {
+    for (const text of ['Find my path', 'Start the quiz', 'Not sure where your major could take you?', 'Your matches', 'Show all fields', 'Skills it expects', 'How people got in', 'Ask about this career', 'Side by side', 'Grok will answer once the agents are connected']) {
       expect(html).toContain(text);
     }
   });
@@ -50,5 +50,22 @@ describe('Discover page', () => {
     // The header's goal pill names the current goal, so look only after the result heading.
     const result = html.slice(html.indexOf('Your best fit'));
     expect(result.indexOf('Product management')).toBeLessThan(result.indexOf('Software engineering'));
+  });
+
+  it('lists only the top matches until the student asks for every field', () => {
+    const html = render();
+    const list = html.slice(html.indexOf('Your matches'), html.indexOf('Show all fields'));
+    // The goal stays pinned when it ranks below the top five, so allow one extra row.
+    const rows = list.match(/class="dc-match /g) ?? [];
+    expect(rows.length).toBeGreaterThanOrEqual(5);
+    expect(rows.length).toBeLessThanOrEqual(6);
+  });
+
+  it('can put a path outside technology first', () => {
+    const answers = Object.fromEntries(quizQuestions.map((q) => [q.id, [...q.options].sort((a, b) => (b.fit['path-health'] ?? 0) - (a.fit['path-health'] ?? 0))[0]!.id]));
+    stubStorage({ 'bearrok.discover.answers': answers });
+    const result = render().split('Your best fit')[1]!;
+    expect(result.indexOf('Healthcare and pre-med')).toBeGreaterThan(-1);
+    expect(result.indexOf('Healthcare and pre-med')).toBeLessThan(result.indexOf('%'));
   });
 });

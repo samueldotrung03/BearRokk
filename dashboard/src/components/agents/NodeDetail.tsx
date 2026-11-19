@@ -1,6 +1,7 @@
 // What one agent is doing, what it was told, what it returned, what it read, and what it cost.
 import { Check, X } from 'lucide-react';
-import type { CandidateState, GraphNode, LogEntry, RunState } from '../../lib/agents/engine.ts';
+import type { AgentLive, CandidateState, GraphNode, LogEntry, RunState } from '../../lib/agents/engine.ts';
+import type { NodeInfo } from '../../lib/agents/view.ts';
 import { clockText, compact } from './AnimatedNumber.tsx';
 import { statusWord } from './RunGraph.tsx';
 
@@ -113,7 +114,54 @@ export function NodeDetail({ run, node }: { run: RunState; node: GraphNode }) {
   );
 }
 
-export function ActivityStream({ log, nodes }: { log: LogEntry[]; nodes: GraphNode[] }) {
+/**
+ * One agent of a backend run. The backend reports a role, a status and a latest line per agent,
+ * so only those are shown; the simulation's time, tokens and sources have no real value here.
+ */
+export function LiveNodeDetail({ node, agent, info }: { node: GraphNode; agent: AgentLive; info: NodeInfo | undefined }) {
+  return (
+    <section className="ag-panel flex min-h-0 flex-col p-4" aria-labelledby="ag-detail-title">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="ag-panel-label">
+            {levelName[node.level]} · {tier[node.level]} tier
+          </p>
+          <h3 id="ag-detail-title" className="mt-0.5 truncate text-base font-semibold" title={node.name}>
+            {node.name}
+          </h3>
+        </div>
+        <span className="ag-chip-dark shrink-0">
+          <span className="ag-dot" data-status={agent.status} aria-hidden="true" />
+          {statusWord[agent.status]}
+        </span>
+      </div>
+
+      <div className="mt-3 grid min-h-0 gap-3 overflow-y-auto pr-1">
+        <Field label="Role">{info?.role || <span className="text-white/50">Not reported.</span>}</Field>
+        <Field label="Latest">{info?.detail || <span className="text-white/50">Nothing reported yet.</span>}</Field>
+        {info?.members && (
+          <Field label="In this group">
+            <ul className="space-y-1.5">
+              {info.members.map((m, i) => (
+                <li key={`${m.name}-${i}`} className="flex gap-2">
+                  <span className="ag-dot mt-1.5 shrink-0" data-status={m.status} aria-label={statusWord[m.status]} />
+                  <span className="min-w-0">
+                    <span className="block truncate">{m.name}</span>
+                    {m.detail && <span className="block text-[11.5px] text-white/55">{m.detail}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Field>
+        )}
+      </div>
+    </section>
+  );
+}
+
+const timeOfDay = (at: string) => new Date(at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+
+export function ActivityStream({ log, nodes, empty = 'Press Run now, or tell your agents something, to start a run.' }: { log: LogEntry[]; nodes: GraphNode[]; empty?: string }) {
   const names = new Map(nodes.map((n) => [n.id, n.name]));
   const entries = [...log].reverse();
   return (
@@ -125,13 +173,13 @@ export function ActivityStream({ log, nodes }: { log: LogEntry[]; nodes: GraphNo
         <span className="text-[11px] text-white/45">{log.length} events</span>
       </div>
       <ol className="ag-log mt-2 min-h-0 flex-1 space-y-2.5 pr-1" role="log" aria-live="polite" aria-relevant="additions">
-        {entries.length === 0 && <li className="text-[13px] text-white/55">Press Run now, or tell your agents something, to start a run.</li>}
+        {entries.length === 0 && <li className="text-[13px] text-white/55">{empty}</li>}
         {entries.map((entry) => (
           <li key={entry.id} className="flex gap-2.5">
             <span className="ag-log-bar" data-tone={entry.tone} aria-hidden="true" />
             <div className="min-w-0">
               <p className="text-[11px] text-white/50">
-                <span className="tabular-nums">{clockText(entry.t)}</span> · {names.get(entry.agent) ?? entry.agent}
+                <span className="tabular-nums">{entry.at ? timeOfDay(entry.at) : clockText(entry.t)}</span> · {names.get(entry.agent) ?? entry.agent}
               </p>
               <p className="text-[13px] leading-snug text-white/88">{entry.text}</p>
             </div>

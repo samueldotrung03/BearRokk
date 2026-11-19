@@ -240,7 +240,7 @@ export function Coach({
           type="text"
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder='Try "I have 4 hours this week" or "why the hackathon?"'
+          placeholder='Try "I have 4 hours this week" or "what should I do first?"'
           autoComplete="off"
         />
         <button type="submit" aria-label="Ask" disabled={text.trim() === '' || busy}>
