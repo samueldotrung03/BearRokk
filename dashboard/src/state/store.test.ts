@@ -304,19 +304,22 @@ describe('feed filters', () => {
 describe('calendar', () => {
   const find = (state: AppState, id: string) => calendarItems(state, NOW).find((item) => item.id === id);
 
+  // A student with one application in progress, whatever else the sample data tracks.
+  const few: AppState = { ...initialState, applications: { 'opp-northwind-swe': initialState.applications['opp-northwind-swe']! } };
+
   it('marks a deadline the student committed to as a must, with reminders before it', () => {
     // The sample state tracks the Northwind internship as "To apply".
-    const deadline = find(initialState, 'deadline-opp-northwind-swe')!;
+    const deadline = find(few, 'deadline-opp-northwind-swe')!;
     expect(deadline.priority).toBe('must');
     expect(deadline.why).toContain('To apply');
-    const reminders = calendarItems(initialState, NOW).filter((item) => item.kind === 'reminder');
+    const reminders = calendarItems(few, NOW).filter((item) => item.kind === 'reminder');
     expect(reminders.map((item) => item.id)).toEqual(['reminder-opp-northwind-swe-7 days before', 'reminder-opp-northwind-swe-2 days before']);
     expect(reminders.every((item) => item.day < deadline.day)).toBe(true);
   });
 
   it('shows a saved card as a should, and nothing for a card the student never touched', () => {
-    expect(find(initialState, 'deadline-opp-harbor-data')).toBeUndefined();
-    const saved = reducer(initialState, { type: 'toggleSaved', id: 'opp-harbor-data' });
+    expect(find(few, 'deadline-opp-harbor-data')).toBeUndefined();
+    const saved = reducer(few, { type: 'toggleSaved', id: 'opp-harbor-data' });
     expect(find(saved, 'deadline-opp-harbor-data')!.priority).toBe('should');
     const tracked = reducer(saved, { type: 'setApplication', id: 'opp-harbor-data', status: 'applying' });
     expect(find(tracked, 'deadline-opp-harbor-data')!.priority).toBe('must');

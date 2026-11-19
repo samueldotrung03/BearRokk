@@ -10,6 +10,7 @@ import { readResume, RESUME_MAX_BYTES, RESUME_TYPES } from '../resume.ts';
 import { exportApplications } from '../sheets.ts';
 import type { AgentSystem } from './system.ts';
 import { APPLICATION_STATUSES, CATEGORIES, type Action, type Category, type ClassYear, type Profile, type StudentPreferences } from './types.ts';
+import { RoadmapRequest, type RoadmapWriter } from '../roadmap.ts';
 
 export interface AgentsOptions {
   demo: AgentSystem;
@@ -21,6 +22,8 @@ export interface AgentsOptions {
   /** Calendar calls, replaceable in tests. */
   calendar?: { create: typeof createDeadlineEvent; remove: typeof deleteEvent };
   sheets?: typeof exportApplications;
+  /** Writes a roadmap. Absent when no model is connected; replaceable in tests. */
+  roadmap?: RoadmapWriter | null;
   /** How the agents reach Grok, for the settings page. */
   grok?: { connected: boolean; mode: 'api' | 'cli' | 'claude' | 'simulated'; detail: string };
 }
@@ -174,6 +177,23 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     if (!ACTIONS.includes(body.action)) return c.json({ error: 'unknown action' }, 400);
     const student = system.interact(String(body.opportunityId ?? ''), body.action);
     return student ? c.json({ student }) : c.json({ error: 'opportunity not found' }, 404);
+  });
+
+  // A roadmap written for this student. With no model connected it says so, and the dashboard
+  // falls back to its own rule-built draft rather than showing invented work as Grok's.
+  app.post(`${base}/roadmap`, async (c) => {
+    const system = await systemOf(c);
+    if (!opts.roadmap) return c.json({ error: 'no model is connected, so no roadmap can be written' }, 503);
+    const parsed = RoadmapRequest.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: 'that roadmap request is not valid' }, 400);
+    try {
+      // The résumé comes from the file this student uploaded, so a request cannot pass one off as theirs.
+      const resume = (system.getResume()?.text ?? '').slice(0, 6000);
+      const { data, citations } = await opts.roadmap({ ...parsed.data, resume });
+      return c.json({ roadmap: data, citations, writer: opts.grok?.mode ?? 'api' });
+    } catch (error) {
+      return c.json({ error: `the roadmap could not be written: ${error instanceof Error ? error.message : 'unknown error'}` }, 502);
+    }
   });
 
   app.post(`${base}/runs`, async (c) => {

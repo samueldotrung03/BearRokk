@@ -575,3 +575,55 @@ test('validation: a review that cannot be done counts against the posting, and i
   await s.trigger('manual');
   assert.ok(s.student().feed.some((f) => f.opportunity.title === 'Software Engineering Intern'));
 });
+
+test('API: a roadmap is written by the model from the request, and refused honestly without one', async () => {
+  const { cached, fullEnough, roadmapPrompt, RoadmapRequest } = await import('../src/roadmap.ts');
+  const body = {
+    kind: 'job',
+    goal: 'Backend Intern at Cinder',
+    profile: { major: 'Computer Science', year: 'Sophomore', skills: ['Python'], notes: ['No unpaid roles'], experience: [{ role: 'Tutor', organization: 'SRJC' }] },
+    posting: { title: 'Backend Intern', organizer: 'Cinder', type: 'internship', tags: ['Go'], materials: ['Resume'], prompts: ['Why us?'], status: 'applied' },
+    knownPaths: [{ outcome: 'Backend intern', timeline: ['Built an API'] }],
+  };
+  const prompt = roadmapPrompt(RoadmapRequest.parse(body));
+  // Each form ends with the shape it needs, and a thin answer is recognised so it can be asked for again.
+  assert.match(prompt, /No step may have kind "apply"/);
+  const career = RoadmapRequest.parse({ kind: 'career', goal: 'Software engineering', profile: {} });
+  assert.match(roadmapPrompt(career), /at least thirty steps/);
+  const step = (kind: string) => ({ title: 't', detail: 'd', kind, source: 'people', hours: 1, skills: [], strength: '', why: [], resources: [] });
+  const sized = (phases: number, each: number, kind = 'learn') => ({ summary: 's', fit: { matched: [], missing: [] }, howPeopleGotIn: [], process: [], relatedPaths: [], phases: Array.from({ length: phases }, (_, i) => ({ title: `p${i}`, window: '', steps: Array.from({ length: each }, () => step(kind)) })) }) as never;
+  assert.equal(fullEnough(career, sized(3, 4)), false);
+  assert.equal(fullEnough(career, sized(6, 5)), true);
+  // Once the student has picked, the roadmap is built from the picks: each with things to do, each category with more to add.
+  const chosen = RoadmapRequest.parse({ kind: 'career', goal: 'Finance', profile: {}, chosen: [{ category: 'People and communities', title: 'Join the student investment club' }] });
+  const built = roadmapPrompt(chosen);
+  assert.match(built, /People and communities: Join the student investment club/);
+  assert.match(built, /Add no step they did not choose/);
+  const plan = (actions: string[], more: unknown[]) => ({ ...(sized(1, 1) as object), phases: [{ title: 'People and communities', window: '', more, steps: [{ ...step('join'), actions }] }] }) as never;
+  assert.equal(fullEnough(chosen, plan([], [])), false);
+  assert.equal(fullEnough(chosen, plan(['Go to a meeting', 'Pitch a stock'], [{ title: 'Case competition', why: 'w' }])), true);
+  assert.equal(fullEnough(RoadmapRequest.parse(body), sized(3, 2, 'apply')), false);
+  assert.equal(fullEnough(RoadmapRequest.parse(body), sized(3, 2)), true);
+  // Notes lead the prompt, and the application's status reaches the writer.
+  assert.ok(prompt.indexOf('No unpaid roles') < prompt.indexOf('Skills'));
+  assert.match(prompt, /Application status: applied/);
+  assert.match(prompt, /Tutor at SRJC/);
+  assert.match(prompt, /Résumé: none uploaded/);
+  assert.match(roadmapPrompt(RoadmapRequest.parse({ ...body, resume: 'Built a ledger service' })), /Résumé text:\nBuilt a ledger service/);
+
+  let calls = 0;
+  const roadmap = { summary: 's', fit: { score: 50, met: ['Python'], missing: ['Go'] }, phases: [{ title: 'While you wait', window: 'Now', more: [], steps: [] }], howPeopleGotIn: [], process: [], relatedPaths: [] };
+  const writer = cached(async () => (calls++, { data: roadmap, citations: ['https://example.com/a'] }));
+  const post = (app: ReturnType<typeof createApp>['app'], payload: unknown) => app.request('/api/students/demo/roadmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+
+  const live = createApp(new LocalStore(null), {}, { demo: system(), roadmap: writer, grok: { connected: true, mode: 'cli', detail: '' } }).app;
+  const res = await post(live, body);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { roadmap, citations: ['https://example.com/a'], writer: 'cli' });
+  await post(live, body);
+  assert.equal(calls, 1, 'the same request is answered from the cache');
+  assert.equal((await post(live, { kind: 'job' })).status, 400);
+
+  const none = createApp(new LocalStore(null), {}, { demo: system() }).app;
+  assert.equal((await post(none, body)).status, 503);
+});

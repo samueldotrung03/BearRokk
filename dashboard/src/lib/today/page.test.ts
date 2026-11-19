@@ -34,7 +34,7 @@ describe('Today page', () => {
 
   it('renders every section for the sample student', async () => {
     const html = await render();
-    for (const text of ['New for you', 'What your goal asks for', 'Profile strength', 'Add a reminder for today', 'Due this week', 'This week', 'Applications', 'Next steps', 'Your agents']) {
+    for (const text of ['New for you', 'What your goal asks for', 'Profile strength', 'Add a reminder for today', 'Due this week', 'This week', 'Applications', 'Options most people took', 'Your agents']) {
       expect(html).toContain(text);
     }
     expect(html).toContain('Grok will write it once the agents are connected');

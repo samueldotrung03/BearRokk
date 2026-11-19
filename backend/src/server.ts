@@ -6,6 +6,7 @@ import { createApp } from './app.ts';
 import { firebaseVerifier, webConfig } from './auth.ts';
 import { config, liveAvailable, provider } from './config.ts';
 import { openStore } from './store/index.ts';
+import { cached, writeRoadmap } from './roadmap.ts';
 
 const store = await openStore();
 // Live agents need a key; without one the same system runs on simulated agents and sample data.
@@ -29,6 +30,7 @@ const { app } = createApp(store, {}, {
   },
   verify,
   webConfig: webConfig(),
+  roadmap: liveAvailable() ? cached(writeRoadmap) : null,
   grok: !liveAvailable()
     ? { connected: false, mode: 'simulated', detail: 'No Grok connection is configured, so the agents are simulated on sample data.' }
     : config.grokTransport === 'claude'

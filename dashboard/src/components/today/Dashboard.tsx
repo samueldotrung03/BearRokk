@@ -1,5 +1,9 @@
 // The dashboard's glanceable cards: headline numbers, the week ahead, the application pipeline,
 // the roadmap's next steps and what the agents are doing. Each one links to the page that owns it.
+import { useMemo } from 'react';
+import { careerJourney } from '../../lib/roadmapx/journey.ts';
+import { useLocal } from '../../lib/useLocal.ts';
+import { useStore } from '../../state/StoreProvider.tsx';
 import { ArrowRight, ArrowUpRight, Bookmark, CalendarDays, Check, CircleDashed, ClipboardList, Map as MapIcon, Play, Plus, Radar, Sparkles, Target, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -271,6 +275,11 @@ export function PipelineCard({ stages, onOpen }: { stages: PipelineStage[]; onOp
 }
 
 export function RoadmapCard({ roadmap, onTick }: { roadmap: RoadmapGlance; onTick: (stepId: string) => void }) {
+  // What the student put on their own path on the roadmap page comes first; the roadmap has no set order.
+  const { state } = useStore();
+  const [picked] = useLocal<string[]>('bearrok.roadmap.picked', []);
+  const mine = useMemo(() => (picked.length ? careerJourney(state).steps.filter((step) => picked.includes(step.id) && !step.done).slice(0, 4) : []), [state, picked]);
+  const steps = mine.length > 0 ? mine : roadmap.next;
   return (
     <section className="db-card db-roadmap">
       <header className="db-head">
@@ -292,10 +301,10 @@ export function RoadmapCard({ roadmap, onTick }: { roadmap: RoadmapGlance; onTic
           </p>
         </div>
       </div>
-      <h3 className="db-sub">Next steps</h3>
-      {roadmap.next.length > 0 ? (
+      <h3 className="db-sub">{mine.length > 0 ? 'On my path' : 'Options most people took'}</h3>
+      {steps.length > 0 ? (
         <ul className="db-steps">
-          {roadmap.next.map((step) => {
+          {steps.map((step) => {
             const Icon = stepMeta[step.kind].icon;
             return (
               <li key={step.id}>
@@ -313,7 +322,7 @@ export function RoadmapCard({ roadmap, onTick }: { roadmap: RoadmapGlance; onTic
           })}
         </ul>
       ) : (
-        <p className="db-empty">Every step is done. Pick a new goal on the roadmap page.</p>
+        <p className="db-empty">Everything here is done. Open the roadmap to pick more, or explore another career.</p>
       )}
     </section>
   );

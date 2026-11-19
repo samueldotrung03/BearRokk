@@ -1,0 +1,2634 @@
+/* The roadmap journey: a tilted ground with a winding road, markers standing on it, and a card
+   beside it for the step in focus. Colors come from the theme tokens, with a few of its own for
+   the sky and the road, set per theme below. */
+
+.rm3 {
+  --rm3-tilt: 56deg;
+  --rm3-sky-a: #bcd9fb;
+  --rm3-sky-b: #e8f2fe;
+  --rm3-ground-a: #eaf2fd;
+  --rm3-ground-b: #cfe0f6;
+  --rm3-grid: rgb(36 91 216 / 0.13);
+  --rm3-road: #ffffff;
+  --rm3-road-edge: rgb(36 91 216 / 0.34);
+  --rm3-dash: rgb(36 91 216 / 0.4);
+  --rm3-orb: #ffffff;
+  --rm3-orb-ink: #46617d;
+  --rm3-label: rgb(255 255 255 / 0.94);
+  --rm3-paint: rgb(36 91 216 / 0.34);
+  --rm3-done: #10b981;
+  --rm3-accent: #245bd8;
+  --rm3-next: color-mix(in srgb, var(--rm3-accent) 88%, #0b1b3f);
+  padding-bottom: 40px;
+}
+:root[data-theme='dark'] .rm3 {
+  --rm3-sky-a: #0b1026;
+  --rm3-sky-b: #0a0b0f;
+  --rm3-ground-a: #10131c;
+  --rm3-ground-b: #0a0c12;
+  --rm3-grid: rgb(140 170 255 / 0.1);
+  --rm3-road: #1c2030;
+  --rm3-road-edge: rgb(140 170 255 / 0.22);
+  --rm3-dash: rgb(255 255 255 / 0.22);
+  --rm3-orb: #1b1f2b;
+  --rm3-orb-ink: #b4bbc9;
+  --rm3-label: rgb(22 25 34 / 0.94);
+  --rm3-paint: rgb(160 185 255 / 0.2);
+  --rm3-done: #34d399;
+  --rm3-next: color-mix(in srgb, var(--rm3-accent) 62%, #fff);
+}
+
+/* ---------- Top bar ---------- */
+
+.rm3-bar {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.rm3-modes {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.rm3-modes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 15px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--color-ink-2);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.rm3-modes button svg {
+  width: 16px;
+  height: 16px;
+}
+.rm3-modes button[aria-selected='true'] {
+  background: var(--color-ink);
+  color: var(--color-canvas);
+}
+.rm3-modes button:disabled {
+  opacity: 0.45;
+}
+
+.rm3-pick {
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 0;
+  max-width: 420px;
+}
+.rm3-pick-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 48px;
+  padding: 0 12px 0 14px;
+  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  text-align: left;
+}
+.rm3-pick-button > svg {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  color: var(--brand-text);
+}
+.rm3-pick-button > svg:last-child {
+  color: var(--color-ink-3);
+  transition: transform 0.2s;
+}
+.rm3-pick-button[aria-expanded='true'] > svg:last-child {
+  transform: rotate(180deg);
+}
+.rm3-pick-button span {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rm3-pick-button small {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-3);
+}
+.rm3-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-lift);
+  animation: rm3-drop 0.18s ease-out;
+}
+@keyframes rm3-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.rm3-menu p {
+  padding: 10px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+.rm3-menu button {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  text-align: left;
+}
+.rm3-menu button:hover {
+  background: var(--surface-3);
+}
+.rm3-menu button[aria-selected='true'] {
+  background: var(--color-brand-soft);
+}
+.rm3-menu strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+.rm3-menu span {
+  display: block;
+  font-size: 12.5px;
+  color: var(--color-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rm3-progress {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 10px;
+  margin-left: auto;
+  min-width: 220px;
+  padding: 8px 14px 10px;
+  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.rm3-progress strong {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--color-ink);
+}
+.rm3-progress span {
+  font-size: 12.5px;
+  color: var(--color-ink-2);
+}
+.rm3-progress i {
+  grid-column: 1 / -1;
+  height: 4px;
+  margin-top: 7px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.rm3-progress b {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--glow);
+  transition: width 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ---------- Stage: the scene with the card over its right side ---------- */
+
+.rm3-stage {
+  position: relative;
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-lift);
+  isolation: isolate;
+}
+:root:not([data-theme='dark']) .rm3-stage {
+  border-color: #fff;
+}
+
+.rm3-scene {
+  position: relative;
+  height: clamp(520px, 68vh, 680px);
+  overflow: hidden;
+  perspective: 820px;
+  perspective-origin: 36% 6%;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  outline: none;
+}
+.rm3-scene:active {
+  cursor: grabbing;
+}
+.rm3-scene:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-brand);
+}
+.rm3-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 46% at 30% 0%, rgb(124 108 255 / 0.22), transparent 70%),
+    radial-gradient(50% 40% at 78% 4%, rgb(74 168 255 / 0.26), transparent 70%),
+    linear-gradient(180deg, var(--rm3-sky-a) 0%, var(--rm3-sky-b) 46%, var(--rm3-ground-a) 100%);
+}
+:root[data-theme='dark'] .rm3-sky {
+  background:
+    radial-gradient(1px 1px at 12% 18%, rgb(255 255 255 / 0.7), transparent),
+    radial-gradient(1px 1px at 28% 9%, rgb(255 255 255 / 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 44% 22%, rgb(255 255 255 / 0.6), transparent),
+    radial-gradient(1px 1px at 61% 7%, rgb(255 255 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 73% 26%, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1.5px 1.5px at 88% 13%, rgb(255 255 255 / 0.6), transparent),
+    radial-gradient(60% 46% at 28% 0%, rgb(124 108 255 / 0.3), transparent 70%),
+    radial-gradient(50% 40% at 80% 4%, rgb(255 110 90 / 0.16), transparent 70%),
+    linear-gradient(180deg, var(--rm3-sky-a) 0%, var(--rm3-sky-b) 50%, var(--rm3-ground-a) 100%);
+}
+
+/* The whole ground leans a little toward the pointer. */
+.rm3-tilt {
+  --px: 0;
+  --py: 0;
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateY(calc(var(--px) * 3.5deg)) rotateX(calc(var(--py) * -1.5deg));
+  transition: transform 0.5s ease-out;
+}
+.rm3-world {
+  position: absolute;
+  left: 36%;
+  bottom: 0;
+  transform-origin: 50% 100%;
+  transform-style: preserve-3d;
+  transition: transform 1s cubic-bezier(0.22, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.rm3-ground {
+  position: absolute;
+  inset: -200px -900px;
+  background:
+    linear-gradient(var(--rm3-grid) 1.5px, transparent 1.5px) 0 0 / 100% 125px,
+    linear-gradient(90deg, var(--rm3-grid) 1.5px, transparent 1.5px) 0 0 / 125px 100%,
+    linear-gradient(180deg, var(--rm3-ground-b), var(--rm3-ground-a));
+}
+.rm3-road {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.rm3-road path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rm3-road-edge {
+  stroke: var(--rm3-road-edge);
+  stroke-width: 96;
+}
+.rm3-road-base {
+  stroke: var(--rm3-road);
+  stroke-width: 84;
+}
+.rm3-road-dash {
+  stroke: var(--rm3-dash);
+  stroke-width: 4;
+  stroke-dasharray: 26 30;
+}
+.rm3-road-walked {
+  stroke: url(#rm3-walked);
+  stroke-width: 22;
+  filter: drop-shadow(0 0 14px rgb(74 168 255 / 0.75));
+  transition: stroke-dasharray 0.9s cubic-bezier(0.22, 0.8, 0.2, 1);
+}
+
+/* Phase names, painted on the ground beside the road. */
+.rm3-phase {
+  position: absolute;
+  width: 300px;
+  font-family: var(--font-display);
+  font-size: 50px;
+  line-height: 0.95;
+  color: var(--rm3-paint);
+  pointer-events: none;
+}
+.rm3-phase.is-right {
+  text-align: left;
+}
+.rm3-phase.is-left {
+  text-align: right;
+  transform: translateX(-100%);
+}
+.rm3-phase span {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* The patch of ground under each marker. */
+.rm3-disc {
+  position: absolute;
+  width: 118px;
+  height: 118px;
+  margin: -59px 0 0 -59px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--rm3-road-edge) 0 38%, transparent 70%);
+  border: 3px solid var(--rm3-road-edge);
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+.rm3-disc.is-done {
+  border-color: var(--rm3-done);
+  background: radial-gradient(circle, color-mix(in srgb, var(--rm3-done) 30%, transparent) 0 40%, transparent 70%);
+}
+.rm3-disc.is-next,
+.rm3-disc.is-goal {
+  border-color: var(--rm3-next);
+}
+.rm3-disc.is-next::after,
+.rm3-disc.is-focus::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 3px solid var(--rm3-next);
+  animation: rm3-ring 2.2s ease-out infinite;
+}
+.rm3-disc.is-focus {
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--rm3-next) 22%, transparent);
+}
+@keyframes rm3-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+
+/* A marker: it stands upright on the ground and faces the viewer. */
+.rm3-pin {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 0;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) rotateX(calc(var(--rm3-tilt) * -1));
+  transform-style: preserve-3d;
+  transition: opacity 0.6s;
+  cursor: pointer;
+}
+.rm3-pin > * {
+  flex-shrink: 0;
+}
+.rm3-stem {
+  width: 4px;
+  height: 64px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--rm3-orb-ink), transparent);
+  opacity: 0.5;
+}
+.rm3-orb {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--rm3-orb);
+  color: var(--rm3-orb-ink);
+  border: 3px solid var(--rm3-road-edge);
+  box-shadow:
+    inset 0 -8px 14px rgb(0 0 0 / 0.08),
+    inset 0 6px 10px rgb(255 255 255 / 0.5),
+    0 18px 30px -10px rgb(15 35 80 / 0.45);
+  transition:
+    transform 0.35s cubic-bezier(0.3, 1.5, 0.5, 1),
+    border-color 0.3s,
+    background 0.3s;
+}
+:root[data-theme='dark'] .rm3-orb {
+  box-shadow:
+    inset 0 -8px 14px rgb(0 0 0 / 0.4),
+    inset 0 5px 10px rgb(255 255 255 / 0.08),
+    0 18px 30px -10px rgb(0 0 0 / 0.8);
+}
+.rm3-orb svg {
+  width: 32px;
+  height: 32px;
+}
+.rm3-pin:hover .rm3-orb {
+  transform: translateY(-8px) scale(1.06);
+}
+.rm3-pin.is-done .rm3-orb {
+  background: var(--rm3-done);
+  border-color: color-mix(in srgb, var(--rm3-done) 60%, #fff);
+  color: #fff;
+}
+.rm3-pin.is-next .rm3-orb {
+  border-color: var(--rm3-next);
+  color: var(--rm3-next);
+  animation: rm3-bob 2.6s ease-in-out infinite;
+}
+.rm3-pin.is-goal .rm3-orb {
+  width: 104px;
+  height: 104px;
+  background: linear-gradient(135deg, var(--rm3-accent), #4aa8ff 55%, #37d6a0);
+  border-color: rgb(255 255 255 / 0.7);
+  color: #fff;
+  box-shadow:
+    0 0 60px rgb(74 168 255 / 0.7),
+    0 18px 30px -10px rgb(15 35 80 / 0.5);
+}
+.rm3-pin.is-goal .rm3-orb svg {
+  width: 44px;
+  height: 44px;
+}
+.rm3-pin.is-goal .rm3-stem {
+  height: 110px;
+}
+.rm3-pin.is-focus .rm3-orb {
+  transform: translateY(-10px) scale(1.14);
+  border-color: var(--rm3-next);
+}
+.rm3-pin.is-focus.is-done .rm3-orb {
+  border-color: #fff;
+}
+@keyframes rm3-bob {
+  50% {
+    transform: translateY(-9px);
+  }
+}
+.rm3-pin.is-burst .rm3-orb {
+  animation: rm3-pop 0.9s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.rm3-pin.is-burst .rm3-orb::after {
+  content: '';
+  position: absolute;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 4px solid var(--rm3-done);
+  animation: rm3-ring 0.9s ease-out;
+}
+@keyframes rm3-pop {
+  30% {
+    transform: translateY(-34px) scale(1.35) rotate(-8deg);
+  }
+  60% {
+    transform: translateY(0) scale(0.94);
+  }
+}
+
+.rm3-label {
+  display: block;
+  width: max-content;
+  max-width: 250px;
+  margin-bottom: 14px;
+  padding: 9px 14px 10px;
+  border-radius: 14px;
+  background: var(--rm3-label);
+  border: 1px solid var(--color-line);
+  box-shadow: 0 14px 28px -14px rgb(15 35 80 / 0.5);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--color-ink);
+  opacity: 0;
+  transform: translateY(8px) scale(0.94);
+  transition:
+    opacity 0.35s,
+    transform 0.35s;
+  pointer-events: none;
+}
+.rm3-label small {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+.rm3-pin.is-focus .rm3-label,
+.rm3-pin:hover .rm3-label,
+.rm3-pin:focus-visible .rm3-label,
+.rm3-pin.is-goal .rm3-label {
+  opacity: 1;
+  transform: none;
+}
+.rm3-pin.is-focus .rm3-label {
+  border-color: var(--rm3-next);
+}
+.rm3-pin:focus-visible {
+  outline: none;
+}
+.rm3-pin:focus-visible .rm3-orb {
+  outline: 3px solid var(--color-brand);
+  outline-offset: 4px;
+}
+
+/* Distance: the far end of the road fades into the sky. */
+.rm3-fog {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 24%;
+  background: linear-gradient(180deg, var(--rm3-sky-a) 0%, color-mix(in srgb, var(--rm3-sky-a) 55%, transparent) 40%, transparent 100%);
+  pointer-events: none;
+}
+.rm3-hint {
+  position: absolute;
+  left: 18px;
+  bottom: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  pointer-events: none;
+}
+
+/* Arrival: the road draws itself and the markers drop in, nearest first. */
+@media (prefers-reduced-motion: no-preference) {
+  .rm3-road-base,
+  .rm3-road-edge {
+    animation: rm3-fade 0.9s ease-out both;
+  }
+  .rm3-pin {
+    animation: rm3-land 0.7s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+    animation-delay: calc(var(--i) * 70ms + 200ms);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rm3-world,
+  .rm3-tilt {
+    transition: none;
+  }
+}
+@keyframes rm3-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rm3-land {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) rotateX(calc(var(--rm3-tilt) * -1)) translateY(-90px) scale(0.6);
+  }
+}
+
+/* ---------- The step card ---------- */
+
+.rm3-panel {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(380px, 42%);
+  padding: 18px 20px 18px;
+  overflow-y: auto;
+  border-radius: 22px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-lift);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+  scrollbar-width: thin;
+  animation: rm3-card 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes rm3-card {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+.rm3-panel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.rm3-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--brand-text);
+}
+.rm3-kind svg {
+  width: 14px;
+  height: 14px;
+}
+.rm3-kind.is-done {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.rm3-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.rm3-nav button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--color-line);
+  color: var(--color-ink);
+  transition: background 0.15s;
+}
+.rm3-nav button:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+.rm3-nav button:disabled {
+  opacity: 0.35;
+}
+.rm3-nav svg {
+  width: 15px;
+  height: 15px;
+}
+.rm3-phase-line {
+  margin-bottom: -6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+.rm3-title {
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+.rm3-detail {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-ink-2);
+}
+.rm3-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rm3-facts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+.rm3-facts svg {
+  width: 13px;
+  height: 13px;
+}
+.rm3-panel section {
+  padding-top: 12px;
+  border-top: 1px solid var(--color-line);
+}
+.rm3-panel h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+.rm3-panel h3 svg {
+  width: 14px;
+  height: 14px;
+  color: var(--brand-text);
+}
+.rm3-note {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+.rm3-note + .rm3-note {
+  margin-top: 6px;
+}
+.rm3-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rm3-skills li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+.rm3-skills li.is-core {
+  border-color: color-mix(in srgb, var(--color-brand) 55%, transparent);
+  color: var(--color-ink);
+}
+.rm3-skills li.is-have {
+  border-color: transparent;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.rm3-skills svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 3;
+}
+.rm3-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rm3-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+.rm3-links a:hover {
+  text-decoration: underline;
+}
+.rm3-links svg {
+  width: 12px;
+  height: 12px;
+}
+.rm3-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+.rm3-primary,
+.rm3-quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 650;
+  transition:
+    transform 0.15s,
+    opacity 0.15s,
+    background 0.15s;
+}
+.rm3-primary {
+  flex: 1;
+  background: var(--color-ink);
+  color: var(--color-canvas);
+}
+.rm3-primary:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+}
+.rm3-quiet {
+  border: 1px solid var(--color-line);
+  color: var(--color-ink);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rm3-quiet:hover {
+  background: var(--surface-3);
+}
+.rm3-primary svg,
+.rm3-quiet svg {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+}
+
+/* ---------- The rail: every step at a glance ---------- */
+
+.rm3-rail {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 14px 18px;
+  border-radius: 20px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+  overflow-x: auto;
+}
+.rm3-rail-phase {
+  flex-basis: 0;
+  min-width: 96px;
+}
+.rm3-rail-phase p {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+.rm3-rail-phase p span {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--color-ink-3);
+}
+.rm3-rail-phase div {
+  display: flex;
+  gap: 5px;
+}
+.rm3-rail-phase button {
+  flex: 1;
+  min-width: 14px;
+  height: 10px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  transition:
+    transform 0.15s,
+    background 0.3s;
+}
+.rm3-rail-phase button:hover {
+  transform: scaleY(1.5);
+}
+.rm3-rail-phase button.is-done {
+  background: var(--rm3-done);
+}
+.rm3-rail-phase button.is-next {
+  background: var(--rm3-next);
+}
+.rm3-rail-phase button.is-focus {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--color-ink);
+}
+.rm3-rail-goal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+.rm3-rail-goal.is-focus {
+  background: var(--color-ink);
+  color: var(--color-canvas);
+}
+.rm3-rail-goal svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ---------- What to master, and the foot ---------- */
+
+.rm3-master {
+  margin-top: 14px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+.rm3-master h2 {
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+.rm3-master p {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--color-ink-3);
+}
+.rm3-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--color-ink-3);
+}
+.rm3-foot a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+.rm3-foot svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- Narrow screens: the card sits under the scene ---------- */
+
+@media (max-width: 860px) {
+  .rm3-scene {
+    height: 420px;
+    perspective-origin: 50% 10%;
+  }
+  .rm3-world {
+    left: 50%;
+  }
+  .rm3-panel {
+    position: static;
+    width: auto;
+    border-radius: 0;
+    border-width: 1px 0 0;
+    box-shadow: none;
+  }
+  .rm3-progress {
+    margin-left: 0;
+    flex: 1 1 100%;
+  }
+  .rm3-hint {
+    display: none;
+  }
+}
+
+/* ---------- The roadmaps the app wrote, as tabs ---------- */
+
+.rm3-dests {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rm3-dests button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  max-width: 280px;
+  height: 52px;
+  padding: 0 16px 0 12px;
+  border-radius: 16px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  text-align: left;
+  transition:
+    transform 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.rm3-dests button:hover {
+  transform: translateY(-1px);
+}
+.rm3-dests button > svg {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 7px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  color: var(--color-ink-2);
+}
+.rm3-dests span {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rm3-dests small {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rm3-dests button[aria-selected='true'] {
+  border-color: var(--rm3-next);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--rm3-next) 18%, transparent),
+    var(--shadow-card);
+}
+.rm3-dests button[aria-selected='true'] > svg {
+  background: var(--rm3-next);
+  color: #fff;
+}
+
+/* ---------- The writer's work, shown as it happens ---------- */
+
+.rm3-think {
+  display: flex;
+  flex: 1 1 100%;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rm3-think li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 150px;
+  padding-right: 6px;
+}
+.rm3-think i {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--rm3-done);
+  color: #fff;
+}
+.rm3-think i svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3.5;
+}
+.rm3-think span {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-ink);
+}
+.rm3-think small {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rm3-think li {
+    animation: rm3-think-in 0.5s ease-out both;
+    animation-delay: calc(var(--i) * 0.55s);
+  }
+  /* Each stage spins while it is being worked on, then settles into a tick. */
+  .rm3-think i {
+    animation: rm3-think-spin 0.55s linear both;
+    animation-delay: calc(var(--i) * 0.55s);
+  }
+  .rm3-think i svg {
+    animation: rm3-fade 0.2s ease-out both;
+    animation-delay: calc(var(--i) * 0.55s + 0.55s);
+  }
+  .rm3-think span {
+    animation: rm3-fade 0.3s ease-out both;
+    animation-delay: calc(var(--i) * 0.55s + 0.4s);
+  }
+}
+@keyframes rm3-think-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+@keyframes rm3-think-spin {
+  from {
+    background: transparent;
+    box-shadow: inset 0 0 0 2.5px var(--surface-3), inset 2.5px 0 0 0 var(--rm3-done);
+    transform: rotate(0);
+  }
+  99% {
+    background: transparent;
+    box-shadow: inset 0 0 0 2.5px var(--surface-3), inset 2.5px 0 0 0 var(--rm3-done);
+    transform: rotate(540deg);
+  }
+}
+
+.rm3-views {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+.rm3-views button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 13px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--color-ink-2);
+}
+.rm3-views button svg {
+  width: 15px;
+  height: 15px;
+}
+.rm3-views button[aria-selected='true'] {
+  background: var(--color-ink);
+  color: var(--color-canvas);
+}
+.rm3-bar .rm3-progress {
+  margin-left: auto;
+}
+
+/* The sky carries the roadmap's own color, drifting slowly. */
+.rm3-sky::after {
+  content: '';
+  position: absolute;
+  inset: -20% -10% 40%;
+  background:
+    radial-gradient(40% 60% at 30% 40%, color-mix(in srgb, var(--rm3-accent) 34%, transparent), transparent 70%),
+    radial-gradient(34% 50% at 72% 30%, color-mix(in srgb, var(--rm3-accent) 18%, #37d6a0 12%), transparent 70%);
+  filter: blur(20px);
+  opacity: 0.8;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rm3-sky::after {
+    animation: rm3-drift 16s ease-in-out infinite alternate;
+  }
+}
+@keyframes rm3-drift {
+  to {
+    transform: translate3d(8%, 6%, 0) scale(1.15);
+  }
+}
+
+.rm3-phase-line b {
+  color: var(--rm3-next);
+}
+.rm3-phase-line b.is-gap {
+  color: var(--warn);
+}
+
+/* ---------- Overview: the whole scope, quietly ---------- */
+
+.rm3-stage.is-over {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(380px, 42%);
+  min-height: 520px;
+  background:
+    radial-gradient(50% 60% at 12% 0%, color-mix(in srgb, var(--rm3-accent) 14%, transparent), transparent 70%),
+    var(--surface);
+}
+.rm3-stage.is-over .rm3-panel {
+  position: static;
+  width: auto;
+  margin: 16px 16px 16px 0;
+  max-height: 640px;
+}
+.rm3-over {
+  padding: 28px 28px 24px;
+  overflow: hidden;
+}
+.rm3-over-phases {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 26px 22px;
+}
+.rm3-over-phases > li {
+  min-width: 0;
+}
+.rm3-over header {
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 2px solid color-mix(in srgb, var(--rm3-next) calc(30% + var(--p) * 22%), var(--surface-3));
+}
+.rm3-over header span {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+.rm3-over h3 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--color-ink);
+}
+.rm3-over header em {
+  font-size: 12px;
+  font-style: normal;
+  color: var(--color-ink-3);
+}
+.rm3-over ul {
+  position: relative;
+  padding-top: 6px;
+}
+.rm3-over ul::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 0;
+  bottom: 18px;
+  width: 2px;
+  background: var(--surface-3);
+}
+.rm3-over ul button {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  column-gap: 8px;
+  width: 100%;
+  padding: 7px 8px 7px 0;
+  border-radius: 12px;
+  text-align: left;
+  transition: background 0.15s;
+}
+.rm3-over ul button:hover,
+.rm3-over ul button.is-focus {
+  background: color-mix(in srgb, var(--rm3-next) 9%, transparent);
+}
+.rm3-over ul i {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin: 3px 0 0 8px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--line-strong);
+  transition: transform 0.2s;
+}
+.rm3-over ul i svg {
+  width: 9px;
+  height: 9px;
+  stroke-width: 4;
+  color: #fff;
+}
+.rm3-over ul .is-done i {
+  background: var(--rm3-done);
+  border-color: var(--rm3-done);
+}
+.rm3-over ul .is-next i {
+  border-color: var(--rm3-next);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rm3-next) 22%, transparent);
+}
+.rm3-over ul .is-focus i {
+  transform: scale(1.25);
+  border-color: var(--rm3-next);
+}
+.rm3-over ul span {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-ink);
+}
+.rm3-over ul .is-done span {
+  color: var(--color-ink-3);
+  text-decoration: line-through;
+}
+.rm3-over ul small {
+  font-size: 11.5px;
+  color: var(--color-ink-3);
+}
+.rm3-over-goal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 22px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(120deg, var(--rm3-accent), #4aa8ff 60%, #37d6a0);
+  background-size: 180% 100%;
+  color: #fff;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 650;
+}
+.rm3-over-goal small {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.rm3-over-goal svg {
+  width: 20px;
+  height: 20px;
+}
+.rm3-over-goal.is-focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rm3-next) 35%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rm3-over-phases > li {
+    animation: rm3-rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--p) * 110ms);
+  }
+  .rm3-over-goal {
+    animation:
+      rm3-rise 0.55s 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both,
+      rm3-sheen 7s ease-in-out infinite alternate;
+  }
+}
+@keyframes rm3-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes rm3-sheen {
+  to {
+    background-position: 100% 0;
+  }
+}
+
+/* ---------- Cards under the roadmap ---------- */
+
+.rm3-skipped {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--color-ink-3);
+}
+.rm3-skipped button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--line-strong);
+  color: var(--color-ink-2);
+}
+.rm3-skipped svg {
+  width: 11px;
+  height: 11px;
+}
+.rm3-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.rm3-card {
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+.rm3-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+.rm3-card h2 svg {
+  width: 16px;
+  height: 16px;
+  color: var(--rm3-next);
+}
+.rm3-card h3 {
+  margin: 12px 0 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+.rm3-small {
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-ink-3);
+}
+.rm3-fit {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.rm3-fit strong {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--rm3-next);
+}
+.rm3-fit p {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+.rm3-card .rm3-pick {
+  max-width: none;
+  margin-top: 14px;
+}
+.rm3-card .rm3-pick-button {
+  box-shadow: none;
+  background: var(--surface-2);
+}
+.rm3-card .rm3-menu {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+.rm3-stories {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.rm3-stories details {
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--color-line);
+}
+.rm3-stories summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  cursor: pointer;
+  color: var(--color-ink);
+}
+.rm3-stories summary span {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-ink-3);
+}
+.rm3-stories ol {
+  padding: 0 12px 10px 30px;
+  list-style: decimal;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-ink-2);
+}
+
+@media (max-width: 860px) {
+  .rm3-stage.is-over {
+    grid-template-columns: 1fr;
+  }
+  .rm3-stage.is-over .rm3-panel {
+    margin: 0;
+  }
+}
+
+/* ---------- Many roadmaps: groups and a search ---------- */
+
+.rm3-dests {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  overflow: visible;
+}
+.rm3-dest-group {
+  min-width: 0;
+  max-width: 100%;
+}
+.rm3-dest-group > p {
+  margin: 0 0 5px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+.rm3-dest-group > p span {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  letter-spacing: 0;
+}
+.rm3-dest-group > div {
+  display: flex;
+  /* Every application stays in sight; the search narrows them when there are many. */
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+  padding: 3px;
+  margin: -3px;
+  scrollbar-width: none;
+}
+.rm3-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 220px;
+  max-width: 340px;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+}
+.rm3-search:focus-within {
+  border-color: var(--rm3-next);
+}
+.rm3-search svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--color-ink-3);
+}
+.rm3-search input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+.rm3-search input::placeholder {
+  color: var(--color-ink-3);
+}
+
+/* Who wrote the roadmap on screen. */
+.rm3-writer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+.rm3-writer i {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-ink-3);
+}
+.rm3-writer.is-ready i {
+  background: var(--rm3-done);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rm3-done) 22%, transparent);
+}
+.rm3-writer.is-writing i {
+  background: var(--rm3-next);
+  animation: rm3-pulse 1.1s ease-in-out infinite;
+}
+.rm3-writer.is-failed i {
+  background: var(--warn);
+}
+@keyframes rm3-pulse {
+  50% {
+    transform: scale(1.7);
+    opacity: 0.4;
+  }
+}
+.rm3-writer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  font-size: 12px;
+  color: var(--color-ink);
+}
+.rm3-writer button svg {
+  width: 12px;
+  height: 12px;
+}
+.rm3-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12.5px;
+}
+.rm3-sources a {
+  color: var(--brand-text);
+}
+.rm3-sources a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Exploring careers ---------- */
+
+.rm3-explore {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.rm3-find {
+  position: relative;
+  flex: 1 1 320px;
+  max-width: 520px;
+}
+.rm3-find .rm3-search {
+  max-width: none;
+  height: 48px;
+  box-shadow: var(--shadow-card);
+}
+.rm3-menu strong em {
+  margin-left: 8px;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--rm3-next);
+}
+.rm3-exploring {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+.rm3-exploring button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--surface-glass);
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+.rm3-exploring button:first-of-type:not(:last-of-type) {
+  background: var(--color-ink);
+  border-color: transparent;
+  color: var(--color-canvas);
+}
+.rm3-exploring svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- The career board: every option in the open, to pick from ---------- */
+
+/* The card follows the reader down the board, so the stage must not clip it. */
+.rm3-stage.is-long {
+  overflow: visible;
+  align-items: start;
+}
+.rm3-stage.is-long .rm3-panel {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+}
+.rm3-board {
+  padding: 26px 24px 30px;
+  border-radius: 27px 0 0 27px;
+  background:
+    radial-gradient(70% 300px at 20% 0, color-mix(in srgb, var(--rm3-accent) 16%, transparent), transparent 75%),
+    radial-gradient(circle at 1px 1px, var(--rm3-grid) 1.2px, transparent 0) 0 0 / 26px 26px;
+}
+.rm3-board-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+.rm3-board-top p {
+  flex: 1 1 260px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+.rm3-board-goal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  padding: 12px 20px 12px 14px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, var(--rm3-accent), #4aa8ff 60%, #37d6a0);
+  background-size: 200% 100%;
+  box-shadow: 0 10px 34px -10px color-mix(in srgb, var(--rm3-accent) 70%, transparent);
+  color: #fff;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.rm3-board-goal svg {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+.rm3-board-goal small {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.rm3-board-goal.is-focus {
+  outline: 3px solid color-mix(in srgb, var(--rm3-next) 40%, transparent);
+  outline-offset: 3px;
+}
+
+.rm3-mixes {
+  margin-top: 20px;
+}
+.rm3-mixes > p:first-child,
+.rm3-mine strong {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+.rm3-mixes > div {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.rm3-mixes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 12px 0 4px;
+  border-radius: 999px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.rm3-mixes button b {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  font-size: 11px;
+}
+.rm3-mixes button[aria-pressed='true'] {
+  background: var(--rm3-next);
+  border-color: transparent;
+  color: #fff;
+}
+.rm3-mixes button[aria-pressed='true'] b {
+  background: rgb(255 255 255 / 0.25);
+}
+.rm3-mix-note {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+
+.rm3-mine {
+  position: sticky;
+  top: 12px;
+  z-index: 3;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--surface-glass);
+  border: 1.5px dashed color-mix(in srgb, var(--rm3-next) 55%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+.rm3-mine strong span {
+  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--rm3-next);
+  letter-spacing: 0;
+  color: #fff;
+}
+.rm3-mine p {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--color-ink-3);
+}
+.rm3-mine ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 104px;
+  margin-top: 8px;
+  overflow-y: auto;
+}
+.rm3-mine li {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rm3-next) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--rm3-next) 40%, transparent);
+  animation: rm3-grow 0.35s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+.rm3-mine li.is-done {
+  background: var(--ok-soft);
+  border-color: transparent;
+}
+.rm3-mine li button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 230px;
+  padding: 5px 4px 5px 11px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-ink);
+}
+.rm3-mine li button:last-child {
+  padding: 5px 8px 5px 2px;
+  color: var(--color-ink-3);
+}
+.rm3-mine svg {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}
+
+/* Clusters fall into columns of uneven height, so the board reads as a field, not a line. */
+.rm3-clusters {
+  columns: 2 250px;
+  column-gap: 16px;
+  margin-top: 18px;
+}
+.rm3-clusters section {
+  break-inside: avoid;
+  margin-bottom: 16px;
+  padding: 14px 12px 12px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--color-line);
+}
+.rm3-clusters section:has(li:nth-child(9)) {
+  column-span: all;
+}
+.rm3-clusters section:has(li:nth-child(9)) ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.rm3-clusters h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 4px 10px;
+  font-family: var(--font-display);
+  font-size: 21px;
+  line-height: 1.1;
+  color: var(--color-ink);
+}
+.rm3-clusters h3 span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-ink-2);
+}
+.rm3-clusters h3 em {
+  margin-left: auto;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-style: normal;
+  color: var(--color-ink-3);
+}
+.rm3-clusters ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rm3-clusters li {
+  display: flex;
+  align-items: stretch;
+  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid var(--color-line);
+  transition:
+    transform 0.2s,
+    border-color 0.2s,
+    opacity 0.3s,
+    box-shadow 0.2s;
+}
+.rm3-clusters li:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+}
+.rm3-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px 8px 8px;
+  text-align: left;
+}
+.rm3-opt i {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  color: var(--color-ink-2);
+}
+.rm3-opt svg {
+  width: 15px;
+  height: 15px;
+}
+.rm3-opt span {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+  color: var(--color-ink);
+}
+.rm3-opt small {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-ink-3);
+}
+.rm3-add {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  margin: auto 8px auto 2px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--line-strong);
+  color: var(--color-ink-2);
+  transition:
+    transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1),
+    background 0.2s;
+}
+.rm3-add:hover {
+  transform: scale(1.15) rotate(90deg);
+  border-color: var(--rm3-next);
+  color: var(--rm3-next);
+}
+.rm3-add svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.6;
+}
+.rm3-add[aria-pressed='true'] {
+  background: var(--rm3-next);
+  border: 0;
+  color: #fff;
+  transform: none;
+}
+.rm3-clusters li.is-on {
+  border-color: color-mix(in srgb, var(--rm3-next) 60%, transparent);
+  background: color-mix(in srgb, var(--rm3-next) 9%, var(--surface));
+}
+.rm3-clusters li.is-done .rm3-opt i {
+  background: var(--rm3-done);
+  color: #fff;
+}
+.rm3-clusters li.is-focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rm3-next) 24%, transparent);
+  border-color: var(--rm3-next);
+}
+.rm3-clusters li.is-dim {
+  opacity: 0.32;
+}
+.rm3-clusters li.is-lit {
+  border-color: var(--rm3-next);
+  box-shadow: 0 0 18px -4px color-mix(in srgb, var(--rm3-next) 70%, transparent);
+}
+.rm3-clusters li.is-lit .rm3-opt i {
+  background: var(--rm3-next);
+  color: #fff;
+}
+.rm3-board-empty {
+  margin-top: 20px;
+  font-size: 13.5px;
+  color: var(--color-ink-3);
+}
+@keyframes rm3-grow {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rm3-board-goal {
+    animation: rm3-sheen 8s ease-in-out infinite alternate;
+  }
+  .rm3-clusters section {
+    animation: rm3-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--p) * 80ms);
+  }
+}
+.rm3-find .rm3-menu {
+  max-height: min(640px, 70vh);
+}
+
+/* ---------- Neighbouring paths ---------- */
+
+.rm3-related {
+  margin-top: 14px;
+}
+.rm3-related > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.rm3-related button {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--color-line);
+  text-align: left;
+  transition:
+    transform 0.2s,
+    border-color 0.2s;
+}
+.rm3-related button:hover {
+  transform: translateY(-2px);
+  border-color: var(--rm3-next);
+}
+.rm3-related strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+.rm3-related strong svg {
+  width: 15px;
+  height: 15px;
+  color: var(--color-ink-3);
+}
+.rm3-related span {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-ink-2);
+}
+.rm3-related i {
+  height: 4px;
+  margin-top: auto;
+  border-radius: 4px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.rm3-related b {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--rm3-next);
+}
+@media (max-width: 860px) {
+  .rm3-board {
+    border-radius: 27px 27px 0 0;
+  }
+  .rm3-stage.is-long .rm3-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* ---------- Career and Applied: a tab that opens a searchable list ---------- */
+
+.rm3-dests {
+  position: relative;
+  z-index: 8;
+  align-items: stretch;
+}
+.rm3-apps {
+  position: relative;
+  min-width: 0;
+}
+.rm3-apps > button {
+  max-width: 360px;
+  width: 100%;
+}
+.rm3-caret {
+  background: none !important;
+  width: 16px !important;
+  height: 16px !important;
+  padding: 0 !important;
+  margin-left: 4px;
+  color: var(--color-ink-3) !important;
+  transition: transform 0.2s;
+}
+.rm3-shade {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+}
+.rm3-apps-menu {
+  left: 0;
+  right: auto;
+  width: min(440px, 86vw);
+  padding: 8px;
+}
+.rm3-apps-menu strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.rm3-apps-menu strong em {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+.rm3-apps-menu strong em.is-applied {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.rm3-apps-menu strong em.is-applying,
+.rm3-apps-menu strong em.is-to_apply {
+  background: var(--color-brand-soft);
+  color: var(--brand-text);
+}
+.rm3-none {
+  padding: 14px 10px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+/* The tab styles are for the tabs themselves, not the rows of the list they open. */
+.rm3-dests .rm3-apps-menu [role='option'] {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+.rm3-dests .rm3-apps-menu [role='option']:hover {
+  background: var(--surface-3);
+}
+.rm3-dests .rm3-apps-menu [role='option'][aria-selected='true'] {
+  background: color-mix(in srgb, var(--rm3-next) 12%, transparent);
+}
+.rm3-dests .rm3-apps-menu [role='option'] span {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-ink-3);
+}
+.rm3-dests .rm3-apps-menu strong {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--color-ink);
+}
+
+/* The tab turns into its search box where it stands; the list drops beneath it. */
+.rm3-apps .rm3-inplace {
+  position: relative;
+  z-index: 21;
+  width: min(360px, 80vw);
+  max-width: none;
+  height: 52px;
+  border-color: var(--rm3-next);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rm3-next) 18%, transparent);
+  background: var(--surface);
+}
+.rm3-apps-menu {
+  z-index: 21;
+  max-height: min(420px, 55vh);
+}
+
+/* The destination, in the student's own words when they choose. */
+.rm3-board-goal {
+  padding: 0;
+}
+.rm3-board-goal > button:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 6px 12px 14px;
+  text-align: left;
+  color: inherit;
+}
+.rm3-board-edit {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin-right: 10px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
+  transition: background 0.15s;
+}
+.rm3-board-edit:hover {
+  background: rgb(255 255 255 / 0.36);
+}
+.rm3-board-edit svg {
+  width: 14px;
+  height: 14px;
+}
+.rm3-board-goal.is-editing {
+  flex: 1 1 320px;
+  padding-left: 14px;
+  animation: none;
+}
+.rm3-board-goal.is-editing label {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0;
+}
+.rm3-board-goal input {
+  width: 100%;
+  background: none;
+  border-bottom: 1.5px solid rgb(255 255 255 / 0.6);
+  outline: none;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+.rm3-board-goal input::placeholder {
+  color: rgb(255 255 255 / 0.65);
+}
+
+/* Options arrive one after another, which is also how a freshly written roadmap shows itself. */
+@media (prefers-reduced-motion: no-preference) {
+  .rm3-clusters li {
+    animation: rm3-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--p, 0) * 80ms + min(var(--i, 0), 14) * 45ms + 150ms);
+  }
+}
+
+/* A posting's selection process, stage by stage. */
+.rm3-process {
+  margin-top: 14px;
+}
+.rm3-process ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+.rm3-process li {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--color-line);
+}
+.rm3-process b {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--rm3-next);
+  font-size: 12px;
+  color: #fff;
+}
+.rm3-process strong {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+.rm3-process p {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-ink-2);
+}
+
+/* ---------- The roadmap built from the student's picks ---------- */
+.rm3-mine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+}
+.rm3-mine > p,
+.rm3-mine > ul {
+  flex-basis: 100%;
+}
+.rm3-build {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, var(--rm3-accent), var(--rm3-next));
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--rm3-next) 80%, transparent);
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  transition: transform 0.2s;
+}
+.rm3-build:hover {
+  transform: translateY(-1px) scale(1.03);
+}
+.rm3-build svg {
+  width: 14px;
+  height: 14px;
+}
+.rm3-planbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--rm3-next) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--rm3-next) 35%, transparent);
+  font-size: 13.5px;
+  color: var(--color-ink-2);
+}
+.rm3-planbar > svg {
+  width: 16px;
+  height: 16px;
+  color: var(--rm3-next);
+}
+.rm3-planbar span {
+  flex: 1 1 280px;
+}
+.rm3-planbar strong {
+  color: var(--color-ink);
+}
+.rm3-planbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--color-line);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.rm3-planbar button svg {
+  width: 13px;
+  height: 13px;
+}
+.rm3-todo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rm3-todo button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--color-ink);
+  transition: background 0.15s;
+}
+.rm3-todo button:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+.rm3-todo i {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--color-ink-3);
+}
+.rm3-todo i svg {
+  width: 12px;
+  height: 12px;
+}
+.rm3-todo [aria-checked='true'] i {
+  background: var(--rm3-done);
+  border-color: transparent;
+  color: #fff;
+}
+.rm3-todo [aria-checked='true'] span {
+  color: var(--color-ink-3);
+  text-decoration: line-through;
+}
+.rm3-more {
+  margin-top: 14px;
+}
+.rm3-more > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 12px;
+}
+.rm3-more article {
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--color-line);
+}
+.rm3-more article.is-left {
+  border-style: dashed;
+  background: none;
+}
+.rm3-more h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 19px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-ink);
+}
+.rm3-more h3 span {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-ink-3);
+}
+.rm3-more h4 {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+.rm3-more-next {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--rm3-next) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--rm3-next) 40%, transparent);
+  text-align: left;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+.rm3-more-next small {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rm3-next);
+}
+.rm3-more ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rm3-more li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 8px 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--color-line);
+}
+.rm3-more li div {
+  flex: 1;
+  min-width: 0;
+}
+.rm3-more li strong {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+.rm3-more li p {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-ink-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

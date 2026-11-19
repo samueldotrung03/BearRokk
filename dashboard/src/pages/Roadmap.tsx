@@ -1,409 +1,574 @@
-// The roadmap answers "what do I actually need to do to get there?". It starts from a goal,
-// compares what that goal asks for with what the student has, lays the gap out as ordered
-// actions tied to real opportunities from the feed, and changes as the student acts. On top of
-// that sit a coach that answers questions from the plan, a week planner, a readiness score and
-// a timeline. Their logic is pure and lives in src/lib/roadmapx; this file wires it to the page.
-import { Check, Circle, LayoutList, Plus, Sparkles, TrendingUp, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+// The roadmap page. The student picks nothing to get one: there is a roadmap to their career
+// goal, and one for every job or program they are tracking, written by comparing the posting
+// with their profile and with how people got in (src/lib/roadmapx/journey.ts). Two ways to look
+// at each: the 3D journey to travel it, and a quiet overview to see its whole scope.
+import { Briefcase, ArrowUpRight, Check, Pencil, Plus, ChevronDown, Compass, List, Map as MapIcon, Mountain, RefreshCw, RotateCcw, Search, Sparkles, Target, Users } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
-import { Coach } from '../components/roadmap/Coach.tsx';
-import { ExportButton, Milestones } from '../components/roadmap/Momentum.tsx';
-import { reveal } from '../components/roadmap/motion.ts';
-import { PathEvidence } from '../components/roadmap/PathEvidence.tsx';
-import { ReadinessCard } from '../components/roadmap/ReadinessCard.tsx';
-import { stepDomId, StepRow } from '../components/roadmap/StepRow.tsx';
-import { Timeline } from '../components/roadmap/Timeline.tsx';
-import { WeekPlanner } from '../components/roadmap/WeekPlanner.tsx';
-import { typeMeta } from '../components/meta.ts';
-import { Card, Page } from '../components/Page.tsx';
-import { pathGroups } from '../data/fields.ts';
-import { applicationInfo, careerPaths, opportunities, pathProfiles } from '../data/sample.ts';
-import { evidenceFor } from '../lib/pathways.ts';
-import { buildOpportunityRoadmap, currentRoadmap } from '../lib/roadmap.ts';
-import type { CoachAction } from '../lib/roadmapx/coach.ts';
-import { buildCoachContext, daysLeft, dueShort, formatHours } from '../lib/roadmapx/context.ts';
-import { roadmapAsText } from '../lib/roadmapx/exportText.ts';
-import { milestones, streak, syncDoneLog, type DoneLog } from '../lib/roadmapx/milestones.ts';
-import { pace, readiness } from '../lib/roadmapx/readiness.ts';
+import { CareerMap } from '../components/journey/CareerMap.tsx';
+import { Overview } from '../components/journey/Overview.tsx';
+import { Scene } from '../components/journey/Scene.tsx';
+import { SkillChips, StepPanel } from '../components/journey/StepPanel.tsx';
+import { Details } from '../components/OpportunityCard.tsx';
+import { Page } from '../components/Page.tsx';
+import { careerPaths, opportunities as sampleOpportunities } from '../data/sample.ts';
+import { aiJourney, aiPlan, chosenFrom, roadmapRequest } from '../lib/roadmapx/ai.ts';
+import { formatHours } from '../lib/roadmapx/context.ts';
+import { careerJourney, careerSearch, customCareer, destinations, jobJourney, planJourney } from '../lib/roadmapx/journey.ts';
 import { useLocal } from '../lib/useLocal.ts';
+import { useAiRoadmap } from '../state/aiRoadmap.ts';
+import { useOpportunities } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
-import '../styles/roadmap.css';
+import type { ApplicationStatus, Opportunity } from '../types.ts';
+import '../styles/journey.css';
 
-type View = 'phases' | 'timeline';
+/** Puts the cursor in a search box without the browser scrolling the page to it. */
+const focusQuietly = (input: HTMLInputElement | null) => input?.focus({ preventScroll: true });
+
+const statusWords: Record<ApplicationStatus, string> = { interested: 'Interested', to_apply: 'To apply', applying: 'Applying', applied: 'Applied' };
 
 export function Roadmap() {
   const { state, dispatch } = useStore();
-  const [hours, setHours] = useLocal('bearrok.roadmap.hours', 6);
-  const [view, setView] = useLocal<View>('bearrok.roadmap.view', 'phases');
-  const [notes, setNotes] = useLocal<Record<string, string>>('bearrok.roadmap.notes', {});
-  const [doneLog, setDoneLog] = useLocal<DoneLog | null>('bearrok.roadmap.doneLog', null);
-  const [incoming, setIncoming] = useState<{ id: number; question: string } | null>(null);
-  const [toast, setToast] = useState<{ text: string; milestone: boolean } | null>(null);
-  const toastTimer = useRef<number | undefined>(undefined);
-  // The field whose goals are listed. Until the student picks one, it is the current goal's field.
-  const [field, setField] = useState<string | null>(null);
+  const list = useOpportunities();
+  const [open, setOpen] = useLocal<string>('bearrok.roadmap.open', 'career');
+  const [view, setView] = useLocal<'journey' | 'overview'>('bearrok.roadmap.look', 'journey');
+  const [skip, setSkip] = useLocal<string[]>('bearrok.roadmap.skip', []);
+  // Options the student added to their own path, across every career they look at.
+  const [picked, setPicked] = useLocal<string[]>('bearrok.roadmap.picked', []);
+  const pickOption = (id: string) => setPicked(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]);
+  // The career being looked at. Empty means the student's own goal; "custom:" is one they typed.
+  const [viewing, setViewing] = useLocal<string>('bearrok.roadmap.career', '');
+  const [find, setFind] = useState('');
+  const [finding, setFinding] = useState(false);
+  const [query, setQuery] = useState('');
+  const [listing, setListing] = useState(false);
+  const [details, setDetails] = useState<Opportunity | null>(null);
+  const [burst, setBurst] = useState<string | null>(null);
+  const now = useMemo(() => Date.now(), []);
 
-  const roadmap = currentRoadmap(state.goalId);
-  const goalField = careerPaths.find((path) => path.id === roadmap.goalId)?.group ?? pathGroups[0]!;
-  const openField = field ?? goalField;
-  const evidence = evidenceFor(roadmap, pathProfiles);
-  const ctx = useMemo(() => buildCoachContext(state, hours), [state, hours]);
-  const score = readiness(ctx);
-  const status = pace(ctx);
-  const miles = milestones(ctx);
-  const momentum = streak(doneLog ?? {}, ctx.now);
+  const byId = useMemo(() => new Map([...sampleOpportunities, ...list].map((o) => [o.id, o])), [list]);
+  const dests = useMemo(() => destinations(state, list, byId), [state, list, byId]);
+  const dest = dests.find((d) => d.opportunity.id === open);
 
-  const planned = roadmap.phases.flatMap((phase) => phase.steps);
-  const linkedIds = new Set(planned.map((step) => step.opportunityId));
-  const visible = (id: string) => !state.dismissed.includes(id);
-  const started = opportunities.filter((o) => state.extraSteps.includes(o.id) && visible(o.id));
-  const startedSteps = new Map(started.map((o) => [o.id, buildOpportunityRoadmap(o, applicationInfo[o.id], state.profile.skills)]));
-  const extras = [...startedSteps.values()].flat();
-  const steps = [...planned, ...extras];
-  const isDone = (id: string) => state.doneSteps.includes(id);
-  const doneCount = steps.filter((step) => isDone(step.id)).length;
-  const next = steps.find((step) => !isDone(step.id));
-  const percent = Math.round((doneCount / steps.length) * 100);
-
-  // The gap: each thing the goal asks for is covered by a skill on the profile or a finished step.
-  const requirements = roadmap.requirements.map((requirement) => {
-    const bySkill = requirement.skill !== null && state.profile.skills.includes(requirement.skill);
-    const byStep = requirement.stepId !== null && isDone(requirement.stepId);
-    return { ...requirement, met: bySkill || byStep, step: planned.find((step) => step.id === requirement.stepId) };
-  });
-  const metCount = requirements.filter((requirement) => requirement.met).length;
-
-  // What the student saved or liked shows where they are heading, so it is offered as a step.
-  const suggestions = opportunities.filter(
-    (o) =>
-      (state.saved.includes(o.id) || state.liked.includes(o.id)) &&
-      visible(o.id) &&
-      !linkedIds.has(o.id) &&
-      !state.extraSteps.includes(o.id),
+  // The draft by fixed rules is there at once; Grok's roadmap replaces it when it arrives.
+  const careerId = viewing && (viewing.startsWith('custom:') || careerPaths.some((p) => p.id === viewing)) ? viewing : state.goalId;
+  // The student's own wording of where a career roadmap leads, kept per career. It is what the writer is asked for.
+  const [towards, setTowards] = useLocal<Record<string, string>>('bearrok.roadmap.toward', {});
+  const built = useMemo(
+    () => (dest ? jobJourney(state, dest.opportunity, now, skip) : careerId.startsWith('custom:') ? customCareer(careerId.slice(7)) : careerJourney(state, now, skip, careerId, [...byId.values()])),
+    [dest, state, now, skip, careerId, byId],
   );
+  const toward = dest ? '' : (towards[careerId] ?? '');
+  const draft = useMemo(() => (toward ? { ...built, goal: toward } : built), [built, toward]);
+  const hits = useMemo(() => careerSearch(state, find), [state, find]);
+  const typed = find.trim();
+  const openCareer = (id: string) => {
+    setViewing(id === state.goalId ? '' : id);
+    setOpen('career');
+    setFind('');
+    setFinding(false);
+  };
+  const request = useMemo(() => roadmapRequest(state, draft.goal, dest ?? null, draft.analysis.stories), [state, draft, dest]);
+  const boardWritten = useAiRoadmap(request);
+  const board = useMemo(() => (boardWritten.answer ? aiJourney(state, draft, boardWritten.answer, skip) : draft), [boardWritten.answer, state, draft, skip]);
 
-  const upcoming = steps
-    .filter((step) => step.due && !isDone(step.id) && daysLeft(step.due, ctx.now) >= 0)
-    .sort((a, b) => daysLeft(a.due!, ctx.now) - daysLeft(b.due!, ctx.now))
-    .slice(0, 3);
+  // Once the student is done choosing, their picks become a roadmap of their own, and the writer fills it in.
+  const [plans, setPlans] = useLocal<string[]>('bearrok.roadmap.plans', []);
+  // Ticked things-to-do inside a step, as "<step id>#<position>".
+  const [ticked, setTicked] = useLocal<string[]>('bearrok.roadmap.ticked', []);
+  const tick = (id: string) => setTicked(ticked.includes(id) ? ticked.filter((x) => x !== id) : [...ticked, id]);
+  const planning = !dest && board.open && plans.includes(careerId) && board.steps.some((s) => picked.includes(s.id));
+  const planDraft = useMemo(() => (planning ? planJourney(board, picked) : null), [planning, board, picked]);
+  const planRequest = useMemo(() => roadmapRequest(state, draft.goal, null, draft.analysis.stories, planDraft ? chosenFrom(planDraft) : []), [state, draft, planDraft]);
+  const planWritten = useAiRoadmap(planRequest, planning);
+  const journey = useMemo(() => (planDraft ? (planWritten.answer ? aiPlan(planDraft, planWritten.answer) : planDraft) : board), [planDraft, planWritten.answer, board]);
+  const written = planning ? planWritten : boardWritten;
+  const writer = written.answer?.writer;
+  const build = (on: boolean) => {
+    setPlans(on ? [...new Set([...plans, careerId])] : plans.filter((id) => id !== careerId));
+    setView('journey');
+  };
 
-  // Keep the done log in step with the store, and cheer when a step or a milestone is reached.
-  const previousDone = useRef(state.doneSteps);
-  const previousMiles = useRef<Set<string> | null>(null);
+  const q = query.trim().toLowerCase();
+  const shown = dests.filter((d) => !q || `${d.opportunity.title} ${d.opportunity.organizer}`.toLowerCase().includes(q));
+const tracked = dests.some((d) => d.status !== null);
+  const pick = (id: string) => {
+    setOpen(id);
+    setListing(false);
+    setQuery('');
+  };
+  const count = journey.steps.length;
+  const { analysis } = journey;
+
+  // Opening a different roadmap starts at its next step; finishing steps does not move the view.
+  const key = `${dest ? `job:${dest.opportunity.id}:${dest.status}` : `career:${careerId}${planning ? ':plan' : ''}`}:${written.answer ? 'written' : 'draft'}`;
+  const [focus, setFocus] = useState(() => Math.min(journey.nextIndex, count));
+  const opened = useRef(key);
   useEffect(() => {
-    setDoneLog((log) => syncDoneLog(log, state.doneSteps, new Date().toISOString()));
-    const added = state.doneSteps.filter((id) => !previousDone.current.includes(id));
-    previousDone.current = state.doneSteps;
-    const reached = new Set(miles.filter((m) => m.reached).map((m) => m.id));
-    const fresh = previousMiles.current ? miles.find((m) => m.reached && !previousMiles.current!.has(m.id)) : undefined;
-    previousMiles.current = reached;
-    const step = ctx.steps.find((s) => s.id === added[0]);
-    const text = fresh ? `Milestone: ${fresh.label}` : step ? `Done: ${step.title}` : null;
-    if (!text) return;
-    setToast({ text, milestone: Boolean(fresh) });
-    window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 3200);
-    // Only a change in done marks should cheer; the other values are read from the same render.
-  }, [state.doneSteps]);
-  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+    if (opened.current === key) return;
+    opened.current = key;
+    setFocus(Math.min(journey.nextIndex, count));
+  }, [key, journey.nextIndex, count]);
+  const at = Math.min(focus, count);
+  const go = (index: number) => setFocus(Math.max(0, Math.min(count, index)));
 
-  const askCoach = (question: string) => {
-    setIncoming({ id: Date.now(), question });
-    reveal('rm-coach-anchor', 'start');
+  const toggle = (stepId: string) => {
+    const step = journey.steps.find((s) => s.id === stepId);
+    dispatch({ type: 'toggleStep', id: stepId });
+    if (!step || step.done) return;
+    // Let the marker celebrate, then carry the view on to what comes next.
+    setBurst(stepId);
+    window.setTimeout(() => {
+      setBurst(null);
+      if (journey.open) return;
+      const next = journey.steps.findIndex((s) => !s.done && s.id !== stepId);
+      setFocus(next === -1 ? count : next);
+    }, 900);
   };
 
-  const onAction = (action: CoachAction) => {
-    if (action.type === 'tick') dispatch({ type: 'toggleStep', id: action.stepId });
-    if (action.type === 'show') reveal(stepDomId(action.stepId));
-    if (action.type === 'planWeek') {
-      // The slider runs from 1 to 20 hours; a question can name any number.
-      setHours(Math.min(20, Math.max(1, Math.round(action.hours * 2) / 2)));
-      window.setTimeout(() => reveal('rm-week', 'start'), 50);
-    }
-    if (action.type === 'view') {
-      setView(action.view);
-      window.setTimeout(() => reveal('rm-plan', 'start'), 50);
-    }
-  };
-
-  const setNote = (id: string) => (text: string) =>
-    setNotes((all) => {
-      const { [id]: _old, ...rest } = all;
-      return text.trim() ? { ...rest, [id]: text } : rest;
-    });
-
-  const stepProps = (id: string) => ({ ctx, note: notes[id] ?? '', onNote: setNote(id), onAsk: askCoach });
+  const goalTitle = careerId.startsWith('custom:') ? careerId.slice(7) : (careerPaths.find((p) => p.id === careerId)?.title ?? journey.goal);
+  const isGoal = careerId === state.goalId;
+  const mapped = journey.open && view === 'journey';
 
   return (
-    <Page title="Your roadmap" subtitle={roadmap.goal}>
-      <Card className="mb-6 p-5">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-          <h2 className="font-semibold tracking-tight">Your goal</h2>
-          <div className="rm-toggle rm-fields" role="group" aria-label="Choose a field">
-            {pathGroups.map((group) => (
-              <button key={group} type="button" aria-pressed={group === openField} onClick={() => setField(group)}>
-                {group}
-                {group === goalField && group !== openField && (
-                  <>
-                    <span className="rm-field-dot" aria-hidden="true" />
-                    <span className="sr-only">, your goal is here</span>
-                  </>
-                )}
+    <Page title="Roadmap" subtitle="Written for you from your profile, the postings you are going for, and how people actually got in. Nothing to set up.">
+      <div className="rm3" style={{ '--rm3-accent': journey.accent } as CSSProperties}>
+        <div className="rm3-dests" role="tablist" aria-label="Your roadmaps">
+          <div className="rm3-apps">
+            {finding ? (
+              <label className="rm3-search rm3-inplace">
+                <Search aria-hidden="true" />
+                <input
+                  type="search"
+                  ref={focusQuietly}
+                  value={find}
+                  onChange={(event) => setFind(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') setFinding(false);
+                    if (event.key !== 'Enter') return;
+                    if (hits[0]) openCareer(hits[0].id);
+                    else if (typed) openCareer(`custom:${typed.slice(0, 80)}`);
+                  }}
+                  placeholder="Search a career, role, skill or interest"
+                  aria-label="Search a career, role, skill or interest"
+                />
+              </label>
+            ) : (
+              <button type="button" role="tab" aria-selected={!dest} aria-expanded={finding} aria-haspopup="listbox" onClick={() => (setFinding((on) => !on), setListing(false))}>
+                <Compass aria-hidden="true" />
+                <span>
+                  <small>
+                    {isGoal ? 'Career goal' : 'Exploring a career'} · {careerPaths.length}
+                  </small>
+                  {goalTitle}
+                </span>
+                <ChevronDown aria-hidden="true" className="rm3-caret" />
               </button>
-            ))}
+            )}
+            {finding && (
+              <>
+                <div className="rm3-shade" onClick={() => (setFinding(false), setFind(''))} aria-hidden="true" />
+                <div className="rm3-menu rm3-apps-menu">
+                  <div role="listbox" aria-label="Careers">
+                    {hits.map((hit) => (
+                      <button key={hit.id} type="button" role="option" aria-selected={!dest && hit.id === careerId} onClick={() => openCareer(hit.id)}>
+                        <strong>
+                          {hit.title}
+                          {hit.id === state.goalId ? <em className="is-applied">Your goal</em> : hit.match !== null && <em>{hit.match}% on your profile</em>}
+                        </strong>
+                        <span>{hit.reason && hit.reason !== 'Your goal' ? hit.reason : hit.oneLine}</span>
+                      </button>
+                    ))}
+                    {typed && !hits.some((hit) => hit.title.toLowerCase() === typed.toLowerCase()) && (
+                      <button type="button" role="option" aria-selected={false} onClick={() => openCareer(`custom:${typed.slice(0, 80)}`)}>
+                        <strong>Map "{typed}"</strong>
+                        <span>Not one the app holds. Grok maps it for you when it is connected.</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-          <Link to="/discover" className="ml-auto text-sm font-medium text-brand">
-            Not sure? Explore career paths
-          </Link>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={`Goals in ${openField}`}>
-          {careerPaths
-            .filter((path) => (path.group ?? pathGroups[0]) === openField)
-            .map((path) => (
-              <button
-                key={path.id}
-                type="button"
-                aria-pressed={path.id === roadmap.goalId}
-                onClick={() => {
-                  dispatch({ type: 'setGoal', id: path.id });
-                  setField(null);
-                }}
-                className={`h-9 rounded-full border px-4 text-sm font-medium transition ${
-                  path.id === roadmap.goalId ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink-2 hover:border-slate-300'
-                }`}
-              >
-                {path.title}
-              </button>
-            ))}
-        </div>
-      </Card>
-
-      <div className="mb-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div id="rm-coach-anchor" className="min-w-0 scroll-mt-6">
-          <Coach ctx={ctx} onAction={onAction} incoming={incoming} />
-        </div>
-        <ReadinessCard
-          readiness={score}
-          pace={status}
-          onPlan={() => reveal('rm-week', 'start')}
-        />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0 space-y-4">
-          <div id="rm-week" className="scroll-mt-6">
-            <WeekPlanner
-              ctx={ctx}
-              hours={hours}
-              onHours={setHours}
-              onTick={(id) => dispatch({ type: 'toggleStep', id })}
-              onShow={(id) => reveal(stepDomId(id))}
-              onAsk={askCoach}
-            />
-          </div>
-
-          <PathEvidence goal={roadmap.goalId} common={evidence.common} rare={evidence.rare} total={evidence.total} />
-
-          <Card className="p-6">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="text-lg font-semibold tracking-tight">What this goal asks for</h2>
-              <span className="text-sm text-ink-3">
-                You have {metCount} of {requirements.length}
-              </span>
-            </div>
-            <ul className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              {requirements.map((requirement) => (
-                <li key={requirement.id} className="flex gap-3">
-                  {requirement.met ? (
-                    <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                      <Check className="size-3" strokeWidth={3} aria-hidden="true" />
-                    </span>
-                  ) : (
-                    <Circle className="mt-0.5 size-5 shrink-0 text-slate-300" aria-hidden="true" />
-                  )}
-                  <div className="min-w-0">
-                    <p className={`text-sm font-medium ${requirement.met ? 'text-ink' : 'text-ink-2'}`}>{requirement.label}</p>
-                    <p className="text-sm text-ink-3">
-                      {requirement.met ? (
-                        'You have this'
-                      ) : requirement.step ? (
-                        <button type="button" onClick={() => reveal(stepDomId(requirement.step!.id))} className="text-left hover:text-brand">
-                          Step: {requirement.step.title}
+          {dests.length > 0 && (
+            <div className="rm3-apps">
+              {listing ? (
+                <label className="rm3-search rm3-inplace">
+                  <Search aria-hidden="true" />
+                  <input
+                    type="search"
+                    ref={focusQuietly}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setListing(false);
+                      if (event.key === 'Enter' && shown[0]) pick(shown[0].opportunity.id);
+                    }}
+                    placeholder={tracked ? `Search your ${dests.length} applications` : `Search ${dests.length} suggestions`}
+                    aria-label="Search by role or organization"
+                  />
+                </label>
+              ) : (
+                <button type="button" role="tab" aria-selected={Boolean(dest)} aria-expanded={listing} aria-haspopup="listbox" onClick={() => (setListing((on) => !on), setFinding(false))}>
+                  <Briefcase aria-hidden="true" />
+                  <span>
+                    <small>
+                      {tracked ? 'Applied' : 'Suggested for you'} · {dests.length}
+                    </small>
+                    {dest ? dest.opportunity.title : tracked ? 'Choose an application' : 'Choose a posting'}
+                  </span>
+                  <ChevronDown aria-hidden="true" className="rm3-caret" />
+                </button>
+              )}
+              {listing && (
+                <>
+                  <div className="rm3-shade" onClick={() => (setListing(false), setQuery(''))} aria-hidden="true" />
+                  <div className="rm3-menu rm3-apps-menu">
+                    <div role="listbox" aria-label={tracked ? 'Your applications' : 'Suggested postings'}>
+                      {shown.map((d) => (
+                        <button key={d.opportunity.id} type="button" role="option" aria-selected={d === dest} onClick={() => pick(d.opportunity.id)}>
+                          <strong>
+                            {d.opportunity.title}
+                            {d.status && <em className={`is-${d.status}`}>{statusWords[d.status]}</em>}
+                          </strong>
+                          <span>{d.opportunity.organizer}</span>
                         </button>
-                      ) : (
-                        'Add it to your profile when you have it'
-                      )}
-                    </p>
+                      ))}
+                      {shown.length === 0 && <p className="rm3-none">Nothing matches "{query.trim()}".</p>}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {!dest && !isGoal && (
+          <div className="rm3-explore">
+            {!isGoal && (
+              <p className="rm3-exploring">
+                Exploring, not committed.
+                {!careerId.startsWith('custom:') && (
+                  <button type="button" onClick={() => (dispatch({ type: 'setGoal', id: careerId }), setViewing(''))}>
+                    <Target aria-hidden="true" /> Make this my goal
+                  </button>
+                )}
+                <button type="button" onClick={() => setViewing('')}>
+                  Back to my goal
+                </button>
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="rm3-bar">
+          <ol className="rm3-think" key={key} aria-label="How this roadmap was written">
+            {analysis.stages.map((stage, i) => (
+              <li key={stage.label} style={{ '--i': i } as CSSProperties}>
+                <i aria-hidden="true">
+                  <Check />
+                </i>
+                <span>
+                  <small>{stage.label}</small>
+                  {stage.result}
+                </span>
+              </li>
+            ))}
+          </ol>
+          <p className={`rm3-writer is-${written.status}`} role="status">
+            <i aria-hidden="true" />
+            {written.status === 'ready'
+              ? writer === 'claude'
+                ? 'Written by Claude, standing in for Grok during testing'
+                : 'Written by Grok for you'
+              : written.status === 'writing'
+                ? 'Your roadmap is being written. This is a first draft by fixed rules.'
+                : written.status === 'failed'
+                  ? 'The writer could not finish this one. This is a draft by fixed rules.'
+                  : 'Grok is not connected. This is a draft by fixed rules.'}
+            {(written.status === 'ready' || written.status === 'failed') && (
+              <button type="button" onClick={written.rewrite} title="Write it again from your profile as it is now">
+                <RefreshCw aria-hidden="true" /> Rewrite
+              </button>
+            )}
+          </p>
+          <div className="rm3-views" role="tablist" aria-label="How to look at it">
+            <button type="button" role="tab" aria-selected={view === 'journey'} onClick={() => setView('journey')}>
+              <Mountain aria-hidden="true" /> {journey.open ? 'Pick and choose' : 'Journey'}
+            </button>
+            <button type="button" role="tab" aria-selected={view === 'overview'} onClick={() => setView('overview')}>
+              <MapIcon aria-hidden="true" /> Overview
+            </button>
+          </div>
+          <div className="rm3-progress">
+            <strong>{journey.open ? journey.doneCount : `${journey.percent}%`}</strong>
+            <span>{journey.open ? `of ${count} options done · ${picked.filter((id) => journey.steps.some((s) => s.id === id)).length} on my path` : `${journey.doneCount} of ${count} steps${journey.hoursLeft > 0 ? ` · about ${formatHours(journey.hoursLeft)} left` : ''}`}</span>
+            <i aria-hidden="true">
+              <b style={{ width: `${journey.percent}%` }} />
+            </i>
+          </div>
+        </div>
+
+        {journey.plan && (
+          <p className="rm3-planbar" role="status">
+            <Sparkles aria-hidden="true" />
+            <span>
+              <strong>Your roadmap, built from the {count} {count === 1 ? 'option' : 'options'} you chose.</strong> Open a step for what to do; each category ends with what else to add.
+            </span>
+            <button type="button" onClick={() => build(false)}>
+              <Pencil aria-hidden="true" /> Change my picks
+            </button>
+          </p>
+        )}
+
+        <div className={`rm3-stage ${view === 'overview' || mapped ? 'is-over' : ''} ${mapped ? 'is-long' : ''}`}>
+          {view !== 'journey' ? (
+            <Overview key={key} journey={journey} focus={at} onFocus={go} />
+          ) : journey.open ? (
+            <CareerMap key={key} journey={journey} focus={at} onFocus={go} picked={picked} onPick={pickOption} onBuild={() => build(true)} onRename={(goal) => setTowards(({ [careerId]: _old, ...rest }) => (goal ? { ...rest, [careerId]: goal.slice(0, 120) } : rest))} />
+          ) : (
+            <Scene key={key} journey={journey} focus={at} onFocus={go} burst={burst} />
+          )}
+          <StepPanel journey={journey} focus={at} onFocus={go} onToggle={toggle} onOpen={(id) => setDetails(byId.get(id) ?? null)} onSkip={(id) => setSkip([...skip, id])} picked={picked} onPick={pickOption} ticked={ticked} onTick={tick} now={now} />
+        </div>
+
+        {view === 'journey' && !journey.open && (
+          <nav className="rm3-rail" aria-label="Every step">
+            {journey.phases.map((phase) => (
+              <div key={phase.id} className="rm3-rail-phase" style={{ flexGrow: phase.count }}>
+                <p>
+                  {phase.title}
+                  {phase.window && <span>{phase.window}</span>}
+                </p>
+                <div>
+                  {journey.steps.slice(phase.from, phase.from + phase.count).map((step) => (
+                    <button
+                      key={step.id}
+                      type="button"
+                      className={`${step.done ? 'is-done' : ''} ${step.index === journey.nextIndex ? 'is-next' : ''} ${step.index === at ? 'is-focus' : ''}`}
+                      aria-label={`Step ${step.index + 1}: ${step.title}`}
+                      title={step.title}
+                      onClick={() => setFocus(step.index)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button type="button" className={`rm3-rail-goal ${at === count ? 'is-focus' : ''}`} onClick={() => setFocus(count)}>
+              <Target aria-hidden="true" /> Goal
+            </button>
+          </nav>
+        )}
+
+        {journey.skipped.length > 0 && (
+          <p className="rm3-skipped">
+            Set aside:
+            {journey.skipped.map((s) => (
+              <button key={s.id} type="button" onClick={() => setSkip(skip.filter((id) => id !== s.id))} title="Put it back on the roadmap">
+                {s.title} <RotateCcw aria-hidden="true" />
+              </button>
+            ))}
+          </p>
+        )}
+
+        {journey.plan && (
+          <section className="rm3-card rm3-more">
+            <h2>
+              <Sparkles aria-hidden="true" /> What else to do in each category
+            </h2>
+            <div>
+              {journey.phases.map((phase) => {
+                const own = journey.steps.slice(phase.from, phase.from + phase.count);
+                const next = own.find((s) => !s.done);
+                return (
+                  <article key={phase.id}>
+                    <h3>
+                      {phase.title}
+                      <span>
+                        {own.filter((s) => s.done).length} of {own.length} done
+                      </span>
+                    </h3>
+                    {next ? (
+                      <button type="button" className="rm3-more-next" onClick={() => go(next.index)}>
+                        <small>Next for you</small>
+                        {next.title}
+                      </button>
+                    ) : (
+                      <p className="rm3-small">Everything you chose here is done.</p>
+                    )}
+                    {(phase.more ?? []).length > 0 && <h4>Recommended to add next</h4>}
+                    <ul>
+                      {(phase.more ?? []).map((more) => (
+                        <li key={more.title}>
+                          <div>
+                            <strong>{more.title}</strong>
+                            <p>{more.why}</p>
+                          </div>
+                          {more.id && (
+                            <button type="button" className="rm3-add" aria-label={`Add ${more.title} to my roadmap`} onClick={() => pickOption(more.id!)}>
+                              <Plus aria-hidden="true" />
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                );
+              })}
+              {(journey.left ?? []).map((phase) => (
+                <article key={phase.id} className="is-left">
+                  <h3>
+                    {phase.title}
+                    <span>not on your path</span>
+                  </h3>
+                  <p className="rm3-small">You left this out, and that is fine. If you ever want one thing from it:</p>
+                  <ul>
+                    {phase.more.map((more) => (
+                      <li key={more.title}>
+                        <div>
+                          <strong>{more.title}</strong>
+                          <p>{more.why}</p>
+                        </div>
+                        {more.id && (
+                          <button type="button" className="rm3-add" aria-label={`Add ${more.title} to my roadmap`} onClick={() => pickOption(more.id!)}>
+                            <Plus aria-hidden="true" />
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <div className="rm3-cards">
+          {analysis.fit ? (
+            <section className="rm3-card">
+              <h2>
+                <Sparkles aria-hidden="true" /> Qualification check
+              </h2>
+              <div className="rm3-fit">
+                <strong>{analysis.fit.score}%</strong>
+                <p>{journey.summary}</p>
+              </div>
+              {analysis.fit.met.length > 0 && (
+                <>
+                  <h3>You already show</h3>
+                  <SkillChips skills={analysis.fit.met.map((label) => ({ label, core: true, have: true }))} />
+                </>
+              )}
+              {analysis.fit.missing.length > 0 && (
+                <>
+                  <h3>Asked for, not on your profile yet</h3>
+                  <SkillChips skills={analysis.fit.missing.map((label) => ({ label, core: true, have: false }))} />
+                  <p className="rm3-small">Each of these became a step on the roadmap. If you have one already, add it to your profile and the roadmap rewrites itself.</p>
+                </>
+              )}
+            </section>
+          ) : (
+            <section className="rm3-card">
+              <h2>
+                <Sparkles aria-hidden="true" /> What people in this career tend to have
+              </h2>
+              <SkillChips skills={journey.skills} />
+              {journey.skills.length === 0 && <p className="rm3-small">Nothing to show yet.</p>}
+              <p className="rm3-small">Recommendations, not requirements. Outlined ones come up in most postings; ticked ones are on your profile or covered by something you finished.</p>
+            </section>
+          )}
+
+          <section className="rm3-card">
+            <h2>
+              <Users aria-hidden="true" /> How people got in
+            </h2>
+            {analysis.stories.length === 0 ? (
+              <p className="rm3-small">No paths were found for this kind of role yet, so this roadmap rests on the posting and your profile alone.</p>
+            ) : (
+              <div className="rm3-stories">
+                {analysis.stories.map((story) => (
+                  <details key={story.id}>
+                    <summary>
+                      <strong>{story.outcome}</strong>
+                      {story.year && <span>{story.year}</span>}
+                    </summary>
+                    <ol>
+                      {story.timeline.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ol>
+                  </details>
+                ))}
+              </div>
+            )}
+            {analysis.sources.length > 0 && (
+              <>
+                <h3>Pages it read</h3>
+                <ul className="rm3-sources">
+                  {analysis.sources.slice(0, 8).map((url) => (
+                    <li key={url}>
+                      <a href={url} target="_blank" rel="noreferrer">
+                        {url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 60)}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
+        </div>
+
+        {analysis.process && analysis.process.length > 0 && (
+          <section className="rm3-card rm3-process">
+            <h2>
+              <List aria-hidden="true" /> What their process looks like
+            </h2>
+            <ol>
+              {analysis.process.map((stage, i) => (
+                <li key={stage.stage} style={{ '--i': i } as CSSProperties}>
+                  <b>{i + 1}</b>
+                  <div>
+                    <strong>{stage.stage}</strong>
+                    <p>{stage.detail}</p>
                   </div>
                 </li>
               ))}
-            </ul>
-          </Card>
-
-          <div id="rm-plan" className="flex scroll-mt-6 flex-wrap items-center justify-between gap-3 px-1 pt-2">
-            <h2 className="font-display text-3xl leading-none">Your plan</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="rm-toggle" role="group" aria-label="How to show the plan">
-                <button type="button" aria-pressed={view === 'phases'} onClick={() => setView('phases')}>
-                  <LayoutList className="size-4" aria-hidden="true" />
-                  Phases
-                </button>
-                <button type="button" aria-pressed={view === 'timeline'} onClick={() => setView('timeline')}>
-                  <TrendingUp className="size-4" aria-hidden="true" />
-                  Timeline
-                </button>
-              </div>
-              <ExportButton getText={() => roadmapAsText(ctx, notes)} fileName="bearrok-roadmap.txt" />
-            </div>
-          </div>
-
-          {view === 'timeline' ? (
-            <Timeline ctx={ctx} />
-          ) : (
-            <ol className="space-y-4">
-              {roadmap.phases.map((phase, index) => {
-                const left = phase.steps.filter((step) => !isDone(step.id));
-                const hoursLeft = ctx.steps.filter((s) => s.phaseId === phase.id && !s.done).reduce((sum, s) => sum + s.hours, 0);
-                return (
-                  <li key={phase.id}>
-                    <Card className="p-3 sm:p-4">
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 pt-3 pb-2">
-                        <span className="font-display text-3xl text-brand">{index + 1}</span>
-                        <h2 className="text-lg font-semibold tracking-tight">{phase.title}</h2>
-                        <span className="ml-auto text-sm text-ink-3">
-                          {phase.window}
-                          <span className="rm-phase-meta">
-                            {left.length === 0 ? 'All done' : `${phase.steps.length - left.length} of ${phase.steps.length} done · about ${formatHours(hoursLeft)} left`}
-                          </span>
-                        </span>
-                      </div>
-                      <ul>
-                        {phase.steps.map((step) => (
-                          <StepRow
-                            key={step.id}
-                            step={step}
-                            isNext={step.id === next?.id}
-                            evidence={evidence.byStep.get(step.id)}
-                            total={evidence.total}
-                            {...stepProps(step.id)}
-                          />
-                        ))}
-                      </ul>
-                    </Card>
-                  </li>
-                );
-              })}
-              {started.map((o) => (
-                <li key={o.id}>
-                  <Card className="p-3 sm:p-4">
-                    <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-                      <Plus className="size-5 shrink-0 text-brand" aria-hidden="true" />
-                      <div className="min-w-0 flex-1">
-                        <h2 className="truncate text-lg font-semibold tracking-tight">{o.title}</h2>
-                        <p className="text-sm text-ink-3">Roadmap you started for this opportunity</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => dispatch({ type: 'removeStep', id: o.id })}
-                        className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-line px-3 text-sm font-medium text-ink-2 hover:bg-slate-50"
-                      >
-                        <X className="size-4" aria-hidden="true" /> Remove
-                      </button>
-                    </div>
-                    <ul>
-                      {startedSteps.get(o.id)!.map((step) => (
-                        <StepRow key={step.id} step={step} isNext={step.id === next?.id} {...stepProps(step.id)} />
-                      ))}
-                    </ul>
-                  </Card>
-                </li>
-              ))}
             </ol>
-          )}
-        </div>
-
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <Card className="p-6">
-            <h2 className="font-semibold tracking-tight">Progress</h2>
-            <p className="mt-3 font-display text-6xl leading-none">{percent}%</p>
-            <div
-              className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"
-              role="progressbar"
-              aria-valuenow={percent}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Roadmap progress"
-            >
-              <div className="rm-progress-fill h-full rounded-full bg-brand" style={{ width: `${percent}%` }} />
-            </div>
-            <p className="mt-2 text-sm text-ink-3">
-              {doneCount} of {steps.length} steps done
-            </p>
-            <Milestones items={miles} streak={momentum} />
-          </Card>
-
-          {suggestions.length > 0 && (
-            <Card className="p-6">
-              <h2 className="flex items-center gap-2 font-semibold tracking-tight">
-                <Sparkles className="size-4 text-brand" aria-hidden="true" />
-                From what you saved and liked
-              </h2>
-              <ul className="mt-3 space-y-3">
-                {suggestions.map((o) => (
-                  <li key={o.id} className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{o.title}</p>
-                      <p className="text-sm text-ink-3">{typeMeta[o.type].label}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => dispatch({ type: 'addStep', id: o.id })}
-                      className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-line px-2.5 text-sm font-semibold text-brand hover:border-brand"
-                    >
-                      <Plus className="size-3.5" aria-hidden="true" />
-                      Start roadmap
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-
-          {upcoming.length > 0 && (
-            <Card className="p-6">
-              <h2 className="font-semibold tracking-tight">Coming up</h2>
-              <ul className="mt-3 space-y-3">
-                {upcoming.map((step) => (
-                  <li key={step.id}>
-                    <button type="button" onClick={() => reveal(stepDomId(step.id))} className="text-left text-sm font-medium hover:text-brand">
-                      {step.title}
-                    </button>
-                    <p className={`text-sm ${daysLeft(step.due!, ctx.now) <= 7 ? 'font-medium text-orange-700' : 'text-ink-3'}`}>{dueShort(step.due!, ctx.now)}</p>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-
-          <Card className="p-6">
-            <h2 className="font-semibold tracking-tight">Where you stand</h2>
-            <p className="mt-2 text-sm leading-relaxed text-ink-2">{roadmap.summary}</p>
-            <p className="mt-3 text-sm leading-relaxed text-ink-3">
-              This plan changes as you do: finishing a step, changing your goal or skills, and what you save and like in the feed all move it, and the
-              feed puts your next step first.
-            </p>
-          </Card>
-        </aside>
-      </div>
-
-      <div className="rm-toast-wrap" aria-live="polite">
-        {toast && (
-          <p className="rm-toast" data-milestone={toast.milestone} key={toast.text}>
-            {toast.milestone ? <Sparkles className="size-4" aria-hidden="true" /> : <Check className="size-4" strokeWidth={3} aria-hidden="true" />}
-            {toast.text}
-          </p>
+            <p className="rm3-small">From what the writer found on the web and on X. Check the organizer's own page before you rely on it.</p>
+          </section>
         )}
+
+        {journey.related.length > 0 && (
+          <section className="rm3-card rm3-related">
+            <h2>
+              <Compass aria-hidden="true" /> Paths next to this one
+            </h2>
+            <div>
+              {journey.related.map((r) => (
+                <button key={r.title} type="button" onClick={() => openCareer(r.id ?? `custom:${r.title}`)}>
+                  <strong>
+                    {r.title} <ArrowUpRight aria-hidden="true" />
+                  </strong>
+                  <span>{r.why}</span>
+                  {r.match !== null && (
+                    <i aria-label={`${r.match}% of what it asks for is on your profile`}>
+                      <b style={{ width: `${r.match}%` }} />
+                    </i>
+                  )}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <footer className="rm3-foot">
+          <p>{analysis.basis}</p>
+          <Link to="/roadmap/list">
+            <List aria-hidden="true" /> Coach and week plan
+          </Link>
+        </footer>
       </div>
+      {details && <Details opportunity={details} onClose={() => setDetails(null)} />}
     </Page>
   );
 }
