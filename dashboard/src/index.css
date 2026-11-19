@@ -697,6 +697,178 @@ body {
   padding: 20px 24px 48px;
 }
 
+.feed-toolbar {
+  /* Raised above the cards: its blur makes it a layer of its own, and without this the cards
+     that come after it are drawn over the Filters panel that drops down from it. */
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: var(--shadow-card);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.feed-search {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--color-canvas);
+  border: 1px solid transparent;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.feed-search:focus-within {
+  background: white;
+  border-color: var(--color-brand);
+}
+
+.feed-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: 15px;
+  color: var(--color-ink);
+  background: none;
+  outline: none;
+}
+
+.feed-search input::placeholder {
+  color: var(--color-ink-3);
+}
+
+.feed-select select {
+  height: 44px;
+  padding: 0 36px 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  appearance: none;
+  background: white
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%2346617d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E")
+    no-repeat right 14px center;
+  cursor: pointer;
+}
+
+.feed-filter-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: white;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.feed-filter-button:hover,
+.feed-filter-button[aria-expanded='true'] {
+  border-color: var(--color-brand);
+}
+
+.feed-filter-button[data-active='true'] {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.feed-filter-count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: white;
+  background: var(--color-brand);
+}
+
+.feed-filter-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 30;
+  display: grid;
+  gap: 14px;
+  width: min(340px, calc(100vw - 32px));
+  padding: 18px;
+  border-radius: 18px;
+  background: white;
+  box-shadow:
+    0 0 0 1px var(--color-line),
+    var(--shadow-lift);
+  animation: panel-in 0.18s ease-out;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.feed-filter-panel legend {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.feed-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  font-size: 14px;
+  color: var(--color-ink-2);
+  cursor: pointer;
+}
+
+.feed-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand);
+}
+
+/* An active filter, shown under the toolbar; clicking it removes the filter. */
+.feed-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: var(--color-ink);
+  box-shadow: var(--shadow-card);
+  transition: background 0.15s;
+}
+
+.feed-chip:hover {
+  background: #21405f;
+}
+
 @media (min-width: 640px) {
   html[data-dock-pinned='true'] .feed-scroller {
     left: 246px;
@@ -975,6 +1147,86 @@ body {
   }
 }
 
+/* ---------- macOS desktop app: no title bar ---------- */
+
+/* The strip along the top where the window can be dragged. It sits above the page, so the
+   page's own controls start below it. */
+.window-drag {
+  display: none;
+}
+
+html.is-desktop .window-drag {
+  display: block;
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 34px;
+  /* Under the page and ignored by the pointer: it only marks the area as draggable. On top, it
+     would swallow clicks meant for the top bar. */
+  z-index: 0;
+  pointer-events: none;
+  -webkit-app-region: drag;
+}
+
+/* The top bar (logo, filters, profile) sits on the same line as the window buttons. Its left
+   end starts after them; its controls are carved out of the drag strip so they stay clickable. */
+html.is-desktop .reel-header {
+  padding-top: 11px;
+  padding-left: 104px;
+}
+
+html.is-desktop .page-header {
+  padding-top: 11px;
+}
+
+html.is-desktop .reel-header > *,
+html.is-desktop .page-header > * {
+  -webkit-app-region: no-drag;
+}
+
+@media (max-width: 1299px) {
+  html.is-desktop .page-header {
+    padding-left: 76px;
+  }
+}
+
+/* With the sidebar pinned, the window buttons are inside it and the bar needs no extra room. */
+@media (min-width: 640px) {
+  html.is-desktop[data-dock-pinned='true'] .reel-header {
+    padding-left: 24px;
+  }
+
+  html.is-desktop[data-dock-pinned='true'] .page-header {
+    padding-left: 0;
+  }
+}
+
+html.is-desktop .reel-slide {
+  padding-top: 70px;
+}
+
+html.is-desktop .feed-scroller {
+  top: 64px;
+}
+
+/* The sidebar starts below the window buttons. */
+html.is-desktop .dock-zone {
+  padding-top: 52px;
+}
+
+html.is-desktop .signin-page > :first-child {
+  padding-top: 52px;
+}
+
+@media (max-width: 639px) {
+  html.is-desktop .dock-zone {
+    padding-top: 12px;
+  }
+
+  html.is-desktop .reel-slide {
+    padding-top: 0;
+  }
+}
+
 @keyframes pulse-ring {
   0% {
     box-shadow: 0 0 0 0 rgb(52 199 89 / 0.5);
@@ -1000,6 +1252,7 @@ body {
   }
 
   .dock-bar,
+  .feed-filter-panel,
   .dock-tile::before {
     animation: none;
   }

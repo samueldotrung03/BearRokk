@@ -17,6 +17,7 @@ export function App() {
 
   return (
     <>
+      <div className="window-drag" aria-hidden="true" />
       {pathname !== '/signin' && <Dock />}
       <Routes>
         <Route path="/" element={<Feed />} />

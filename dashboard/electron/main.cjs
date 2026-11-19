@@ -21,6 +21,9 @@ function createWindow() {
     minWidth: 400,
     minHeight: 640,
     title: 'BearRok',
+    // macOS: no title bar. The page runs to the top edge and the window buttons float over it;
+    // the page leaves room for them and marks its top strip as the place to drag the window.
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 26, y: 26 } } : {}),
     backgroundColor: '#f3f7fc',
     show: false,
     webPreferences: {

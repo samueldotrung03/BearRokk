@@ -1,5 +1,6 @@
-// "For you" is a full-screen reel, one opportunity per screen, scrolled like TikTok.
-// Picking a type switches to an ordinary scrolling grid, which is easier to scan and compare.
+// Two views of the same ranked list. "For you" is a full-screen reel, one opportunity per
+// screen, scrolled like TikTok. "Feed" is everything in an ordinary scrolling grid, with search,
+// filters and sorting, for when the student wants to scan and compare.
 import {
   ArrowUpRight,
   BookmarkSimple,
@@ -12,7 +13,7 @@ import {
   Sparkle,
   X,
 } from '@phosphor-icons/react';
-import { PanelLeft, Undo2 } from 'lucide-react';
+import { PanelLeft, Search, SlidersHorizontal, Undo2, X as XSmall } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { BrandMark } from '../components/Brand.tsx';
@@ -24,9 +25,25 @@ import { opportunities } from '../data/sample.ts';
 import { daysUntil, dueLabel, shortDate } from '../lib/time.ts';
 import { rankFeedDetailed, signalLabel, type RankedOpportunity } from '../state/ranking.ts';
 import { useStore } from '../state/StoreProvider.tsx';
-import type { Opportunity, OpportunityType } from '../types.ts';
+import type { Format, Opportunity, OpportunityType } from '../types.ts';
 
-type Filter = 'all' | OpportunityType;
+type Tab = 'foryou' | 'feed';
+type FormatFilter = 'any' | Format;
+type Sort = 'best' | 'deadline' | 'newest';
+
+const sortLabel: Record<Sort, string> = {
+  best: 'Best match',
+  deadline: 'Deadline soonest',
+  newest: 'Newest first',
+};
+
+/** Everything a student might type to find a card again. */
+function matchesQuery(o: Opportunity, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const text = [o.title, o.organizer, o.location ?? '', typeMeta[o.type].label, ...o.tags].join(' ').toLowerCase();
+  return words.every((word) => text.includes(word));
+}
 
 function RailButton({
   label,
@@ -147,7 +164,14 @@ function Slide({
 
 export function Feed() {
   const { state, dispatch } = useStore();
-  const [filter, setFilter] = useState<Filter>('all');
+  const [tab, setTab] = useState<Tab>('foryou');
+  const [query, setQuery] = useState('');
+  const [types, setTypes] = useState<OpportunityType[]>([]); // empty means every type
+  const [closingSoon, setClosingSoon] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterMenu = useRef<HTMLDivElement>(null);
+  const [format, setFormat] = useState<FormatFilter>('any');
+  const [sort, setSort] = useState<Sort>('best');
   const [index, setIndex] = useState(0);
   const [details, setDetails] = useState<Opportunity | null>(null);
   const [lastDismissed, setLastDismissed] = useState<Opportunity | null>(null);
@@ -157,12 +181,37 @@ export function Feed() {
   // the reel under the student's thumb; what they do shows up in the next ranking.
   const [basis, setBasis] = useState(state);
   const ranked = useMemo(() => rankFeedDetailed(opportunities, basis), [basis]);
-  const slides = ranked.filter(
-    (r) => !state.dismissed.includes(r.opportunity.id) && (filter === 'all' || r.opportunity.type === filter),
-  );
+  const slides = ranked.filter((r) => !state.dismissed.includes(r.opportunity.id));
 
-  const present = new Set(ranked.map((r) => r.opportunity.type));
-  const filters: Filter[] = ['all', ...(Object.keys(typeMeta) as OpportunityType[]).filter((type) => present.has(type))];
+  const present = new Set(slides.map((r) => r.opportunity.type));
+  const typeOptions = (Object.keys(typeMeta) as OpportunityType[]).filter((t) => present.has(t));
+  const activeCount = types.length + (format !== 'any' ? 1 : 0) + (closingSoon ? 1 : 0);
+  const filtersOn = query.trim() !== '' || activeCount > 0;
+  const toggleType = (t: OpportunityType) =>
+    setTypes((current) => (current.includes(t) ? current.filter((value) => value !== t) : [...current, t]));
+  const clearFilters = () => {
+    setQuery('');
+    setTypes([]);
+    setFormat('any');
+    setClosingSoon(false);
+  };
+  const results = slides
+    .map((r) => r.opportunity)
+    .filter(
+      (o) =>
+        (types.length === 0 || types.includes(o.type)) &&
+        (format === 'any' || o.format === format) &&
+        (!closingSoon || (o.deadline !== null && daysUntil(o.deadline) <= 14)) &&
+        matchesQuery(o, query),
+    );
+  // "Best match" keeps the ranker's order; the other two sort on one field, with blanks last.
+  if (sort === 'deadline') {
+    const time = (o: Opportunity) => (o.deadline ? new Date(o.deadline).getTime() : Infinity);
+    results.sort((x, y) => time(x) - time(y));
+  } else if (sort === 'newest') {
+    results.sort((x, y) => new Date(y.foundAt).getTime() - new Date(x.foundAt).getTime());
+  }
+
   const total = slides.length + 1; // the last screen is the "caught up" slide
 
   const goTo = (target: number) => {
@@ -175,7 +224,7 @@ export function Feed() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
-      if (filter !== 'all') return; // the grid scrolls the ordinary way
+      if (tab !== 'foryou') return; // the grid scrolls the ordinary way
       if (document.querySelector('dialog[open]') || ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
       if (event.key === 'ArrowDown' || event.key === 'j') {
         event.preventDefault();
@@ -188,6 +237,23 @@ export function Feed() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  // The filter menu closes on Escape or a click anywhere outside it.
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const onDown = (event: MouseEvent) => {
+      if (!filterMenu.current?.contains(event.target as Node)) setFiltersOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFiltersOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [filtersOpen]);
 
   const toTop = () => {
     scroller.current?.scrollTo({ top: 0 });
@@ -221,19 +287,19 @@ export function Feed() {
           </Link>
         </div>
 
-        <div className="reel-filters" role="group" aria-label="Filter by type">
-          {filters.map((value) => (
+        <div className="reel-filters" role="group" aria-label="Choose a view">
+          {(['foryou', 'feed'] as const).map((value) => (
             <button
               key={value}
               type="button"
-              aria-pressed={filter === value}
+              aria-pressed={tab === value}
               onClick={() => {
-                setFilter(value);
+                setTab(value);
                 toTop();
               }}
               className="reel-filter"
             >
-              {value === 'all' ? 'For you' : typeMeta[value].plural}
+              {value === 'foryou' ? 'For you' : 'Feed'}
             </button>
           ))}
         </div>
@@ -252,7 +318,7 @@ export function Feed() {
         </div>
       </header>
 
-      {filter === 'all' ? (
+      {tab === 'foryou' ? (
         <>
           <div
             ref={scroller}
@@ -303,21 +369,139 @@ export function Feed() {
       ) : (
         <div ref={scroller} className="feed-scroller">
           <div className="mx-auto max-w-6xl">
-            <h1 className="font-display text-5xl leading-tight text-white">{typeMeta[filter].plural}</h1>
-            <p className="mt-1 mb-6 text-[15px] font-medium text-white/90">
-              {slides.length} {slides.length === 1 ? 'match' : 'matches'} for you, best fit first.
+            <h1 className="font-display text-5xl leading-tight text-white">Feed</h1>
+            <p className="mt-1 text-[15px] font-medium text-white/90">
+              Everything your agents found, in one place. {results.length} of {slides.length} shown.
             </p>
-            {slides.length === 0 ? (
+
+            <div className="feed-toolbar mt-5">
+              <label className="feed-search">
+                <Search className="size-[18px] shrink-0 text-ink-3" aria-hidden="true" />
+                <span className="sr-only">Search the feed</span>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search by title, organizer, place or tag"
+                />
+              </label>
+              <div ref={filterMenu} className="relative">
+                <button
+                  type="button"
+                  className="feed-filter-button"
+                  aria-expanded={filtersOpen}
+                  aria-controls="feed-filters"
+                  data-active={activeCount > 0}
+                  onClick={() => setFiltersOpen((value) => !value)}
+                >
+                  <SlidersHorizontal className="size-4" aria-hidden="true" />
+                  Filters
+                  {activeCount > 0 && <span className="feed-filter-count">{activeCount}</span>}
+                </button>
+
+                {filtersOpen && (
+                  <div id="feed-filters" className="feed-filter-panel" role="group" aria-label="Filters">
+                    <fieldset>
+                      <legend>Type</legend>
+                      <div className="grid grid-cols-2 gap-x-4">
+                        {typeOptions.map((value) => (
+                          <label key={value} className="feed-option">
+                            <input type="checkbox" checked={types.includes(value)} onChange={() => toggleType(value)} />
+                            {typeMeta[value].plural}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <fieldset>
+                      <legend>Format</legend>
+                      <div className="grid grid-cols-2 gap-x-4">
+                        {(['any', ...Object.keys(formatLabel)] as FormatFilter[]).map((value) => (
+                          <label key={value} className="feed-option">
+                            <input type="radio" name="feed-format" checked={format === value} onChange={() => setFormat(value)} />
+                            {value === 'any' ? 'Any format' : formatLabel[value]}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <fieldset>
+                      <legend>Deadline</legend>
+                      <label className="feed-option">
+                        <input type="checkbox" checked={closingSoon} onChange={(event) => setClosingSoon(event.target.checked)} />
+                        Closing within two weeks
+                      </label>
+                    </fieldset>
+
+                    <div className="mt-1 flex items-center justify-between border-t border-line pt-3">
+                      <button type="button" onClick={clearFilters} className="h-9 text-sm font-semibold text-ink-2">
+                        Clear all
+                      </button>
+                      <button type="button" onClick={() => setFiltersOpen(false)} className="btn-primary h-9 px-4 text-sm text-white">
+                        Show {results.length} {results.length === 1 ? 'result' : 'results'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <label className="feed-select">
+                <span className="sr-only">Sort by</span>
+                <select value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
+                  {(Object.keys(sortLabel) as Sort[]).map((value) => (
+                    <option key={value} value={value}>
+                      {sortLabel[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {/* What is switched on, each removable, so the grid never looks filtered for no reason. */}
+            <div className="mt-3 mb-6 flex min-h-2 flex-wrap items-center gap-2">
+              {types.map((value) => (
+                <button key={value} type="button" onClick={() => toggleType(value)} className="feed-chip">
+                  {typeMeta[value].plural}
+                  <XSmall className="size-3.5" aria-hidden="true" />
+                  <span className="sr-only">Remove filter</span>
+                </button>
+              ))}
+              {format !== 'any' && (
+                <button type="button" onClick={() => setFormat('any')} className="feed-chip">
+                  {formatLabel[format]}
+                  <XSmall className="size-3.5" aria-hidden="true" />
+                  <span className="sr-only">Remove filter</span>
+                </button>
+              )}
+              {closingSoon && (
+                <button type="button" onClick={() => setClosingSoon(false)} className="feed-chip">
+                  Closing within two weeks
+                  <XSmall className="size-3.5" aria-hidden="true" />
+                  <span className="sr-only">Remove filter</span>
+                </button>
+              )}
+              {activeCount > 0 && (
+                <button type="button" onClick={clearFilters} className="h-9 px-2 text-sm font-semibold text-white">
+                  Clear filters
+                </button>
+              )}
+            </div>
+
+            {results.length === 0 ? (
               <div className="reel-end mx-auto">
-                <h2 className="font-display text-3xl leading-tight">Nothing here right now</h2>
+                <h2 className="font-display text-3xl leading-tight">
+                  {filtersOn ? 'Nothing matches those filters' : 'Nothing here right now'}
+                </h2>
                 <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">
-                  Your agents are still searching. New cards appear here as they are verified.
+                  {filtersOn
+                    ? 'Try fewer words or clear the filters.'
+                    : 'Your agents are still searching. New cards appear here as they are verified.'}
                 </p>
               </div>
             ) : (
               <Masonry>
-                {slides.map((r) => (
-                  <OpportunityCard key={r.opportunity.id} opportunity={r.opportunity} onDismiss={dismiss} />
+                {results.map((o) => (
+                  <OpportunityCard key={o.id} opportunity={o} onDismiss={dismiss} />
                 ))}
               </Masonry>
             )}

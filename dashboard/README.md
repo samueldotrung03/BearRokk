@@ -35,7 +35,7 @@ committed.
 
 | Route | Page | What it shows |
 |---|---|---|
-| `/` | Feed | TikTok-style reel: one opportunity per screen with its photo, the reason it was recommended, and Save, Not for me, Details and Open on the side. Scroll, swipe, or use the arrow keys (or J and K). Choosing a type (Internships, Events, ...) switches to an ordinary scrolling grid of cards |
+| `/` | Feed | Two tabs. **For you**: a TikTok-style reel, one opportunity per screen with Save, Not for me, Details and Open; scroll, swipe, or use the arrow keys (or J and K). **Feed**: everything in a scrolling grid of cards, with search, a Filters menu (type, format, closing within two weeks) and sorting by best match, deadline or newest |
 | `/roadmap` | Roadmap | Phases and steps toward the chosen goal, each linked to a feed opportunity when there is one |
 | `/discover` | Career discovery | Paths that fit the student, what each expects, "Make this my goal" |
 | `/saved` | Saved | Saved tiles in the same grid, soonest deadline first |

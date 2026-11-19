@@ -31,7 +31,7 @@ export function Page({
     <div className="page-outer relative min-h-dvh pb-28 sm:pb-16">
       <div className="sky absolute inset-x-0 top-0 h-[420px]" aria-hidden="true" />
       <div className="relative mx-auto max-w-6xl px-5 sm:px-8">
-        <header className="flex items-center justify-between py-5">
+        <header className="page-header flex items-center justify-between py-5">
           <div className="flex items-center gap-3">
             <button
               type="button"

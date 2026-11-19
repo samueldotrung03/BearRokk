@@ -1,5 +1,5 @@
 import './signin.css';
-import { ArrowRight, Envelope, Eye, EyeSlash, GoogleLogo, GraduationCap, Lock } from '@phosphor-icons/react';
+import { ArrowRight, Envelope, Eye, EyeSlash, GoogleLogo, Lock, XLogo } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
@@ -23,7 +23,7 @@ export function SignIn() {
   };
 
   return (
-    <div className="grid min-h-dvh bg-canvas lg:grid-cols-2">
+    <div className="signin-page grid min-h-dvh bg-canvas lg:grid-cols-2">
       <section className="sky signin-hero flex flex-col px-6 pt-6 pb-20 text-white sm:px-10 sm:pt-8 lg:p-12">
         <div className="flex items-center gap-2.5">
           <BrandMark light />
@@ -76,8 +76,8 @@ export function SignIn() {
               onClick={enter}
               className="signin-provider flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-white text-[15px] font-semibold text-ink"
             >
-              <GraduationCap className="size-[18px]" weight="bold" aria-hidden="true" />
-              Continue with school email
+              <XLogo className="size-[18px]" weight="bold" aria-hidden="true" />
+              Continue with X
             </button>
           </div>
 
