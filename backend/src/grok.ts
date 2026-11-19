@@ -12,8 +12,14 @@ export async function grokJson<S extends z.ZodType>(opts: {
   user: string;
   schema: S;
   tools?: GrokTool[];
+  /** Model to use for this call. Defaults to XAI_MODEL. */
+  model?: string;
   timeoutMs?: number;
 }): Promise<GrokResult<z.infer<S>>> {
+  if (config.grokTransport === 'cli') {
+    const { grokCliJson } = await import('./grokCli.ts');
+    return grokCliJson(opts);
+  }
   if (!config.xaiApiKey) throw new Error('XAI_API_KEY is not set');
 
   const jsonSchema = z.toJSONSchema(opts.schema) as Record<string, unknown>;
@@ -24,7 +30,7 @@ export async function grokJson<S extends z.ZodType>(opts: {
     headers: { 'content-type': 'application/json', authorization: `Bearer ${config.xaiApiKey}` },
     signal: AbortSignal.timeout(opts.timeoutMs ?? config.grokTimeoutMs),
     body: JSON.stringify({
-      model: config.xaiModel,
+      model: opts.model ?? config.xaiModel,
       input: [
         { role: 'system', content: opts.system },
         { role: 'user', content: opts.user },
