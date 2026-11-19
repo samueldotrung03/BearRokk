@@ -21,6 +21,12 @@ export interface Unknown {
 export interface Opportunity {
   id: string;
   type: OpportunityType;
+  /** Who may apply, as the posting says it. From the agents; absent on sample cards. */
+  eligibility?: string | null;
+  /** Where the deadline was read: the organizer's own pages, or another public listing. */
+  deadlineSource?: 'official' | 'listing' | null;
+  /** The words the deadline was read from and the page they are on. */
+  deadlineEvidence?: { quote: string; url: string } | null;
   origin: Origin;
   title: string;
   organizer: string;

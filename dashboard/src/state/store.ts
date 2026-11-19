@@ -48,7 +48,9 @@ export type Action =
   | { type: 'setLocation'; location: string }
   | { type: 'toggleInterest'; value: string }
   | { type: 'toggleSkill'; value: string }
-  | { type: 'resetHistory' };
+  | { type: 'resetHistory' }
+  /** What the account says is saved and liked, for the postings it knows; others are left as they are. */
+  | { type: 'syncReactions'; known: string[]; saved: string[]; liked: string[]; statuses?: Record<string, ApplicationStatus> };
 
 /** The id a feed opportunity gets when it is added to the roadmap as an extra step. */
 export const extraStepId = (opportunityId: string) => `extra-${opportunityId}`;
@@ -63,8 +65,20 @@ function toggle(list: string[], value: string): string[] {
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case 'toggleSaved':
-      return { ...state, saved: toggle(state.saved, action.id) };
+    case 'toggleSaved': {
+      // Saving starts tracking it as Interested; unsaving one that never got further stops tracking it.
+      const saving = !state.saved.includes(action.id);
+      const current = state.applications[action.id];
+      const { [action.id]: _dropped, ...rest } = state.applications;
+      const applications = saving
+        ? current
+          ? state.applications
+          : { ...state.applications, [action.id]: { status: 'interested' as const, drafts: {}, materialsDone: [] } }
+        : current?.status === 'interested' && Object.keys(current.drafts).length === 0
+          ? rest
+          : state.applications;
+      return { ...state, saved: toggle(state.saved, action.id), applications };
+    }
     case 'dismiss':
       return {
         ...state,
@@ -129,6 +143,14 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, profile: { ...state.profile, interests: toggle(state.profile.interests, action.value) } };
     case 'toggleSkill':
       return { ...state, profile: { ...state.profile, skills: toggle(state.profile.skills, action.value) } };
+    case 'syncReactions': {
+      const known = new Set(action.known);
+      const merge = (local: string[], account: string[]) => [...local.filter((id) => !known.has(id)), ...account.filter((id) => known.has(id))];
+      // Where each application stands also comes from the account, for the postings it knows.
+      const applications = { ...state.applications };
+      for (const [id, status] of Object.entries(action.statuses ?? {})) applications[id] = { drafts: {}, materialsDone: [], ...applications[id], status };
+      return { ...state, saved: merge(state.saved, action.saved), liked: merge(state.liked, action.liked), applications };
+    }
     case 'resetHistory':
       return { ...state, saved: [], liked: [], dismissed: [], opened: [] };
   }

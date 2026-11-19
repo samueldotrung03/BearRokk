@@ -9,6 +9,8 @@ export function authMessage(error: unknown): string | null {
     case 'auth/cancelled-popup-request':
     case 'auth/user-cancelled':
       return null;
+    case 'google/not-granted':
+      return 'Google did not give BearRok access to Calendar and Sheets. On Google\'s screen, tick both permissions (or "Select all") before Continue. If no boxes appeared, the app\'s Google setup is missing those permissions.';
     case 'desktop/timed-out':
       return 'Sign-in was not finished in the browser. Click the button to try again.';
     case 'auth/invalid-credential':

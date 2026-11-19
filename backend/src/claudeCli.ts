@@ -8,6 +8,7 @@ import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { currentSignal, StoppedError } from './agents/stop.ts';
 import { config } from './config.ts';
 import type { GrokResult, GrokTool } from './grok.ts';
 import { extractJson } from './grokCli.ts';
@@ -35,6 +36,8 @@ function cleanEnv(): NodeJS.ProcessEnv {
 }
 
 function run(args: string[], timeoutMs: number): Promise<string> {
+  const stop = currentSignal();
+  if (stop?.aborted) return Promise.reject(new StoppedError());
   return new Promise((resolve, reject) => {
     const child = spawn(config.claudeCli.bin, args, { cwd: sandboxDir(), env: cleanEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
@@ -43,6 +46,14 @@ function run(args: string[], timeoutMs: number): Promise<string> {
       child.kill('SIGKILL');
       reject(new Error(`claude CLI timed out after ${Math.round(timeoutMs / 1000)}s`));
     }, timeoutMs);
+    // The student stopped the search: end this call now rather than when it finishes.
+    const onStop = () => {
+      clearTimeout(timer);
+      child.kill('SIGKILL');
+      reject(new StoppedError());
+    };
+    stop?.addEventListener('abort', onStop, { once: true });
+    child.on('close', () => stop?.removeEventListener('abort', onStop));
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (err += d));
     child.on('error', (e: NodeJS.ErrnoException) => {

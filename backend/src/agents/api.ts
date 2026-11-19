@@ -7,10 +7,12 @@ import { streamSSE } from 'hono/streaming';
 import type { AuthUser, Verifier } from '../auth.ts';
 import { createDeadlineEvent, deleteEvent } from '../calendar.ts';
 import { readResume, RESUME_MAX_BYTES, RESUME_TYPES } from '../resume.ts';
-import { exportApplications } from '../sheets.ts';
+import { exportApplications, trackerRows, writeTracker } from '../sheets.ts';
 import type { Store } from '../store/index.ts';
+import { randomBytes } from 'node:crypto';
+import { allCalendarsIn, consentUrl, exchangeCode, pkce, refreshAccess, revoke, servicesIn, type GoogleService, type OAuthClient } from '../googleOAuth.ts';
 import type { AgentSystem } from './system.ts';
-import { APPLICATION_STATUSES, CATEGORIES, type Action, type Category, type ClassYear, type Profile, type StudentPreferences } from './types.ts';
+import { APPLICATION_STATUSES, CATEGORIES, CATEGORY_OF, type Action, type OppType, type Category, type ClassYear, type Profile, type StudentPreferences } from './types.ts';
 import { RoadmapRequest, type RoadmapWriter } from '../roadmap.ts';
 
 export interface AgentsOptions {
@@ -23,10 +25,17 @@ export interface AgentsOptions {
   /** Calendar calls, replaceable in tests. */
   calendar?: { create: typeof createDeadlineEvent; remove: typeof deleteEvent };
   sheets?: typeof exportApplications;
+  /** Writes the saved tracker to Google Sheets, replaceable in tests. */
+  tracker?: typeof writeTracker;
   /** Writes a roadmap. Absent when no model is connected; replaceable in tests. */
   roadmap?: RoadmapWriter | null;
   /** Where each student's memory is kept. Without it nothing outlives the backend. */
   memory?: Pick<Store, 'loadStudent' | 'saveStudent' | 'deleteStudent'>;
+  /**
+   * A lasting Google connection: with an OAuth client, students connect Calendar and Sheets once
+   * and the backend keeps them connected. `redirectBase` is where Google sends them back.
+   */
+  google?: { client: OAuthClient; redirectBase: string; fetch?: typeof fetch } | null;
   /** Told each time a student proves who they are, with the token they proved it with. */
   onToken?: (uid: string, token: string) => void;
   /** How long to wait after a change before saving, so a burst of changes is one write. */
@@ -142,6 +151,8 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     // saving that would wipe what is stored. The request fails and the next one tries again.
     const saved = await memory.loadStudent(key);
     if (saved) system.restore(saved);
+    // Cards stored before pictures were looked for get them now, not on the next search.
+    void system.fillPictures();
     const write = () => {
       saving.delete(key);
       memory.saveStudent(key, system.memorySnapshot()).then(
@@ -257,9 +268,18 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     }
   });
 
+  // Stop the search in flight. What it already checked stays; nothing follows on its own.
+  app.post(`${base}/runs/stop`, async (c) => {
+    const system = await systemOf(c);
+    return c.json({ stopped: system.stop() });
+  });
+
+  // Search again now; with { type } the search is for more of that one kind of opportunity.
   app.post(`${base}/runs`, async (c) => {
     const system = await systemOf(c);
-    void system.trigger(system.student().runCount === 0 ? 'first' : 'manual');
+    const body = await c.req.json().catch(() => ({}));
+    if (typeof body?.type === 'string' && body.type in CATEGORY_OF) void system.searchFor(body.type as OppType);
+    else void system.trigger(system.student().runCount === 0 ? 'first' : 'manual');
     return c.json({ ok: true }, 202);
   });
 
@@ -363,6 +383,123 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     return c.json({ student: system.student() });
   });
 
+  // ---- the lasting Google connection ---------------------------------------------------------
+  const oauth = opts.google ?? null;
+  const redirectUri = oauth ? `${oauth.redirectBase}/auth/google/callback` : '';
+  /** Consent screens opened and not yet answered, by state. They expire after ten minutes. */
+  const consents = new Map<string, { system: AgentSystem; verifier: string; expires: number; services: GoogleService[]; replace: boolean }>();
+  /** Access tokens already traded for, so Google is not asked on every call. */
+  const access = new WeakMap<AgentSystem, { token: string; expires: number }>();
+
+  /**
+   * An access token for one Google service: the one the request carries, or one made from the
+   * student's lasting connection. Null when neither has it.
+   */
+  async function googleToken(c: Context, system: AgentSystem, service: GoogleService): Promise<string | null> {
+    const sent = c.req.header('x-google-access-token');
+    if (sent) return sent;
+    const grant = system.getGoogle();
+    if (!oauth || !grant || !grant.services.includes(service)) return null;
+    const cached = access.get(system);
+    if (cached && cached.expires > Date.now() + 60_000) return cached.token;
+    try {
+      const fresh = await refreshAccess(oauth.client, grant.refreshToken, oauth.fetch);
+      access.set(system, { token: fresh.access_token, expires: Date.now() + fresh.expires_in * 1000 });
+      return fresh.access_token;
+    } catch (e) {
+      // The student took the access back in their Google account: forget the connection.
+      if ((e as { revoked?: boolean }).revoked) system.setGoogle(null);
+      return null;
+    }
+  }
+
+  app.get('/api/google/config', (c) => c.json({ enabled: Boolean(oauth) }));
+
+  app.get(`${base}/google`, async (c) => {
+    const system = await systemOf(c);
+    const grant = system.getGoogle();
+    return c.json({ enabled: Boolean(oauth), services: grant?.services ?? [], connectedAt: grant?.connectedAt ?? null, allCalendars: grant?.allCalendars === true });
+  });
+
+  // The address of Google's consent screen for Calendar and Sheets, for the page to open in the
+  // student's browser. Asked for with the sign-in header, so no BearRok token goes into a URL.
+  app.post(`${base}/google/connect`, async (c) => {
+    if (!oauth) return c.json({ error: 'Google connection is not set up on this server' }, 503);
+    if (c.req.param('id') !== 'me') return c.json({ error: 'sign in first' }, 401);
+    const system = await systemOf(c);
+    const user = await userOf(c);
+    const body = await c.req.json().catch(() => ({}));
+    const asked: unknown[] = Array.isArray(body?.services) ? body.services : ['calendar', 'sheets'];
+    const wanted = asked.filter((s): s is GoogleService => s === 'calendar' || s === 'sheets');
+    // Switching to another Google account starts afresh: nothing from the old one is carried over.
+    const switching = body?.switchAccount === true;
+    const services = switching ? wanted : [...new Set([...wanted, ...(system.getGoogle()?.services ?? [])])];
+    const { verifier, challenge } = pkce();
+    const state = randomBytes(24).toString('base64url');
+    for (const [k, v] of consents) if (v.expires < Date.now()) consents.delete(k);
+    consents.set(state, { system, verifier, expires: Date.now() + 10 * 60_000, services: services.length ? services : ['calendar', 'sheets'], replace: switching });
+    return c.json({ url: consentUrl(oauth.client, { redirectUri, services: services.length ? services : ['calendar', 'sheets'], state, challenge, loginHint: switching ? null : user.email, chooseAccount: switching }) });
+  });
+
+  // Google sends the student back here with a code, which is traded for the lasting connection.
+  app.get('/auth/google/callback', async (c) => {
+    const page = (title: string, text: string, status: 200 | 400 | 502 = 200) =>
+      c.html(
+        `<!doctype html><meta charset="utf-8"><title>BearRok</title><body style="font:16px system-ui;display:grid;place-items:center;min-height:90vh;margin:0;background:#f3f7fc;color:#152b43"><div style="max-width:420px;text-align:center"><h1 style="font-size:22px">${title}</h1><p>${text}</p></div></body>`,
+        status,
+      );
+    const pending = consents.get(c.req.query('state') ?? '');
+    if (!oauth || !pending) return page('That link has expired', 'Go back to BearRok and press Connect again.', 400);
+    consents.delete(c.req.query('state')!);
+    if (c.req.query('error')) return page('Not connected', 'Google access was not given. You can close this window.', 400);
+    try {
+      const tokens = await exchangeCode(oauth.client, c.req.query('code') ?? '', pending.verifier, redirectUri, oauth.fetch);
+      const previous = pending.system.getGoogle();
+      const before = pending.replace ? null : previous;
+      // The old account's access is given back when the student switches to another one.
+      if (pending.replace && previous && previous.refreshToken !== tokens.refresh_token) void revoke(previous.refreshToken, oauth.fetch);
+      const refreshToken = tokens.refresh_token ?? before?.refreshToken;
+      if (!refreshToken) return page('Not connected', 'Google did not give BearRok lasting access. Press Connect again.', 502);
+      const granted = servicesIn(tokens.scope);
+      const services = [...new Set([...(before?.services ?? []), ...granted])];
+      pending.system.setGoogle({ refreshToken, services, connectedAt: new Date().toISOString(), allCalendars: allCalendarsIn(tokens.scope) || (before?.allCalendars ?? false) });
+      access.set(pending.system, { token: tokens.access_token, expires: Date.now() + tokens.expires_in * 1000 });
+      // Google's consent screen has a box for each permission, unticked to start with. Continuing
+      // without ticking them gives BearRok nothing it can use, so the student is told plainly.
+      const missing = pending.services.filter((s) => !services.includes(s));
+      const name = { calendar: 'Google Calendar', sheets: 'Google Sheets' };
+      if (missing.length) {
+        return page(
+          `${missing.map((s) => name[s]).join(' and ')} not allowed`,
+          `Google did not give BearRok access to ${missing.map((s) => name[s]).join(' or ')}. Go back to BearRok, press Connect again, and on Google's screen tick ${missing.length === 2 ? 'both permissions (or "Select all")' : 'the permission'} before you press Continue. If Google showed no boxes to tick, the app's Google setup does not list these permissions yet.`,
+          400,
+        );
+      }
+      return page('Google is connected', 'BearRok keeps your calendar and sheet up to date from now on, and will not ask again. You can close this window and go back to the app.');
+    } catch (e) {
+      return page('Not connected', `Google said: ${e instanceof Error ? e.message : String(e)}`, 502);
+    }
+  });
+
+  // A fresh access token for the page, for reading the student's own calendar.
+  app.post(`${base}/google/token`, async (c) => {
+    const system = await systemOf(c);
+    const body = await c.req.json().catch(() => ({}));
+    const service: GoogleService = body?.service === 'sheets' ? 'sheets' : 'calendar';
+    const token = await googleToken(c, system, service);
+    if (!token) return c.json({ error: 'not connected' }, 404);
+    return c.json({ accessToken: token, expiresAt: access.get(system)?.expires ?? Date.now() + 50 * 60_000 });
+  });
+
+  app.delete(`${base}/google`, async (c) => {
+    const system = await systemOf(c);
+    const grant = system.getGoogle();
+    if (grant) await revoke(grant.refreshToken, oauth?.fetch);
+    access.delete(system);
+    system.setGoogle(null);
+    return c.json({ services: [] });
+  });
+
   // ---- application manager -------------------------------------------------------------
   const calendar = opts.calendar ?? { create: createDeadlineEvent, remove: deleteEvent };
 
@@ -380,7 +517,7 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     const application = system.setApplication(oppId, { status: body.status, drafts, deadline: typeof body.deadline === 'string' ? body.deadline : undefined });
     if (!application) return c.json({ error: 'opportunity not found' }, 404);
 
-    const google = c.req.header('x-google-access-token');
+    const google = await googleToken(c, system, 'calendar');
     const event = application.status === 'to_apply' || application.status === 'applying' ? system.calendarEvent(application) : null;
     if (google) {
       try {
@@ -388,15 +525,52 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
         if (application.calendar.eventId) await calendar.remove(google, application.calendar.eventId);
         if (event) {
           const made = await calendar.create(google, event);
-          system.setCalendar(oppId, { state: 'synced', eventId: made.eventId, htmlLink: made.htmlLink, error: null });
+          system.setCalendar(oppId, { state: 'synced', eventId: made.eventId, htmlLink: made.htmlLink, error: null, syncedDeadline: application.deadline });
         } else {
-          system.setCalendar(oppId, { state: 'none', eventId: null, htmlLink: null, error: null });
+          system.setCalendar(oppId, { state: 'none', eventId: null, htmlLink: null, error: null, syncedDeadline: null });
         }
       } catch (e) {
         system.setCalendar(oppId, { error: e instanceof Error ? e.message : String(e) });
       }
     }
     return c.json({ application: system.getApplication(oppId) });
+  });
+
+  /**
+   * Bring the student's Google Calendar in line with their applications: every To apply or
+   * Applying application with a deadline gets one event, a changed deadline moves it, and one that
+   * is no longer active loses it. The app calls this on its own whenever Google Calendar is
+   * connected, so nobody has to add events by hand.
+   */
+  app.post(`${base}/calendar/sync`, async (c) => {
+    const system = await systemOf(c);
+    const google = await googleToken(c, system, 'calendar');
+    if (!google) return c.json({ error: 'connect Google Calendar first' }, 400);
+    let added = 0;
+    let removed = 0;
+    const errors: string[] = [];
+    for (const app of system.listApplications()) {
+      const active = app.status === 'to_apply' || app.status === 'applying';
+      const event = active ? system.calendarEvent(app) : null;
+      const current = app.calendar.state === 'synced' && app.calendar.syncedDeadline === app.deadline;
+      try {
+        if (event && !current) {
+          if (app.calendar.eventId) await calendar.remove(google, app.calendar.eventId).catch(() => {});
+          const made = await calendar.create(google, event);
+          system.setCalendar(app.opportunityId, { state: 'synced', eventId: made.eventId, htmlLink: made.htmlLink, error: null, syncedDeadline: app.deadline });
+          added++;
+        } else if (!event && app.calendar.eventId) {
+          await calendar.remove(google, app.calendar.eventId);
+          system.setCalendar(app.opportunityId, { state: 'none', eventId: null, htmlLink: null, error: null, syncedDeadline: null });
+          removed++;
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        system.setCalendar(app.opportunityId, { error: message });
+        errors.push(`${app.title}: ${message}`);
+      }
+    }
+    return c.json({ added, removed, errors });
   });
 
   // Write the application tracker to a new Google Sheet in the student's Drive.
@@ -412,11 +586,41 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     }
   });
 
+  // The saved tracker: every saved posting with its status, deadline, details and links. The app
+  // shows these rows as its own spreadsheet, and writes the same rows to a linked Google Sheet.
+  app.get(`${base}/sheet`, async (c) => {
+    const system = await systemOf(c);
+    const [header, ...rows] = trackerRows(system.trackerItems(), new Date());
+    return c.json({ header, rows, ids: system.trackerItems().map((i) => i.opportunity?.id ?? i.application!.opportunityId), linked: system.getSheet() });
+  });
+
+  // Write the tracker to the student's linked Google Sheet, linking a new one the first time.
+  app.post(`${base}/sheet/sync`, async (c) => {
+    const system = await systemOf(c);
+    const google = await googleToken(c, system, 'sheets');
+    if (!google) return c.json({ error: 'connect Google Sheets first' }, 400);
+    try {
+      const now = new Date();
+      const written = await (opts.tracker ?? writeTracker)(google, system.getSheet(), trackerRows(system.trackerItems(), now), now);
+      system.setSheet({ ...written, syncedAt: now.toISOString() });
+      return c.json({ linked: system.getSheet() });
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : String(e) }, 502);
+    }
+  });
+
+  // Stop writing to the linked sheet. The file stays in the student's Drive.
+  app.delete(`${base}/sheet`, async (c) => {
+    const system = await systemOf(c);
+    system.setSheet(null);
+    return c.json({ linked: null });
+  });
+
   app.delete(`${base}/applications/:oppId`, async (c) => {
     const system = await systemOf(c);
     const removed = system.removeApplication(c.req.param('oppId'));
     if (!removed) return c.json({ error: 'application not found' }, 404);
-    const google = c.req.header('x-google-access-token');
+    const google = await googleToken(c, system, 'calendar');
     if (google && removed.calendar.eventId) await calendar.remove(google, removed.calendar.eventId).catch(() => {});
     return c.json({ ok: true });
   });
@@ -432,7 +636,10 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
       // Nobody has to ask: the first viewer finds the agents already starting.
       if (system.student().runCount === 0) setTimeout(() => void system.trigger('first'), 900);
       // A student coming back to a remembered feed that is short gets it topped up.
-      else setTimeout(() => system.fillIfShort(), 900);
+      else setTimeout(() => {
+        system.fillIfShort();
+        void system.fillPictures();
+      }, 900);
       const beat = setInterval(() => void stream.writeSSE({ event: 'ping', data: '1' }).catch(() => {}), 15_000);
       await new Promise<void>((resolve) => stream.onAbort(resolve));
       clearInterval(beat);

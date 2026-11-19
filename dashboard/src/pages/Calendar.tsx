@@ -1,23 +1,26 @@
-// One calendar for everything with a date. Orange is what the student has to do (they committed
-// to it), blue is what they should do (it moves them toward the goal). Every item says why.
+// One calendar for everything with a date. The calendar comes first, and beside it the upcoming
+// application deadlines (To apply and Applying on the Saved page), which BearRok puts on the
+// student's Google Calendar by itself once it is connected. Orange is what the student has to do
+// (they committed to it), blue is what they should do (it moves them toward the goal).
 // On top of that: a brief of today, a week plan that places work before each deadline, clash
 // warnings, the student's own items, three views, filters and export. The planning rules live in
 // src/lib/cal so a model can take their place later without touching this page.
-import { ChevronLeft, ChevronRight, Download, TriangleExclamationPoint, Undo2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, Plus, TriangleExclamationPoint, Undo2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AgendaView } from '../components/calendar/AgendaView.tsx';
+import { DayView } from '../components/calendar/DayView.tsx';
 import { BriefCard } from '../components/calendar/BriefCard.tsx';
 import { FilterBar, ViewToggle, type CalendarView } from '../components/calendar/Controls.tsx';
 import { DayPanel, type PersonalActions } from '../components/calendar/DayPanel.tsx';
 import { MonthGrid } from '../components/calendar/MonthGrid.tsx';
 import { PlanCard } from '../components/calendar/PlanCard.tsx';
+import { UpcomingDeadlines } from '../components/calendar/UpcomingDeadlines.tsx';
 import { WeekView } from '../components/calendar/WeekView.tsx';
 import { Details } from '../components/OpportunityCard.tsx';
 import { Card, Page } from '../components/Page.tsx';
 import { localAssistant, effortContext } from '../lib/cal/assistant.ts';
 import { conflictAdvice } from '../lib/cal/brief.ts';
 import { addDays, dayDate, hoursLabel, shortDay, startOfWeek } from '../lib/cal/days.ts';
-import { icsCalendar } from '../lib/cal/export.ts';
 import {
   ALL_KINDS,
   allFilters,
@@ -26,17 +29,23 @@ import {
   matchesFilters,
   mergeItems,
   type CxFilters,
+  type CxItem,
   type CxKind,
   type PersonalItem,
 } from '../lib/cal/items.ts';
 import { DEFAULT_HOURS, acceptedTitle, targetsFrom, type PlanBlock } from '../lib/cal/planner.ts';
 import { calendarItems, dayKey } from '../lib/calendar.ts';
+import { deleteGoogleEvent, googleItems, insertGoogleEvent, updateGoogleEvent, useGoogleEvents, type EventDraft, type GoogleSyncState } from '../lib/cal/google.ts';
+import { useAuth } from '../auth/AuthProvider.tsx';
+import { authMessage } from '../auth/errors.ts';
+import { ConnectCalendar } from '../components/CalendarStatus.tsx';
 import { useLocal } from '../lib/useLocal.ts';
+import { useLive } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import type { Opportunity } from '../types.ts';
 import '../styles/calendar.css';
 
-const VIEWS: CalendarView[] = ['month', 'week', 'agenda'];
+const VIEWS: CalendarView[] = ['month', 'week', 'day', 'agenda'];
 const monthOf = (day: string) => {
   const d = dayDate(day);
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -55,6 +64,91 @@ const validHours = (value: unknown): number[] =>
 const validFilters = (value: CxFilters | null): CxFilters =>
   value && Array.isArray(value.kinds) && Array.isArray(value.priorities) ? value : allFilters;
 
+/** Whether the student's Google Calendar is showing here, whose it is, and how to connect or switch. */
+function GoogleSyncLine({
+  state,
+  count,
+  updatedAt,
+  account,
+  calendars,
+  allCalendars,
+}: {
+  state: GoogleSyncState;
+  count: number;
+  updatedAt: number | null;
+  account: string | null;
+  calendars: number;
+  allCalendars: boolean;
+}) {
+  const ago = updatedAt ? Math.round((Date.now() - updatedAt) / 60_000) : null;
+  return (
+    <div className="cx-google-line mt-3" data-state={state}>
+      <span className="cx-google-dot" aria-hidden="true" />
+      {state === 'ok' ? (
+        <>
+          <span className="min-w-0" title={account ?? undefined}>
+            Synced with {allCalendars ? `${calendars} Google ${calendars === 1 ? 'calendar' : 'calendars'}` : 'Google Calendar'} · {count === 0 ? 'no events nearby' : `${count} ${count === 1 ? 'event' : 'events'}`} · updated{' '}
+            {ago === 0 || ago === null ? 'just now' : `${ago} min ago`}
+          </span>
+          <a
+            href={`https://calendar.google.com/calendar/r${account ? `?authuser=${encodeURIComponent(account)}` : ''}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-brand hover:underline"
+          >
+            Open Google Calendar
+          </a>
+          {count === 0 && allCalendars && <span className="text-ink-3">If your events are in another Google account, switch to it:</span>}
+          <SwitchAccount />
+        </>
+      ) : state === 'loading' ? (
+        <span>Checking your Google Calendar…</span>
+      ) : state === 'expired' ? (
+        <>
+          <span>Google access has run out, so your events are not showing.</span>
+          <ConnectCalendar />
+        </>
+      ) : state === 'error' ? (
+        <span>Your Google Calendar could not be read just now. It is tried again in a few minutes.</span>
+      ) : (
+        <>
+          <span>Not connected. Connect Google Calendar to see your events here and send what you add to it.</span>
+          <ConnectCalendar />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Connect a different Google account in place of the one connected now. */
+function SwitchAccount() {
+  const auth = useAuth();
+  const [waiting, setWaiting] = useState(false);
+  const attempt = useRef<AbortController | null>(null);
+  useEffect(() => () => attempt.current?.abort(), []);
+  return (
+    <button
+      type="button"
+      className="font-semibold text-brand hover:underline"
+      onClick={async () => {
+        attempt.current?.abort();
+        const controller = new AbortController();
+        attempt.current = controller;
+        setWaiting(true);
+        try {
+          await auth.connectGoogle('calendar', controller.signal, { switchAccount: true });
+        } catch {
+          // Shown by the line itself on the next read.
+        } finally {
+          if (attempt.current === controller) setWaiting(false);
+        }
+      }}
+    >
+      {waiting ? 'Waiting for Google… (click to reopen)' : 'Use a different Google account'}
+    </button>
+  );
+}
+
 interface Toast {
   text: string;
   undo: PersonalItem[] | null;
@@ -64,7 +158,8 @@ export function Calendar() {
   const { state } = useStore();
   const today = dayKey(Date.now());
   const [storedView, setView] = useLocal<CalendarView>('bearrok.calendar.view', 'month');
-  const [storedFilters, setFilters] = useLocal<CxFilters>('bearrok.calendar.filters', allFilters);
+  // v2: filters saved before Google Calendar events existed would hide them, so those are not reused.
+  const [storedFilters, setFilters] = useLocal<CxFilters>('bearrok.calendar.filters.v2', allFilters);
   const [storedPersonal, setPersonal] = useLocal<PersonalItem[]>('bearrok.calendar.personal', []);
   const [storedHours, setHours] = useLocal<number[]>('bearrok.calendar.hours', DEFAULT_HOURS);
   const [planOpen, setPlanOpen] = useLocal<boolean>('bearrok.calendar.planOpen', false);
@@ -84,8 +179,36 @@ export function Calendar() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  // What the agents found and the student saved, not the sample cards.
+  const live = useLive();
+  const found = useMemo(() => {
+    const byId = new Map<string, Opportunity>();
+    for (const o of [...live.opportunities, ...live.savedCards]) byId.set(o.id, o);
+    return [...byId.values()];
+  }, [live.opportunities, live.savedCards]);
   // Everything the page shows is derived from the store and the page's own saved state.
-  const all = useMemo(() => mergeItems(calendarItems(state), personal), [state, personal]);
+  // BearRok's own items: deadlines, reminders, steps and what the student added. Planning, the brief
+  // and the counts are worked out from these alone.
+  const own = useMemo(() => mergeItems(calendarItems(state, Date.now(), found), personal), [state, personal, found]);
+  // The student's Google Calendar for the weeks around what is on screen, shown with everything else.
+  // Events BearRok made for a deadline are left out: the deadline itself is already here.
+  const rangeFrom = addDays(startOfWeek(dayKey(month)), -7);
+  const rangeTo = [addDays(rangeFrom, 56), addDays(today, 61)].sort().at(-1)!;
+  const google = useGoogleEvents(rangeFrom, rangeTo);
+  // Events BearRok made, for a deadline or for something the student added here, are shown once:
+  // as BearRok's own item, not again as a Google event.
+  const ownEventIds = useMemo(
+    () =>
+      new Set([
+        ...Object.values(live.applications).flatMap((a) => (a.calendar.eventId ? [a.calendar.eventId] : [])),
+        ...personal.flatMap((p) => (p.google ? [p.google.eventId] : [])),
+      ]),
+    [live.applications, personal],
+  );
+  const all = useMemo(() => {
+    const rank = (item: CxItem) => (item.priority === 'must' ? 0 : 1);
+    return [...own, ...googleItems(google.events, ownEventIds)].sort((a, b) => a.day.localeCompare(b.day) || rank(a) - rank(b) || a.date.localeCompare(b.date));
+  }, [own, google.events, ownEventIds]);
   const shown = useMemo(() => all.filter((item) => matchesFilters(item, filters)), [all, filters]);
   const byDay = useMemo(() => groupByDay(shown), [shown]);
   // Clashes are found on everything, not only what the filters show: hiding a kind does not remove the clash.
@@ -98,14 +221,14 @@ export function Calendar() {
         today,
         days: 7,
         hoursByWeekday: hours,
-        targets: targetsFrom(all, ctx),
+        targets: targetsFrom(own, ctx),
         accepted: personal.flatMap((p) => (p.block ? [{ targetId: p.block.targetId, day: p.day, hours: p.block.hours, done: p.done }] : [])),
       }),
     [today, hours, all, ctx, personal],
   );
   const brief = useMemo(
-    () => localAssistant.brief({ today, name: state.profile.name, items: all, conflicts, plan }),
-    [today, state.profile.name, all, conflicts, plan],
+    () => localAssistant.brief({ today, name: state.profile.name, items: own, conflicts, plan }),
+    [today, state.profile.name, own, conflicts, plan],
   );
   const visibleBlocks = useMemo(
     () => (planOpen ? plan.blocks.filter((block) => filters.priorities.includes(block.priority)) : []),
@@ -118,7 +241,6 @@ export function Calendar() {
     for (const item of all) if (filters.priorities.includes(item.priority)) counts.set(item.kind, counts.get(item.kind)! + 1);
     return counts;
   }, [all, filters]);
-  const ics = useMemo(() => icsCalendar(shown), [shown]);
 
   const select = useCallback((day: string) => {
     setSelected(day);
@@ -130,11 +252,68 @@ export function Calendar() {
   const goToday = () => select(today);
   const move = (by: number) => {
     if (view === 'week') select(addDays(selected, by * 7));
+    else if (view === 'day') select(addDays(selected, by));
     else setMonth(new Date(month.getFullYear(), month.getMonth() + by, 1));
   };
+  const unit = view === 'week' ? 'week' : view === 'day' ? 'day' : 'month';
+  // Opening an item from the day view shows its opportunity, from the feed or the saved list.
+  const openItem = (item: { opportunityId: string | null }) => {
+    const o = item.opportunityId ? found.find((x) => x.id === item.opportunityId) : undefined;
+    if (o) setDetails(o);
+  };
+
+  // ---- what is added here goes on the student's Google Calendar too --------------------------
+  const auth = useAuth();
+  const googleToken = auth.google.calendar;
+  const draftOf = (p: PersonalItem): EventDraft => ({
+    title: p.title,
+    day: p.day,
+    time: p.time ?? null,
+    endTime: p.endTime ?? null,
+    description: [p.block ? `${hoursLabel(p.block.hours)} of work, planned in BearRok. ${p.block.why}` : '', p.note, 'Added from BearRok.'].filter(Boolean).join('\n\n'),
+  });
+  const pushing = useRef(new Set<string>());
+  const pushToGoogle = useCallback(
+    async (p: PersonalItem) => {
+      if (!googleToken || p.google || pushing.current.has(p.id)) return;
+      pushing.current.add(p.id);
+      try {
+        const made = await insertGoogleEvent(googleToken, draftOf(p));
+        setPersonal((list) => list.map((x) => (x.id === p.id ? { ...x, google: made } : x)));
+        google.refresh();
+      } catch {
+        // Tried again the next time the page loads with Google connected.
+      } finally {
+        pushing.current.delete(p.id);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [googleToken],
+  );
+  // Anything added while Google was not connected goes there once it is.
+  useEffect(() => {
+    if (!googleToken) return;
+    for (const p of personal) if (!p.google && !p.done && p.day >= today) void pushToGoogle(p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleToken, personal.length]);
+  const removeFromGoogle = (list: PersonalItem[]) => {
+    if (!googleToken) return;
+    for (const p of list) if (p.google) void deleteGoogleEvent(googleToken, p.google.eventId).catch(() => {});
+  };
+  const [addRequest, setAddRequest] = useState(0);
 
   // Personal items, and plan blocks once accepted (they become personal items with a `block`).
   const remember = (text: string) => setToast({ text, undo: personal });
+  /** Undo: put the list back, and Google Calendar with it. */
+  const restore = (previous: PersonalItem[]) => {
+    const before = new Set(previous.map((p) => p.id));
+    const now = new Set(personal.map((p) => p.id));
+    // Added since: their events come off Google Calendar. Removed since: they go back on.
+    removeFromGoogle(personal.filter((p) => !before.has(p.id)));
+    const next = previous.map((p) => (now.has(p.id) ? p : { ...p, google: null }));
+    setPersonal(next);
+    for (const p of next) if (!p.google && !p.done) void pushToGoogle(p);
+  };
   const toPersonal = (block: PlanBlock): PersonalItem => ({
     id: newId(),
     day: block.day,
@@ -146,31 +325,49 @@ export function Calendar() {
   });
   const accept = (block: PlanBlock) => {
     remember(`Added ${hoursLabel(block.hours)} on "${block.title}" to ${block.day === today ? 'today' : shortDay(block.day)}.`);
-    setPersonal((list) => [...list, toPersonal(block)]);
+    const item = toPersonal(block);
+    setPersonal((list) => [...list, item]);
+    void pushToGoogle(item);
   };
   const acceptAll = () => {
     remember(`Added ${plan.blocks.length} work blocks to your calendar.`);
-    setPersonal((list) => [...list, ...plan.blocks.map(toPersonal)]);
+    const items = plan.blocks.map(toPersonal);
+    setPersonal((list) => [...list, ...items]);
+    for (const item of items) void pushToGoogle(item);
   };
   const windowEnd = addDays(today, 6);
   const acceptedInWindow = personal.filter((p) => p.block && p.day >= today && p.day <= windowEnd);
   const clearAccepted = () => {
     const clear = new Set(acceptedInWindow.filter((p) => !p.done).map((p) => p.id));
     remember(`Cleared ${clear.size} accepted ${clear.size === 1 ? 'block' : 'blocks'}. Ticked-off ones stay.`);
+    removeFromGoogle(personal.filter((p) => clear.has(p.id)));
     setPersonal((list) => list.filter((p) => !clear.has(p.id)));
   };
   const actions: PersonalActions = {
-    add: (fields) => setPersonal((list) => [...list, { ...fields, id: newId(), done: false, block: null }]),
-    update: (id, patch) => setPersonal((list) => list.map((p) => (p.id === id ? { ...p, ...patch } : p))),
+    add: (fields) => {
+      const item: PersonalItem = { ...fields, id: newId(), done: false, block: null };
+      setPersonal((list) => [...list, item]);
+      select(item.day);
+      void pushToGoogle(item);
+    },
+    update: (id, patch) => {
+      const current = personal.find((p) => p.id === id);
+      setPersonal((list) => list.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+      // A change to what or when moves the Google event too; ticking it done does not.
+      const moved = current && ['title', 'day', 'time', 'endTime', 'note'].some((k) => k in patch);
+      if (current?.google && googleToken && moved) void updateGoogleEvent(googleToken, current.google.eventId, draftOf({ ...current, ...patch })).then(google.refresh, () => {});
+      if (patch.day) select(patch.day);
+    },
     remove: (id) => {
       const gone = personal.find((p) => p.id === id);
       if (gone) remember(`Removed "${gone.title}".`);
+      if (gone) removeFromGoogle([gone]);
       setPersonal((list) => list.filter((p) => p.id !== id));
     },
   };
 
   const weekEnd = addDays(today, 6);
-  const open = all.filter((item) => !item.done);
+  const open = own.filter((item) => !item.done);
   const thisWeek = open.filter((item) => item.day >= today && item.day <= weekEnd);
   const overdue = open.filter((item) => item.day < today && item.kind !== 'reminder');
   const upcoming = open.filter((item) => item.day > selected && item.day >= today).slice(0, 5);
@@ -191,90 +388,58 @@ export function Calendar() {
       ? month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       : view === 'week'
         ? weekTitle(weekStart)
-        : 'Agenda';
+        : view === 'day'
+          ? dayDate(selected).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+          : 'Agenda';
 
   return (
     <Page
       title="Calendar"
-      subtitle="Everything with a date in one place: what you have to do, what you should do, and why."
-      aside={
-        <a
-          href={`data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`}
-          download="bearrok-calendar.ics"
-          className="cx-export"
-          aria-label={`Export ${shown.length} items as an .ics file`}
-        >
-          <Download className="size-4" aria-hidden="true" />
-          Export .ics
-          <span>{shown.length}</span>
-        </a>
-      }
+      subtitle="Everything with a date in one place, with your application deadlines beside it."
     >
-      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <BriefCard
-          brief={brief}
-          today={today}
-          source={localAssistant.source}
-          planOpen={planOpen}
-          overloaded={plan.overloaded}
-          onTogglePlan={() => setPlanOpen(!planOpen)}
-          onJump={select}
-        />
-        <div className="grid grid-cols-2 gap-3">
-          {tiles.map((tile) => (
-            <Card key={tile.label} className="cal-tile cx-tile">
-              <span className="cal-tile-count" data-tone={tile.tone} data-zero={tile.count === 0}>
-                {tile.count}
-              </span>
-              <span className="text-sm leading-snug font-medium text-ink-2">{tile.label}</span>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      {planOpen && (
-        <PlanCard
-          plan={plan}
-          today={today}
-          hours={hours}
-          accepted={acceptedInWindow}
-          source={localAssistant.source}
-          onHours={(weekday, value) => setHours(hours.map((h, index) => (index === weekday ? value : h)))}
-          onAccept={accept}
-          onAcceptAll={acceptAll}
-          onUnaccept={actions.remove}
-          onClearAccepted={clearAccepted}
-          onClose={() => setPlanOpen(false)}
-          onJump={select}
-        />
-      )}
-
-      <div className="mt-4 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <Card className="min-w-0 p-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="mr-auto font-display text-3xl leading-none">{title}</h2>
-            <ViewToggle view={view} onChange={setView} />
-            <button type="button" onClick={goToday} className="cal-nav px-3 text-sm font-semibold">
-              Today
-            </button>
-            {view !== 'agenda' && (
-              <>
-                <button type="button" onClick={() => move(-1)} aria-label={view === 'week' ? 'Previous week' : 'Previous month'} className="cal-nav w-9">
-                  <ChevronLeft className="size-4" aria-hidden="true" />
-                </button>
-                <button type="button" onClick={() => move(1)} aria-label={view === 'week' ? 'Next week' : 'Next month'} className="cal-nav w-9">
-                  <ChevronRight className="size-4" aria-hidden="true" />
-                </button>
-              </>
-            )}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <Card className="cx-frame min-w-0 p-5">
+          {/* The header keeps one size in every view: the title has a fixed size and is cut short
+              rather than pushing the controls around, and the controls never appear or vanish. */}
+          <div className="cx-cal-head">
+            <h2 className="cx-cal-title" title={title}>
+              {title}
+            </h2>
+            <div className="cx-cal-nav">
+              <button type="button" onClick={goToday} className="cal-nav px-3 text-sm font-semibold">
+                Today
+              </button>
+              {/* The agenda is one running list from today: its arrows are hidden but keep their place. */}
+              <button type="button" onClick={() => move(-1)} aria-label={`Previous ${unit}`} className="cal-nav w-9" style={view === 'agenda' ? { visibility: 'hidden' } : undefined}>
+                <ChevronLeft className="size-4" aria-hidden="true" />
+              </button>
+              <button type="button" onClick={() => move(1)} aria-label={`Next ${unit}`} className="cal-nav w-9" style={view === 'agenda' ? { visibility: 'hidden' } : undefined}>
+                <ChevronRight className="size-4" aria-hidden="true" />
+              </button>
+            </div>
           </div>
+          <div className="cx-cal-tools mt-3">
+            <ViewToggle view={view} onChange={setView} />
+            <button
+              type="button"
+              onClick={() => setAddRequest((n) => n + 1)}
+              aria-label="Add event"
+              title="Add event"
+              className="btn-primary grid size-9 shrink-0 place-items-center rounded-[10px] text-white"
+            >
+              <Plus className="size-5" aria-hidden="true" />
+            </button>
+          </div>
+
+          <GoogleSyncLine state={google.state} count={google.events.length} updatedAt={google.updatedAt} account={google.account} calendars={google.calendars} allCalendars={google.allCalendars} />
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <FilterBar filters={filters} counts={kindCounts} onChange={setFilters} />
             {planOpen && visibleBlocks.length > 0 && <span className="cx-legend-ghost">Suggested blocks</span>}
           </div>
 
-          <div key={view} className="cx-view mt-4">
+          {/* The same size in every view and every day: what does not fit scrolls inside. */}
+          <div key={view} className="cx-view cx-view-box mt-4">
             {view === 'month' && (
               <MonthGrid month={month} today={today} selected={selected} byDay={byDay} blocksByDay={blocksByDay} conflicts={conflictByDay} onSelect={select} />
             )}
@@ -290,19 +455,28 @@ export function Calendar() {
                 onAccept={accept}
               />
             )}
+            {view === 'day' && (
+              <DayView day={selected} today={today} items={dayItems} blocks={blocksByDay.get(selected) ?? []} conflict={dayConflict} onOpen={openItem} />
+            )}
             {view === 'agenda' && (
               <AgendaView today={today} selected={selected} items={shown} blocks={visibleBlocks} conflicts={conflictByDay} onSelect={select} onAccept={accept} />
             )}
           </div>
-          {view !== 'agenda' && (
-            <p className="mt-3 text-xs text-ink-3">
-              Arrow keys move the day, Home and End jump to the week's ends{view === 'month' ? ', Page Up and Page Down change month' : ''}.
-            </p>
-          )}
+          <p className="mt-3 text-xs text-ink-3">
+            {view === 'day'
+              ? 'The arrows above move one day.'
+              : view === 'agenda'
+                ? 'Everything from today on, in date order.'
+                : `Arrow keys move the day, Home and End jump to the week's ends${view === 'month' ? ', Page Up and Page Down change month' : ''}.`}
+          </p>
         </Card>
 
         <aside className="grid gap-4 lg:sticky lg:top-6">
-          <Card className="p-5">
+          <Card className="cx-side-card p-5">
+            <UpcomingDeadlines found={found} onSelect={select} onOpen={setDetails} googleState={google.state} googleAccount={google.account} />
+          </Card>
+
+          <Card className="cx-side-card p-5">
             <DayPanel
               key={selected}
               day={selected}
@@ -313,6 +487,9 @@ export function Calendar() {
               conflict={dayConflict}
               conflictAdvice={dayConflict ? conflictAdvice(dayConflict, plan, today) : null}
               personal={personal}
+              found={found}
+              addRequest={addRequest}
+              googleConnected={Boolean(googleToken)}
               actions={actions}
               onOpen={setDetails}
               onAccept={accept}
@@ -373,6 +550,46 @@ export function Calendar() {
         </aside>
       </div>
 
+      <div className="mt-4 grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <BriefCard
+          brief={brief}
+          today={today}
+          source={localAssistant.source}
+          planOpen={planOpen}
+          overloaded={plan.overloaded}
+          onTogglePlan={() => setPlanOpen(!planOpen)}
+          onJump={select}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          {tiles.map((tile) => (
+            <Card key={tile.label} className="cal-tile cx-tile">
+              <span className="cal-tile-count" data-tone={tile.tone} data-zero={tile.count === 0}>
+                {tile.count}
+              </span>
+              <span className="text-sm leading-snug font-medium text-ink-2">{tile.label}</span>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {planOpen && (
+        <PlanCard
+          plan={plan}
+          today={today}
+          hours={hours}
+          accepted={acceptedInWindow}
+          source={localAssistant.source}
+          onHours={(weekday, value) => setHours(hours.map((h, index) => (index === weekday ? value : h)))}
+          onAccept={accept}
+          onAcceptAll={acceptAll}
+          onUnaccept={actions.remove}
+          onClearAccepted={clearAccepted}
+          onClose={() => setPlanOpen(false)}
+          onJump={select}
+        />
+      )}
+
+
       <div className="cx-toast-zone" aria-live="polite">
         {toast && (
           <div className="cx-toast" key={toast.text}>
@@ -381,7 +598,7 @@ export function Calendar() {
               <button
                 type="button"
                 onClick={() => {
-                  setPersonal(toast.undo!);
+                  restore(toast.undo!);
                   setToast(null);
                 }}
               >

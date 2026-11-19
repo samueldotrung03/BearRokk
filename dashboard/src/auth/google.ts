@@ -9,6 +9,8 @@ import { isDesktop } from './desktop.ts';
 /** account: plain Google access with no extra permission. */
 export type GoogleService = 'account' | 'calendar' | 'sheets';
 
+export const ALL_CALENDARS_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+
 export const GOOGLE_SCOPES: Partial<Record<GoogleService, string>> = {
   calendar: 'https://www.googleapis.com/auth/calendar.events',
   sheets: 'https://www.googleapis.com/auth/spreadsheets',
@@ -65,6 +67,8 @@ export async function requestGoogleAccess(services: GoogleService[], signal: Abo
     const scope = GOOGLE_SCOPES[s];
     if (scope) provider.addScope(scope);
   }
+  // Seeing every calendar on the account, not only the main one.
+  if (services.includes('calendar')) provider.addScope(ALL_CALENDARS_SCOPE);
   // Suggest the account they are signed in with.
   const email = mainAuth.currentUser?.email;
   if (email) provider.setCustomParameters({ login_hint: email });

@@ -97,8 +97,9 @@ export function MonthGrid({
                 aria-label={label}
                 onClick={() => onSelect(key)}
               >
-                <span className="flex items-center justify-between">
+                <span className="flex items-center justify-between gap-1">
                   <span className="cal-day">{date.getDate()}</span>
+                  {hidden > 0 && <span className="cal-more ml-auto">+{hidden}</span>}
                   {clash && (
                     <span className="cx-clash" title={`${clash.items.length} things you committed to land on this day`}>
                       <TriangleExclamationPoint className="size-3" strokeWidth={2.5} aria-hidden="true" />
@@ -116,7 +117,6 @@ export function MonthGrid({
                     {hoursLabel(block.hours)} · {block.title}
                   </span>
                 ))}
-                {hidden > 0 && <span className="cal-more">+{hidden} more</span>}
                 {load.level > 0 && <span className="cx-load" data-level={load.level} aria-hidden="true" />}
               </button>
             );

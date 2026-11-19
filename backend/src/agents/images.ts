@@ -6,6 +6,7 @@
 // Every picture is fetched once to check it is really an image of a usable size, so a card never
 // points at a broken link or a tiny icon stretched to fill the screen.
 import { limiter } from './fleet.ts';
+import { timeoutOrStop } from './stop.ts';
 import type { Candidate } from './types.ts';
 
 export type ImageKind = 'event' | 'logo' | 'stock' | 'generated';
@@ -168,7 +169,7 @@ export class ImageFinder {
 
   private async get(url: string, accept: string): Promise<Response | null> {
     try {
-      const res = await this.fetch(url, { headers: { 'user-agent': UA, accept }, redirect: 'follow', signal: AbortSignal.timeout(this.timeoutMs) });
+      const res = await this.fetch(url, { headers: { 'user-agent': UA, accept }, redirect: 'follow', signal: timeoutOrStop(this.timeoutMs) });
       return res.ok ? res : null;
     } catch {
       return null;

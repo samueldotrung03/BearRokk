@@ -62,6 +62,8 @@ async function main() {
     try {
       const request = new Provider();
       for (const name of wanted) request.addScope(SCOPES[name]);
+      // Seeing every calendar on the account, not only the main one.
+      if (wanted.includes('calendar')) request.addScope('https://www.googleapis.com/auth/calendar.readonly');
       const result = await fb.signInWithPopup(auth, request);
       const cred = Provider.credentialFromResult(result);
       const res = await fetch(`/api/auth/desktop/${session}`, {

@@ -3,9 +3,10 @@
 import { ArrowRight, Bell, CalendarPlus, Check, Download } from 'lucide-react';
 import { typeMeta } from '../meta.ts';
 import { Cover } from '../OpportunityCard.tsx';
-import { STATUSES, googleCalendarUrl, icsFile, progressOf, remindersFor, statusLabel } from '../../lib/applications.ts';
+import { STATUSES, progressOf, remindersFor, statusLabel } from '../../lib/applications.ts';
 import { wantsReminders } from '../../lib/apps/export.ts';
 import { dueLabel, shortDate } from '../../lib/time.ts';
+import { CalendarStatus } from '../CalendarStatus.tsx';
 import { useStore } from '../../state/StoreProvider.tsx';
 import { ReadinessRing, type GoTo, type Item } from './shared.tsx';
 
@@ -14,8 +15,6 @@ export function Summary({ item, goTo, compact = false }: { item: Item; goTo: GoT
   const { opportunity: o, application, info, readiness } = item;
   const { done, total } = progressOf(application, info);
   const reminders = remindersFor(application.status, o.deadline);
-  const calendar = googleCalendarUrl(o);
-  const ics = icsFile(o);
   const reminding = wantsReminders(application.status);
   const urgent = readiness.daysLeft !== null && readiness.daysLeft <= 7 && application.status !== 'applied';
   const next = readiness.next;
@@ -40,7 +39,14 @@ export function Summary({ item, goTo, compact = false }: { item: Item; goTo: GoT
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <div className="app-status" role="group" aria-label="Application status">
             {STATUSES.map((value) => (
-              <button key={value} type="button" aria-pressed={application.status === value} onClick={() => dispatch({ type: 'setApplication', id: o.id, status: value })}>
+              <button
+                key={value}
+                type="button"
+                aria-pressed={application.status === value}
+                onClick={() => {
+                  dispatch({ type: 'setApplication', id: o.id, status: value });
+                }}
+              >
                 {statusLabel[value]}
               </button>
             ))}
@@ -80,18 +86,7 @@ export function Summary({ item, goTo, compact = false }: { item: Item; goTo: GoT
               Sent. Reminders are off.
             </span>
           )}
-          {calendar && reminding && (
-            <a href={calendar} target="_blank" rel="noreferrer" className="app-link">
-              <CalendarPlus className="size-4" aria-hidden="true" />
-              Add to Google Calendar
-            </a>
-          )}
-          {ics && reminding && (
-            <a href={`data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`} download={`${o.id}.ics`} className="app-link">
-              <Download className="size-4" aria-hidden="true" />
-              .ics file
-            </a>
-          )}
+          {reminding && <CalendarStatus id={o.id} deadline={o.deadline} compact />}
         </div>
       </div>
     </div>

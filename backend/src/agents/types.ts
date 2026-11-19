@@ -269,7 +269,8 @@ export interface RunSnapshot {
   number: number;
   trigger: Trigger;
   mode: 'simulated' | 'live';
-  status: 'running' | 'complete' | 'failed';
+  /** stopped: the student stopped it part way. */
+  status: 'running' | 'complete' | 'failed' | 'stopped';
   startedAt: string;
   finishedAt: string | null;
   brief: Brief | null;
@@ -347,6 +348,8 @@ export interface Application {
     eventId: string | null;
     htmlLink: string | null;
     addUrl: string | null;
+    /** The deadline the Google Calendar event was made for, so a changed deadline moves the event. */
+    syncedDeadline?: string | null;
     error: string | null;
   };
 }
@@ -403,6 +406,19 @@ export interface ProfileMemory {
   resume: { name: string; type: string; size: number; uploadedAt: string; text: string | null; bytes: string } | null;
   reminderDays: number[];
   scheduleSeconds: number;
+  /** The Google Sheet the student linked for their saved list; their own file, so it sits with what they set. */
+  sheet?: LinkedSheet | null;
+  /**
+   * The student's lasting Google connection (Calendar, Sheets): a refresh token the backend trades
+   * for access when it needs it. Never sent to a page.
+   */
+  google?: { refreshToken: string; services: ('calendar' | 'sheets')[]; connectedAt: string; allCalendars?: boolean } | null;
+}
+
+export interface LinkedSheet {
+  spreadsheetId: string;
+  url: string;
+  syncedAt: string;
 }
 
 /** Section 2: what the app learned. The student does not edit it. */

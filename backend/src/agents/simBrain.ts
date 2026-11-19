@@ -1,6 +1,7 @@
 // Simulated agents. Same roles, inputs and outputs as the live ones, but every decision is made
 // by plain rules over the sample catalog, with short pauses so a run can be watched.
 import type { Brain, MasterInput } from './brain.ts';
+import { currentSignal, StoppedError } from './stop.ts';
 import { CATALOG, findByUrl, officialUrl, repostUrl, toCandidate, type CatalogItem } from './catalog.ts';
 import { noteMatch, noteSignals } from './scoring.ts';
 import { CATEGORY_LABEL, yearPlural, type ReviewFocus, type Assignment, type Brief, type Candidate, type FoundDeadline, type Category, type Lens, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
@@ -89,9 +90,21 @@ export class SimBrain implements Brain {
     this.now = opts.now ?? (() => new Date());
   }
 
-  private pause(ms: number, key: string) {
+  private pause(ms: number, key: string): Promise<void> {
+    const stop = currentSignal();
+    if (stop?.aborted) return Promise.reject(new StoppedError());
     if (this.speed === 0) return Promise.resolve();
-    return new Promise((r) => setTimeout(r, (ms * (0.7 + 0.6 * hash(key))) / this.speed));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, (ms * (0.7 + 0.6 * hash(key))) / this.speed);
+      stop?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          reject(new StoppedError());
+        },
+        { once: true },
+      );
+    });
   }
 
   private focusFor(category: Category, lens: Lens, input: MasterInput): string[] {

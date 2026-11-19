@@ -1,5 +1,6 @@
 // Thin client for the xAI Responses API with structured output and server-side search tools.
 import { z } from 'zod';
+import { throwIfStopped, timeoutOrStop } from './agents/stop.ts';
 import { config } from './config.ts';
 
 export type GrokTool = { type: 'web_search' } | { type: 'x_search' };
@@ -16,6 +17,8 @@ export async function grokJson<S extends z.ZodType>(opts: {
   model?: string;
   timeoutMs?: number;
 }): Promise<GrokResult<z.infer<S>>> {
+  // A stopped search makes no new calls.
+  throwIfStopped();
   if (config.grokTransport === 'claude') {
     // Temporary test path. See SWAP_TO_GROK.md.
     const { claudeCliJson } = await import('./claudeCli.ts');
@@ -33,7 +36,7 @@ export async function grokJson<S extends z.ZodType>(opts: {
   const res = await fetch(`${config.xaiBaseUrl}/responses`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${config.xaiApiKey}` },
-    signal: AbortSignal.timeout(opts.timeoutMs ?? config.grokTimeoutMs),
+    signal: timeoutOrStop(opts.timeoutMs ?? config.grokTimeoutMs),
     body: JSON.stringify({
       model: opts.model ?? config.xaiModel,
       input: [
