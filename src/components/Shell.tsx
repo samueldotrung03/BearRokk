@@ -49,6 +49,7 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (document.querySelector('[data-overlay]')) return;
       if (askOpen) {
         setAskOpen(false);
         return;

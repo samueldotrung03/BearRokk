@@ -1,17 +1,16 @@
-import { BrowserRouter, Route, Routes } from 'react-router';
-import { Shell } from './components/Shell.tsx';
+import { BrowserRouter } from 'react-router';
+import { AppRoutes } from './AppRoutes.tsx';
 import { ModeProvider } from './state/mode.tsx';
+import { StudentProvider } from './state/student.tsx';
 
 export function App() {
   return (
     <BrowserRouter>
-      <ModeProvider>
-        <Shell>
-          <Routes>
-            <Route path="*" element={<p className="simple" style={{ color: 'white' }}>Opening your recommendations…</p>} />
-          </Routes>
-        </Shell>
-      </ModeProvider>
+      <StudentProvider>
+        <ModeProvider>
+          <AppRoutes />
+        </ModeProvider>
+      </StudentProvider>
     </BrowserRouter>
   );
 }
