@@ -1,104 +1,221 @@
-import { Card, Page, StatusPill } from '../components/Page.tsx';
-import { agentEvents, agents } from '../data/sample.ts';
-import { relativeTime } from '../lib/time.ts';
-import type { AgentNode, AgentStatus } from '../types.ts';
+// The Agents page: a simulated live run of the Grok agent system on sample data. The run itself
+// is the pure engine in src/lib/agents; this page owns the clock (how fast beats arrive), the
+// student's standing instructions, and which agent is selected.
+import { Pause, Play, RotateCcw, Server, SkipForward } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { AnimatedNumber, clockText, compact } from '../components/agents/AnimatedNumber.tsx';
+import { Funnel } from '../components/agents/Funnel.tsx';
+import { useBackendStatus, useReducedMotion, type BackendState } from '../components/agents/hooks.ts';
+import { ActivityStream, NodeDetail } from '../components/agents/NodeDetail.tsx';
+import { RunGraph } from '../components/agents/RunGraph.tsx';
+import { BriefCard, TellBar, type StandingInstruction } from '../components/agents/TellAgents.tsx';
+import { MemoryCard, UsageCard } from '../components/agents/UsageMemory.tsx';
+import { Page, StatusPill } from '../components/Page.tsx';
+import { opportunities } from '../data/sample.ts';
+import { assignSlots, buildBrief, memoryFrom } from '../lib/agents/brief.ts';
+import { funnel, idleRun, runReducer, totals, type RunInput } from '../lib/agents/engine.ts';
+import { useLocal } from '../lib/useLocal.ts';
+import { useStore } from '../state/StoreProvider.tsx';
+import '../styles/agents.css';
 
-const statusMeta: Record<AgentStatus, { label: string; dot: string }> = {
-  running: { label: 'Running', dot: 'live-dot bg-[#34c759]' },
-  done: { label: 'Done', dot: 'bg-brand' },
-  idle: { label: 'Waiting', dot: 'bg-slate-300' },
-};
+const SPEEDS = [0.5, 1, 2, 4] as const;
+/** Real time per beat at 1x. A full run is about 17 beats, so roughly 22 seconds. */
+const BEAT_MS = 1300;
 
-function Status({ status }: { status: AgentStatus }) {
-  const meta = statusMeta[status];
+function BackendChip({ status }: { status: BackendState }) {
+  const text =
+    status.kind === 'checking'
+      ? 'Backend: checking…'
+      : status.kind === 'connected'
+        ? `Backend: connected${status.live ? '' : ' (no Grok key)'}`
+        : 'Backend: not running';
   return (
-    <span className="flex shrink-0 items-center gap-2 text-xs font-medium text-ink-2">
-      <span className={`size-2 rounded-full ${meta.dot}`} aria-hidden="true" />
-      {meta.label}
+    <span
+      className="ag-chip-dark"
+      title="The teammates' agent server on port 8787. This page runs its own simulation either way."
+      aria-live="polite"
+    >
+      <Server className="size-3.5" aria-hidden="true" />
+      <span className={`size-1.5 rounded-full ${status.kind === 'connected' ? 'bg-[#34c759]' : status.kind === 'offline' ? 'bg-white/40' : 'bg-[#f5c451]'}`} aria-hidden="true" />
+      {text}
     </span>
   );
 }
 
-function Node({ node, compact = false }: { node: AgentNode; compact?: boolean }) {
-  return (
-    <Card className={compact ? 'p-4' : 'p-5'}>
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="leading-snug font-semibold tracking-tight">{node.name}</h3>
-        <Status status={node.status} />
-      </div>
-      <p className="mt-0.5 text-sm text-ink-3">{node.role}</p>
-      <p className="mt-3 text-sm leading-relaxed text-ink-2">{node.detail}</p>
-    </Card>
-  );
-}
-
-/** A vertical connector between two levels of the hierarchy. */
-function Link() {
-  return <div className="mx-auto h-7 w-px bg-linear-to-b from-brand/50 to-brand/15" aria-hidden="true" />;
-}
-
-function Level({ label, hideLabel = false, children }: { label: string; hideLabel?: boolean; children: React.ReactNode }) {
-  return (
-    <section aria-label={label}>
-      {!hideLabel && <p className="mb-2 text-center text-sm font-medium text-ink-2">{label}</p>}
-      {children}
-    </section>
-  );
-}
-
 export function Agents() {
-  const all = [agents.master, ...agents.managers, ...agents.workers];
+  const { state } = useStore();
+  const reduced = useReducedMotion();
+  const backend = useBackendStatus();
+  const [instructions, setInstructions] = useLocal<StandingInstruction[]>('bearrok.agents.instructions', []);
+  const [storedSpeed, setSpeed] = useLocal<number>('bearrok.agents.speed', 1);
+  const speed = (SPEEDS as readonly number[]).includes(storedSpeed) ? storedSpeed : 1;
+  const [selected, setSelected] = useState('master');
+
+  const memory = useMemo(() => memoryFrom(state, opportunities), [state]);
+  const texts = useMemo(() => instructions.map((i) => i.text), [instructions]);
+  const inputFor = useCallback(
+    (list: string[], trigger: string): RunInput => ({ profile: state.profile, memory, instructions: list, dismissed: state.dismissed, trigger }),
+    [state.profile, state.dismissed, memory],
+  );
+
+  const [run, dispatch] = useReducer(runReducer, undefined, () => idleRun(inputFor(texts, 'Scheduled run.')));
+
+  // Open the page on a run already moving, the way a scheduled run would be. The ref keeps
+  // React's development double-mount from starting two runs.
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    dispatch({ type: 'start', input: inputFor(texts, 'Scheduled run. The demo starts one when you open this page.') });
+  }, [inputFor, texts]);
+
+  // The clock: one beat per tick while running. Cleared on pause, on every beat and on unmount.
+  const beatMs = BEAT_MS / speed;
+  useEffect(() => {
+    if (run.status !== 'running') return;
+    const timer = window.setTimeout(() => dispatch({ type: 'tick' }), beatMs);
+    return () => window.clearTimeout(timer);
+  }, [run.status, run.cursor, beatMs]);
+
+  const start = (list: string[], trigger: string) => dispatch({ type: 'start', input: inputFor(list, trigger) });
+
+  const send = (text: string) => {
+    const next = [...instructions.filter((i) => i.text.toLowerCase() !== text.toLowerCase()), { id: `${Date.now()}`, text }];
+    setInstructions(next);
+    setSelected('master');
+    // Per the design a student request is a trigger. Restarting at once lets the student watch
+    // their instruction become the brief and flow down the tree.
+    start(
+      next.map((i) => i.text),
+      `You said: "${text}"`,
+    );
+  };
+
+  const nextBrief = useMemo(() => buildBrief(state.profile, memory, texts), [state.profile, memory, texts]);
+  const nextSlots = useMemo(() => assignSlots(nextBrief), [nextBrief]);
+  const stale = run.status !== 'idle' && (nextBrief.summary !== run.brief.summary || JSON.stringify(nextSlots) !== JSON.stringify(run.slots));
+
+  const node = run.nodes.find((n) => n.id === selected) ?? run.nodes[0]!;
+  const t = totals(run);
+  const { counts } = funnel(run.candidates);
+  const shown = counts[4] ?? 0;
+  const stats: [string, number, ((n: number) => string) | undefined][] = [
+    ['agents working', t.working, undefined],
+    ['Grok calls', t.calls, undefined],
+    ['tokens', t.tokens, compact],
+    ['pages read', run.pages, undefined],
+    ['found', counts[0] ?? 0, undefined],
+    ['in your feed', shown, undefined],
+  ];
+
+  const runLabel = run.status === 'idle' ? 'Ready' : run.status === 'paused' ? 'Paused' : run.status === 'done' ? 'Done' : 'Running';
+
   return (
     <Page
       title="Your agents"
-      subtitle="Grok agents search for you around the clock. This is what they are doing right now."
+      subtitle="Watch the Grok agents search for you: the master briefs the managers, workers read the web, and validators decide what reaches you."
       aside={
         <StatusPill>
-          {all.filter((node) => node.status === 'running').length} of {all.length} agents working
+          {run.status === 'running'
+            ? `Run ${run.run} · ${t.working} of ${t.agents} agents working`
+            : run.status === 'done'
+              ? `Run ${run.run} done · ${shown} new in your feed`
+              : `${runLabel} · ${t.agents} agents`}
         </StatusPill>
       }
     >
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div>
-          <Level label="Master" hideLabel>
-            <div className="mx-auto max-w-md">
-              <Node node={agents.master} />
-            </div>
-          </Level>
-          <Link />
-          <Level label="Managers">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {agents.managers.map((node) => (
-                <Node key={node.id} node={node} />
+      <section className="ag-hero" aria-labelledby="ag-run-title">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 id="ag-run-title" className="font-display text-3xl leading-none">
+              Live run{run.run > 0 && <span className="text-white/55"> #{run.run}</span>}
+            </h2>
+            <span className="ag-chip-dark">
+              <span className="ag-dot" data-status={run.status === 'running' ? 'working' : run.status === 'paused' ? 'waiting' : run.status === 'done' ? 'done' : 'idle'} aria-hidden="true" />
+              {runLabel} · <span className="tabular-nums">{clockText(run.clock)}</span> simulated
+            </span>
+            <BackendChip status={backend} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Run controls">
+            <button type="button" className="ag-btn" data-primary="true" onClick={() => start(texts, 'Started by hand with Run now.')}>
+              <Play className="size-4" aria-hidden="true" />
+              Run now
+            </button>
+            <button
+              type="button"
+              className="ag-btn"
+              disabled={run.status !== 'running' && run.status !== 'paused'}
+              onClick={() => dispatch({ type: run.status === 'paused' ? 'resume' : 'pause' })}
+            >
+              {run.status === 'paused' ? <Play className="size-4" aria-hidden="true" /> : <Pause className="size-4" aria-hidden="true" />}
+              {run.status === 'paused' ? 'Resume' : 'Pause'}
+            </button>
+            <div className="ag-seg" role="group" aria-label="Speed">
+              {SPEEDS.map((s) => (
+                <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)}>
+                  {s === 0.5 ? '½' : s}×
+                </button>
               ))}
             </div>
-          </Level>
-          <Link />
-          <Level label="Workers">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {agents.workers.map((node) => (
-                <Node key={node.id} node={node} compact />
-              ))}
-            </div>
-          </Level>
+            <button
+              type="button"
+              className="ag-btn"
+              disabled={run.status !== 'running' && run.status !== 'paused'}
+              onClick={() => dispatch({ type: 'finish' })}
+              aria-label="Skip to the end of the run"
+              title="Skip to the end"
+            >
+              <SkipForward className="size-4" aria-hidden="true" />
+            </button>
+            <button type="button" className="ag-btn" onClick={() => dispatch({ type: 'reset', input: inputFor(texts, 'Nothing yet. Press Run now.') })} aria-label="Reset the run" title="Reset">
+              <RotateCcw className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+        <p className="ag-honest mt-2">Simulated run on sample data. With a Grok key the same view shows the real agents.</p>
+
+        <div className="mt-4">
+          <TellBar onSend={send} standing={instructions.length} />
         </div>
 
-        <aside className="lg:sticky lg:top-6 lg:self-start">
-          <Card className="p-6">
-            <h2 className="font-semibold tracking-tight">Activity</h2>
-            <ol className="mt-4 space-y-4 border-l border-line pl-5">
-              {agentEvents.map((event) => (
-                <li key={event.id} className="relative">
-                  <span className="absolute top-1.5 -left-[25px] size-2 rounded-full bg-brand ring-4 ring-white" aria-hidden="true" />
-                  <p className="text-xs text-ink-3">
-                    {event.agent} · {relativeTime(event.at)}
-                  </p>
-                  <p className="mt-0.5 text-sm leading-relaxed text-ink-2">{event.text}</p>
-                </li>
-              ))}
-            </ol>
-          </Card>
-        </aside>
+        <dl className="mt-5 grid grid-cols-3 gap-4 border-y border-white/10 py-4 sm:grid-cols-6">
+          {stats.map(([label, value, format]) => (
+            <div key={label}>
+              <dd className="ag-stat-num">
+                <AnimatedNumber value={value} format={format} reduced={reduced} />
+              </dd>
+              <dt className="ag-stat-label">{label}</dt>
+            </div>
+          ))}
+        </dl>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
+          <RunGraph run={run} selected={node.id} onSelect={setSelected} reduced={reduced} pulseMs={Math.min(beatMs * 0.9, 1400)} shown={shown} />
+          <div className="grid gap-4 md:h-[420px] md:grid-cols-2 xl:h-[540px] xl:grid-cols-1 xl:grid-rows-[minmax(0,1.15fr)_minmax(0,1fr)]">
+            <NodeDetail run={run} node={node} />
+            <div className="h-[300px] min-h-0 md:h-auto">
+              <ActivityStream log={run.log} nodes={run.nodes} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <Funnel run={run} reduced={reduced} />
+        <BriefCard
+          instructions={instructions}
+          onRemove={(id) => setInstructions((list) => list.filter((i) => i.id !== id))}
+          onClear={() => setInstructions([])}
+          brief={nextBrief}
+          slots={nextSlots}
+          stale={stale}
+          onApply={() => start(texts, 'Started with your updated instructions.')}
+        />
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <UsageCard run={run} reduced={reduced} />
+        <MemoryCard profile={state.profile} memory={memory} instructions={instructions.length} />
       </div>
     </Page>
   );

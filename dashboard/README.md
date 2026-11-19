@@ -135,3 +135,24 @@ An opportunity's window does not show a roadmap by default. It has a **Start the
 Each For you card plays a short muted, looping clip (`video` on the opportunity) instead of a still photo. Only the card on screen plays; clicking the picture pauses it, a thin bar shows progress, and the photo is the poster and the fallback when a clip is missing or fails. The sample clips are free stock videos loaded from Mixkit, so they need a network connection.
 
 The ranking runs again on every save, like and dislike. Cards the student already scrolled past keep their place; everything below the current card is re-ranked at once. A reaction counts in full for the same type and at half strength for sibling types (internship, research and scholarship are one family; event, hackathon and club the other).
+
+## Feed filters
+
+The Filters panel on the Feed tab filters by type, deadline window (this week, two weeks, a month, or no deadline), format, lowest fit score, and "only show" rules (saved, liked, on my roadmap, new today). Every choice shows how many cards it would leave given the search and the other filters, and a choice that would leave none is dimmed. Active filters appear as removable chips under the toolbar. The logic is in `src/lib/filters.ts`.
+
+## Calendar
+
+The Calendar page (`/calendar`) puts everything with a date on one month view: application deadlines, the reminders before them, start times, and roadmap steps, including the steps of any roadmap started for a single opportunity. `src/lib/calendar.ts` builds the list from the store. Each item is either **have to do** (orange: the student marked the opportunity "To apply" or "Applying", or already applied) or **should do** (blue: a roadmap step, or something saved or liked), and carries a sentence on why it is there. Picking a day shows its items with that reason, a tick box for roadmap steps, and links to the details, the roadmap or the applications. Tiles at the top count this week's items and anything overdue.
+
+## AI features on every page
+
+All of these are generated locally by rules over the sample data, each behind one function or interface that a Grok call can replace, and each page says so in a small line.
+
+- **Ask BearRok** (button in the corner or Cmd/Ctrl+K, `src/lib/assistant.ts`): answers from the feed, roadmap, applications and calendar, and offers the next action as a button. Nothing changes until the button is pressed.
+- **Command-/ launcher** (`src/components/Spotlight.tsx`, `src/lib/spotlight.ts`): a Spotlight-style search over pages, opportunities, roadmap steps and quick actions, with a preview pane and keyboard control.
+- **Feed roadmap panel** (`src/lib/roadmapMatch.ts`): a coach line on what to do first and why, and the opportunities in the feed that would cover unfinished roadmap steps. Feed cards are a fixed 216 by 288.
+- **Roadmap** (`src/lib/roadmapx/`): "Ask your roadmap" coach, Plan my week, readiness score, timeline view, "why this step" drawer with notes and resources, milestones, copy as text.
+- **Career discovery** (`src/lib/discover/`): six-question "Find my path" quiz, match explanations, detail view per path, "Ask about this career", compare table.
+- **Applications** (`src/lib/apps/`): "Outline my answer" and "Check my draft" on every question (outlines use only profile and posting facts and leave marked blanks), readiness score, "What to do next", board view, follow-up checklist, notes, one .ics export.
+- **Calendar** (`src/lib/cal/`): Today's brief, Plan my week with accept and undo, clash warnings, month, week and agenda views, personal items, filters, .ics export.
+- **Agents** (`src/lib/agents/`): a live map of the hierarchy (master, search managers, scouts and readers, validators, presentation) with pulses along the connectors, driven by a seeded run engine with Run, Pause, speed and Reset. "Tell your agents" turns a typed instruction into the master agent's brief; a validation funnel shows what was dropped and why; usage, budget and memory cards. The run is a simulation on sample data and the page says so. A chip shows whether the backend on port 8787 is reachable.

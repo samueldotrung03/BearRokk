@@ -773,10 +773,13 @@ body {
   margin-top: 14px;
 }
 
+/* Every card is the same fixed size. A wider window fits more per row; it never stretches them. */
 .feed-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: 240px;
+  grid-template-columns: repeat(auto-fill, 216px);
+  grid-auto-rows: 288px;
+  align-content: start;
+  justify-content: space-between;
   gap: 14px;
 }
 
@@ -853,9 +856,10 @@ body {
 .feed-roadmap {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   min-height: 0;
-  padding: 20px;
+  /* Room at the bottom so the Ask BearRok button never covers the last row. */
+  padding: 20px 20px 72px;
   border-radius: 24px;
   overflow-y: auto;
   scrollbar-width: none;
@@ -868,40 +872,110 @@ body {
   box-shadow: var(--shadow-card);
 }
 
-.feed-roadmap-list {
-  display: grid;
-  gap: 14px;
+.feed-coach {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(140deg, rgb(255 255 255 / 0.85), rgb(227 237 255 / 0.9));
+  box-shadow: inset 0 0 0 1px rgb(36 91 216 / 0.14);
 }
 
-.feed-roadmap-list li {
-  position: relative;
+.feed-coach-chips {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-/* The line that strings the upcoming steps together. */
-.feed-roadmap-list li:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: 13px;
-  top: 30px;
-  height: 12px;
-  width: 2px;
-  border-radius: 2px;
-  background: rgb(21 43 67 / 0.15);
-}
-
-.feed-roadmap-dot {
-  display: grid;
-  place-items: center;
-  width: 28px;
+.feed-coach-chips button {
   height: 28px;
   flex-shrink: 0;
+  padding: 0 10px;
   border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--color-brand);
   background: white;
   box-shadow: var(--shadow-card);
+}
+
+.feed-coach-chips button:hover {
+  color: white;
+  background: var(--color-brand);
+}
+
+/* The matched cards. The panel scrolls as a whole when the window is short. */
+.feed-roadmap-matches {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  margin: 8px -8px 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.feed-roadmap-matches li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 14px;
+  transition: background 0.15s;
+}
+
+.feed-roadmap-matches li:hover {
+  background: rgb(255 255 255 / 0.75);
+}
+
+.feed-match {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  padding: 6px 0 6px 8px;
+}
+
+.feed-match-thumb {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  color: var(--color-brand);
+  background: white;
+}
+
+.feed-match-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feed-match-tag {
+  padding: 0 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.feed-match-save {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  margin-right: 6px;
+  border-radius: 999px;
+  color: var(--color-ink-3);
+}
+
+.feed-match-save:hover,
+.feed-match-save[aria-pressed='true'] {
+  color: var(--color-brand);
+  background: white;
 }
 
 .feed-roadmap-link {
@@ -930,29 +1004,21 @@ body {
   .feed-main {
     flex: 1;
     min-height: 0;
-    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 360px;
   }
 
   .feed-grid {
     min-height: 0;
     overflow-y: auto;
     scrollbar-width: none;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-auto-rows: minmax(190px, 1fr);
     padding: 4px;
     margin: -4px;
   }
-
-  .feed-grid[data-count='1'],
-  .feed-grid[data-count='2'],
-  .feed-grid[data-count='3'] {
-    grid-auto-rows: minmax(190px, 62%);
-  }
 }
 
-@media (min-width: 1280px) and (min-height: 620px) {
+@media (max-width: 520px) {
   .feed-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1068,8 +1134,10 @@ body {
   z-index: 30;
   display: grid;
   gap: 14px;
-  width: min(340px, calc(100vw - 32px));
-  padding: 18px;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 170px);
+  overflow-y: auto;
+  padding: 20px 20px 0;
   border-radius: 18px;
   background: white;
   box-shadow:
@@ -1090,6 +1158,132 @@ body {
   font-size: 13px;
   font-weight: 700;
   color: var(--color-ink);
+}
+
+/* Stays in view while a short window makes the choices above it scroll. */
+.filter-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 16px;
+  border-top: 1px solid var(--color-line);
+  background: white;
+}
+
+/* A choice you can switch on, with the number of cards it would leave. */
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+  background: white;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.filter-pill:hover:not(:disabled) {
+  border-color: var(--color-brand);
+}
+
+.filter-pill[aria-pressed='true'] {
+  border-color: var(--color-brand);
+  color: white;
+  background: var(--color-brand);
+}
+
+.filter-pill-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-ink-3);
+  background: #f1f5f9;
+}
+
+.filter-pill[aria-pressed='true'] .filter-pill-count {
+  color: white;
+  background: rgb(255 255 255 / 0.22);
+}
+
+.filter-pill:disabled,
+.filter-list button:disabled,
+.filter-segment button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* One choice out of a short list, each with its count on the right. */
+.filter-list {
+  display: grid;
+  gap: 2px;
+}
+
+.filter-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--color-ink-2);
+  text-align: left;
+}
+
+.filter-list button span {
+  font-size: 12px;
+  color: var(--color-ink-3);
+}
+
+.filter-list button:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.filter-list button[aria-checked='true'] {
+  font-weight: 600;
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.filter-segment {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 3px;
+  border-radius: 12px;
+  background: #f1f5f9;
+}
+
+.filter-segment button {
+  height: 32px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+}
+
+.filter-segment button[aria-checked='true'] {
+  color: var(--color-ink);
+  background: white;
+  box-shadow: var(--shadow-card);
 }
 
 .feed-option {
@@ -1441,6 +1635,246 @@ body {
 
   .reel-toast {
     bottom: 92px;
+  }
+}
+
+/* ---------- Calendar ---------- */
+
+.cal-tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+.cal-tile-count {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 1;
+}
+
+.cal-tile-count[data-tone='must'],
+.cal-tile-count[data-tone='late'] {
+  color: #c2410c;
+}
+
+.cal-tile-count[data-tone='should'] {
+  color: var(--color-brand);
+}
+
+.cal-nav {
+  display: grid;
+  place-items: center;
+  height: 36px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  color: var(--color-ink-2);
+  background: white;
+}
+
+.cal-nav:hover {
+  background: #f1f5f9;
+}
+
+.cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cal-legend::before,
+.cal-dot {
+  content: '';
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-brand);
+}
+
+.cal-legend[data-priority='must']::before,
+.cal-item[data-priority='must'] .cal-dot {
+  background: #ea580c;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cal-weekday {
+  padding-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-ink-3);
+}
+
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  height: 92px;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  text-align: left;
+  background: white;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.cal-cell:hover {
+  border-color: var(--color-brand);
+}
+
+.cal-cell[data-outside='true'] {
+  background: rgb(248 250 252 / 0.7);
+}
+
+.cal-cell[data-outside='true'] > * {
+  opacity: 0.45;
+}
+
+.cal-cell[aria-selected='true'] {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px var(--color-brand);
+}
+
+.cal-day {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+
+.cal-cell[data-today='true'] .cal-day {
+  color: white;
+  background: var(--color-brand);
+}
+
+.cal-pill {
+  display: block;
+  flex-shrink: 0;
+  padding: 1px 6px;
+  overflow: hidden;
+  border-left: 3px solid var(--color-brand);
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1e3a8a;
+  background: var(--color-brand-soft);
+}
+
+.cal-pill[data-priority='must'] {
+  border-left-color: #ea580c;
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.cal-pill[data-done='true'] {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.cal-more {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-ink-3);
+}
+
+.cal-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-brand);
+}
+
+.cal-group[data-priority='must'] {
+  color: #c2410c;
+}
+
+.cal-group span {
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: white;
+  background: currentColor;
+}
+
+.cal-group span {
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.cal-group[data-priority='must'] span {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.cal-item {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-left: 3px solid var(--color-brand);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.cal-item[data-priority='must'] {
+  border-left-color: #ea580c;
+  background: #fff7ed;
+}
+
+.cal-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border-left: 3px solid var(--color-brand);
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.cal-next[data-priority='must'] {
+  border-left-color: #ea580c;
+}
+
+.cal-next:hover {
+  background: #f1f5f9;
+}
+
+.cal-next span:last-child {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--color-ink-3);
+}
+
+@media (max-width: 640px) {
+  .cal-cell {
+    height: 64px;
+  }
+
+  .cal-pill {
+    height: 6px;
+    padding: 0;
+    font-size: 0;
   }
 }
 

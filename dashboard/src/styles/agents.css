@@ -1,0 +1,688 @@
+/* Agents page. The hero follows the dark navy "Agents live" window (.usage-hero in index.css);
+   the cards below it use the same white glass as the rest of the dashboard. */
+
+.ag-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 22px 24px 24px;
+  color: white;
+  background:
+    radial-gradient(70% 60% at 100% 0%, rgb(86 150 255 / 0.42), transparent 62%),
+    radial-gradient(60% 50% at 0% 100%, rgb(36 91 216 / 0.35), transparent 60%),
+    linear-gradient(165deg, #1d3a5c 0%, #152b43 55%, #0f2236 100%);
+  box-shadow: var(--shadow-lift);
+}
+
+/* A faint dot grid, the "map paper" the hierarchy sits on. */
+.ag-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(180deg, transparent, black 30%, black 80%, transparent);
+}
+
+.ag-hero > * {
+  position: relative;
+}
+
+.ag-honest {
+  color: rgb(255 255 255 / 0.62);
+  font-size: 12.5px;
+}
+
+/* Buttons on the dark hero. */
+.ag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: rgb(255 255 255 / 0.1);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.ag-btn:hover {
+  background: rgb(255 255 255 / 0.18);
+}
+
+.ag-btn:active {
+  transform: translateY(1px);
+}
+
+.ag-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ag-btn[data-primary='true'] {
+  background: var(--color-brand);
+  border-color: rgb(120 170 255 / 0.6);
+  box-shadow: 0 6px 20px -8px rgb(36 91 216 / 0.9);
+}
+
+.ag-btn[data-primary='true']:hover {
+  background: #2f69ea;
+}
+
+.ag-seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 11px;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.ag-seg button {
+  height: 26px;
+  min-width: 36px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.ag-seg button[aria-pressed='true'] {
+  color: var(--color-ink);
+  background: white;
+}
+
+.ag-chip-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: rgb(255 255 255 / 0.8);
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+
+button.ag-chip-dark:hover {
+  color: white;
+  background: rgb(255 255 255 / 0.16);
+}
+
+/* "Tell your agents": the command bar at the top of the hero. */
+.ag-command {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.96);
+  color: var(--color-ink);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.6),
+    0 10px 40px -12px rgb(86 150 255 / 0.75);
+  transition: box-shadow 0.2s ease;
+}
+
+.ag-command:focus-within {
+  box-shadow:
+    0 0 0 3px rgb(245 196 81 / 0.85),
+    0 10px 40px -10px rgb(245 196 81 / 0.55);
+}
+
+.ag-command input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  background: transparent;
+  font-size: 15px;
+  outline: none;
+}
+
+.ag-command input::placeholder {
+  color: var(--color-ink-3);
+}
+
+.ag-directive {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  animation: ag-pop 0.25s ease-out both;
+}
+
+.ag-directive[data-kind='focus'] {
+  color: #0c5b2a;
+  background: #dcf7e6;
+}
+
+.ag-directive[data-kind='avoid'] {
+  color: #8a1c2f;
+  background: #ffe1e6;
+}
+
+.ag-directive[data-kind='only'] {
+  color: #6b4a00;
+  background: #fff0c7;
+}
+
+.ag-directive[data-kind='unknown'] {
+  color: var(--color-ink-2);
+  background: var(--color-brand-soft);
+  font-weight: 500;
+}
+
+.ag-hero .ag-directive[data-kind='unknown'] {
+  color: rgb(255 255 255 / 0.75);
+  background: rgb(255 255 255 / 0.1);
+}
+
+/* Counters. */
+.ag-stat-num {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-stat-label {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgb(255 255 255 / 0.58);
+}
+
+/* The hierarchy map. */
+.ag-graph-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 22px;
+  background: rgb(8 20 34 / 0.35);
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.ag-graph {
+  position: relative;
+}
+
+.ag-graph svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.ag-edge {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.13);
+  stroke-width: 1.5;
+  transition: stroke 0.3s ease, opacity 0.3s ease;
+}
+
+.ag-edge[data-active] {
+  stroke-width: 2;
+  stroke-dasharray: 5 7;
+  animation: ag-dash 0.7s linear infinite;
+}
+
+.ag-edge[data-active='brief'] { stroke: #f5c451; }
+.ag-edge[data-active='job'] { stroke: #8ec5ff; }
+.ag-edge[data-active='result'] { stroke: #b6ecff; }
+.ag-edge[data-active='keep'] { stroke: #34c759; }
+.ag-edge[data-active='reject'] { stroke: #ff7a8f; }
+.ag-edge[data-active='feed'] { stroke: white; }
+
+.ag-row-label {
+  position: absolute;
+  left: 14px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.38);
+  pointer-events: none;
+}
+
+.ag-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+  padding: 6px 10px;
+  border-radius: 14px;
+  text-align: left;
+  color: white;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.3s ease;
+}
+
+.ag-node:hover {
+  background: rgb(255 255 255 / 0.11);
+}
+
+.ag-node[aria-pressed='true'] {
+  outline: 2px solid white;
+  outline-offset: 3px;
+}
+
+.ag-node[data-status='working'] {
+  background: rgb(86 150 255 / 0.18);
+  border-color: rgb(140 190 255 / 0.75);
+  box-shadow:
+    0 0 0 1px rgb(120 180 255 / 0.25),
+    0 0 26px -2px rgb(86 150 255 / 0.55);
+}
+
+.ag-node[data-status='waiting'] {
+  border-color: rgb(245 196 81 / 0.55);
+}
+
+.ag-node[data-status='done'] {
+  border-color: rgb(52 199 89 / 0.45);
+}
+
+/* A shimmer along the bottom edge while an agent works. */
+.ag-node[data-status='working']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgb(190 225 255 / 0.95), transparent);
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  animation: ag-shimmer 1.2s ease-in-out infinite;
+}
+
+.ag-node[data-level='master'] {
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgb(86 150 255 / 0.4), transparent 60%),
+    rgb(255 255 255 / 0.08);
+}
+
+.ag-node[data-level='presenter'] {
+  border-radius: 16px;
+}
+
+.ag-node-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ag-node[data-level='master'] .ag-node-title {
+  font-size: 15px;
+}
+
+.ag-node-sub {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.ag-node-count {
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.75);
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #6b7f96;
+}
+
+.ag-dot[data-status='working'] {
+  background: #34c759;
+  box-shadow: 0 0 0 0 rgb(52 199 89 / 0.6);
+  animation: ag-ping 1.4s ease-out infinite;
+}
+
+.ag-dot[data-status='waiting'] {
+  background: #f5c451;
+}
+
+.ag-dot[data-status='done'] {
+  background: #5aa0ff;
+}
+
+.ag-feed-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--color-ink);
+  background: white;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 8px 30px -10px rgb(255 255 255 / 0.6);
+  transition: transform 0.2s ease;
+}
+
+.ag-feed-node:hover {
+  transform: translate(-50%, -50%) scale(1.04);
+}
+
+.ag-feed-node[data-flash='true'] {
+  animation: ag-flash 0.9s ease-out;
+}
+
+/* Side cards on the master's row: what started the run, and the brief it produced. */
+.ag-side-card {
+  position: absolute;
+  top: 14px;
+  width: calc(50% - 140px);
+  max-width: 250px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  line-height: 1.35;
+  background: rgb(255 255 255 / 0.05);
+  border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.ag-side-card[data-fresh='true'] {
+  animation: ag-glow 1.6s ease-out;
+}
+
+.ag-side-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.45);
+}
+
+/* Pulses that travel along the connectors. The path comes from the inline offset-path. */
+.ag-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  offset-rotate: 0deg;
+  offset-anchor: center;
+  pointer-events: none;
+  animation: ag-travel var(--ag-ms, 900ms) cubic-bezier(0.45, 0, 0.25, 1) both;
+}
+
+.ag-pulse[data-reverse='true'] {
+  animation-name: ag-travel-back;
+}
+
+.ag-pulse-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 12px 3px currentColor;
+}
+
+.ag-pulse-pill {
+  display: block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #152b43;
+  background: currentColor;
+  box-shadow: 0 0 16px 2px currentColor;
+}
+
+.ag-pulse-pill > span {
+  color: #152b43;
+}
+
+.ag-pulse[data-kind='brief'] { color: #f5c451; }
+.ag-pulse[data-kind='job'] { color: #8ec5ff; }
+.ag-pulse[data-kind='result'] { color: #b6ecff; }
+.ag-pulse[data-kind='keep'] { color: #34c759; }
+.ag-pulse[data-kind='reject'] { color: #ff7a8f; }
+.ag-pulse[data-kind='feed'] { color: white; }
+
+/* Detail panel and activity stream inside the hero. */
+.ag-panel {
+  border-radius: 20px;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.ag-panel-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.45);
+}
+
+.ag-log {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.2) transparent;
+}
+
+.ag-log li {
+  animation: ag-slide 0.35s ease-out both;
+}
+
+.ag-log-bar {
+  flex-shrink: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.25);
+}
+
+.ag-log-bar[data-tone='brief'] { background: #f5c451; }
+.ag-log-bar[data-tone='keep'] { background: #34c759; }
+.ag-log-bar[data-tone='reject'] { background: #ff7a8f; }
+.ag-log-bar[data-tone='done'] { background: #5aa0ff; }
+
+/* The funnel. Bars are centered so the stack reads as a funnel. */
+.ag-funnel-bar {
+  height: 34px;
+  margin: 0 auto;
+  border-radius: 10px;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-family: var(--font-display);
+  font-size: 22px;
+  background: linear-gradient(90deg, var(--color-brand), #4f8bf0);
+  box-shadow: 0 8px 20px -12px rgb(36 91 216 / 0.8);
+  transition: width 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+
+.ag-funnel-row[data-stage='4'] .ag-funnel-bar {
+  background: linear-gradient(90deg, #1f9d55, #34c759);
+  box-shadow: 0 8px 20px -12px rgb(31 157 85 / 0.9);
+}
+
+.ag-funnel-track {
+  border-radius: 10px;
+  background: var(--color-brand-soft);
+}
+
+.ag-reason {
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: white;
+}
+
+.ag-reason summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.ag-reason summary::-webkit-details-marker {
+  display: none;
+}
+
+.ag-reason[open] .ag-caret {
+  transform: rotate(90deg);
+}
+
+.ag-caret {
+  transition: transform 0.2s ease;
+}
+
+/* Brief card on white. */
+.ag-slot {
+  border-radius: 14px;
+  border: 1px solid var(--color-line);
+  background: linear-gradient(180deg, white, var(--color-canvas));
+  animation: ag-pop 0.3s ease-out both;
+}
+
+.ag-from {
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.ag-from[data-from='you'] { color: #6b4a00; background: #fff0c7; }
+.ag-from[data-from='profile'] { color: var(--color-brand); background: var(--color-brand-soft); }
+.ag-from[data-from='memory'] { color: #5b3fb5; background: #efe9ff; }
+
+/* Small bars for usage and the week chart. */
+.ag-meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  display: flex;
+}
+
+.ag-meter > span {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.ag-week {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: end;
+  gap: 8px;
+  height: 96px;
+}
+
+.ag-week-bar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 7px 7px 3px 3px;
+  background: #c9daf6;
+  transition: height 0.5s ease;
+}
+
+.ag-week-bar[data-today='true'] {
+  background: var(--color-brand);
+}
+
+.ag-week-bar > span {
+  background: #f5c451;
+  transition: height 0.5s ease;
+}
+
+@keyframes ag-travel {
+  from { offset-distance: 0%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  to { offset-distance: 100%; opacity: 0; }
+}
+
+@keyframes ag-travel-back {
+  from { offset-distance: 100%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  to { offset-distance: 0%; opacity: 0; }
+}
+
+@keyframes ag-dash {
+  to { stroke-dashoffset: -24; }
+}
+
+@keyframes ag-shimmer {
+  from { background-position: -50% 0; }
+  to { background-position: 150% 0; }
+}
+
+@keyframes ag-ping {
+  0% { box-shadow: 0 0 0 0 rgb(52 199 89 / 0.6); }
+  100% { box-shadow: 0 0 0 7px rgb(52 199 89 / 0); }
+}
+
+@keyframes ag-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ag-slide {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ag-glow {
+  0% { border-color: rgb(245 196 81 / 0.9); box-shadow: 0 0 0 3px rgb(245 196 81 / 0.25); }
+  100% { border-color: rgb(255 255 255 / 0.1); box-shadow: none; }
+}
+
+@keyframes ag-flash {
+  0% { box-shadow: 0 0 0 0 rgb(255 255 255 / 0.9); }
+  100% { box-shadow: 0 0 0 16px rgb(255 255 255 / 0); }
+}
+
+/* With reduced motion nothing travels or pulses; the states and counts still update. */
+@media (prefers-reduced-motion: reduce) {
+  .ag-pulse {
+    display: none;
+  }
+
+  .ag-edge[data-active],
+  .ag-node[data-status='working']::after,
+  .ag-dot[data-status='working'],
+  .ag-log li,
+  .ag-directive,
+  .ag-slot,
+  .ag-side-card[data-fresh='true'],
+  .ag-feed-node[data-flash='true'] {
+    animation: none;
+  }
+
+  .ag-funnel-bar,
+  .ag-meter > span,
+  .ag-week-bar,
+  .ag-week-bar > span,
+  .ag-node {
+    transition: none;
+  }
+}

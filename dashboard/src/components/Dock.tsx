@@ -3,6 +3,7 @@
 // the page moves over to make room.
 import {
   BookmarkSimple,
+  CalendarDots,
   ClipboardText,
   Compass,
   House,
@@ -37,6 +38,7 @@ export const dockItems: DockItem[] = [
   { to: '/roadmap', label: 'Roadmap', icon: Path, colors: ['#5cf2c0', '#19b5e6', '#3d6bff'] },
   { to: '/discover', label: 'Career discovery', icon: Compass, colors: ['#ff7ad9', '#9a5bff', '#4f8cff'] },
   { to: '/applications', label: 'Applications', icon: ClipboardText, colors: ['#7cf29c', '#22c4a6', '#2f7bff'] },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDots, colors: ['#ffd27a', '#ff8f5a', '#ff5a8a'] },
   { to: '/saved', label: 'Saved', icon: BookmarkSimple, colors: ['#ffd15c', '#ff8a3d', '#ff4f8b'] },
   { to: '/agents', label: 'Agents', icon: Robot, colors: ['#ff5fa2', '#ff7a45', '#b04bff'] },
   { to: '/profile', label: 'Profile', icon: UserCircle, colors: ['#9fb4ff', '#6a7cff', '#40e0d0'], bottom: true },

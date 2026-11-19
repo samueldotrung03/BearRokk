@@ -4,6 +4,8 @@ import type { Opportunity } from '../types.ts';
 import { rankFeed, rankFeedDetailed } from './ranking.ts';
 import { remindersFor, progressOf } from '../lib/applications.ts';
 import { answerQuestion } from '../lib/ask.ts';
+import { calendarItems, dayKey } from '../lib/calendar.ts';
+import { countActive, emptyFilters, matches, type FilterContext } from '../lib/filters.ts';
 import { evidenceFor, orderByEvidence } from '../lib/pathways.ts';
 import { buildOpportunityRoadmap, planFor } from '../lib/roadmap.ts';
 import { applicationInfo } from '../data/sample.ts';
@@ -260,6 +262,81 @@ describe('the feed reacts to what the student does', () => {
     let state = initialState;
     for (const id of ['opp-lumen-info', 'opp-career-fair']) state = reducer(state, { type: 'toggleLiked', id });
     expect(rank(state)).not.toEqual(rank(initialState));
-    expect(place(state, 'opp-career-fair')).toBeLessThan(place(initialState, 'opp-career-fair'));
+    // The first event in the feed comes sooner once events are liked.
+    const firstEvent = (st: AppState) => rankFeed(opportunities, st, NOW).findIndex((o) => o.type === 'event');
+    expect(firstEvent(state)).toBeLessThan(firstEvent(initialState));
+  });
+});
+
+describe('feed filters', () => {
+  const DAY = 86_400_000;
+  const base = opportunities.find((o) => o.id === 'opp-northwind-swe')!;
+  const make = (change: Partial<Opportunity>): Opportunity => ({ ...base, ...change });
+  const context: FilterContext = { saved: ['a'], liked: [], roadmap: new Set(['b']), now: NOW };
+  const inDays = (days: number) => new Date(NOW + days * DAY).toISOString();
+
+  it('lets everything through when nothing is switched on', () => {
+    expect(opportunities.every((o) => matches(o, emptyFilters, context))).toBe(true);
+    expect(countActive(emptyFilters)).toBe(0);
+  });
+
+  it('filters by deadline window and by having no deadline', () => {
+    const soon = make({ deadline: inDays(5) });
+    const later = make({ deadline: inDays(20) });
+    const open = make({ deadline: null });
+    expect([soon, later, open].map((o) => matches(o, { ...emptyFilters, deadline: 'week' }, context))).toEqual([true, false, false]);
+    expect([soon, later, open].map((o) => matches(o, { ...emptyFilters, deadline: 'month' }, context))).toEqual([true, true, false]);
+    expect([soon, later, open].map((o) => matches(o, { ...emptyFilters, deadline: 'none' }, context))).toEqual([false, false, true]);
+  });
+
+  it('requires every "only show" rule at once and applies the fit floor', () => {
+    const saved = make({ id: 'a', baseScore: 0.85, foundAt: inDays(-3) });
+    const onRoadmap = make({ id: 'b', baseScore: 0.6, foundAt: inDays(-0.5) });
+    expect(matches(saved, { ...emptyFilters, only: ['saved'] }, context)).toBe(true);
+    expect(matches(saved, { ...emptyFilters, only: ['saved', 'new'] }, context)).toBe(false);
+    expect(matches(onRoadmap, { ...emptyFilters, only: ['roadmap', 'new'] }, context)).toBe(true);
+    expect(matches(onRoadmap, { ...emptyFilters, minFit: 70 }, context)).toBe(false);
+    expect(matches(saved, { ...emptyFilters, minFit: 80, types: [base.type], format: base.format! }, context)).toBe(true);
+    expect(countActive({ types: [base.type], format: base.format!, deadline: 'week', minFit: 80, only: ['saved', 'new'] })).toBe(6);
+  });
+});
+
+describe('calendar', () => {
+  const find = (state: AppState, id: string) => calendarItems(state, NOW).find((item) => item.id === id);
+
+  it('marks a deadline the student committed to as a must, with reminders before it', () => {
+    // The sample state tracks the Northwind internship as "To apply".
+    const deadline = find(initialState, 'deadline-opp-northwind-swe')!;
+    expect(deadline.priority).toBe('must');
+    expect(deadline.why).toContain('To apply');
+    const reminders = calendarItems(initialState, NOW).filter((item) => item.kind === 'reminder');
+    expect(reminders.map((item) => item.id)).toEqual(['reminder-opp-northwind-swe-7 days before', 'reminder-opp-northwind-swe-2 days before']);
+    expect(reminders.every((item) => item.day < deadline.day)).toBe(true);
+  });
+
+  it('shows a saved card as a should, and nothing for a card the student never touched', () => {
+    expect(find(initialState, 'deadline-opp-harbor-data')).toBeUndefined();
+    const saved = reducer(initialState, { type: 'toggleSaved', id: 'opp-harbor-data' });
+    expect(find(saved, 'deadline-opp-harbor-data')!.priority).toBe('should');
+    const tracked = reducer(saved, { type: 'setApplication', id: 'opp-harbor-data', status: 'applying' });
+    expect(find(tracked, 'deadline-opp-harbor-data')!.priority).toBe('must');
+  });
+
+  it('puts roadmap steps on their due day with a reason, and carries the done mark', () => {
+    const step = calendarItems(initialState, NOW).find((item) => item.kind === 'step' && !item.done)!;
+    expect(step.why.length).toBeGreaterThan(20);
+    expect(step.day).toBe(dayKey(step.date));
+    const done = reducer(initialState, { type: 'toggleStep', id: step.stepId! });
+    expect(find(done, step.id)!.done).toBe(true);
+  });
+
+  it('is sorted by day with the musts first inside a day', () => {
+    const state = reducer(initialState, { type: 'addStep', id: 'opp-northwind-swe' });
+    const items = calendarItems(state, NOW);
+    for (let i = 1; i < items.length; i++) {
+      const [a, b] = [items[i - 1]!, items[i]!];
+      expect(a.day <= b.day).toBe(true);
+      if (a.day === b.day) expect(a.priority === 'should' && b.priority === 'must').toBe(false);
+    }
   });
 });

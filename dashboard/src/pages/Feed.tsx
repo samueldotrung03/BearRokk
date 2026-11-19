@@ -24,6 +24,19 @@ import { formatLabel, typeMeta } from '../components/meta.ts';
 import { Cover, Details, OpportunityTile } from '../components/OpportunityCard.tsx';
 import { RoadmapPanel } from '../components/RoadmapPanel.tsx';
 import { opportunities } from '../data/sample.ts';
+import {
+  countActive,
+  deadlineLabel,
+  emptyFilters,
+  fitOptions,
+  matches,
+  onlyLabel,
+  toggled,
+  type DeadlineFilter,
+  type FilterContext,
+  type Filters,
+  type OnlyFilter,
+} from '../lib/filters.ts';
 import { planFor } from '../lib/roadmap.ts';
 import { daysUntil, dueLabel, shortDate } from '../lib/time.ts';
 import { rankFeedDetailed, signalLabel, type RankedOpportunity } from '../state/ranking.ts';
@@ -31,7 +44,6 @@ import { useStore } from '../state/StoreProvider.tsx';
 import type { Format, Opportunity, OpportunityType } from '../types.ts';
 
 type Tab = 'foryou' | 'feed';
-type FormatFilter = 'any' | Format;
 type Sort = 'best' | 'deadline' | 'newest';
 
 const sortLabel: Record<Sort, string> = {
@@ -236,11 +248,9 @@ export function Feed() {
   const { state, dispatch } = useStore();
   const [tab, setTab] = useState<Tab>('foryou');
   const [query, setQuery] = useState('');
-  const [types, setTypes] = useState<OpportunityType[]>([]); // empty means every type
-  const [closingSoon, setClosingSoon] = useState(false);
+  const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterMenu = useRef<HTMLDivElement>(null);
-  const [format, setFormat] = useState<FormatFilter>('any');
   const [sort, setSort] = useState<Sort>('best');
   const [index, setIndex] = useState(0);
   const [details, setDetails] = useState<Opportunity | null>(null);
@@ -266,25 +276,32 @@ export function Feed() {
 
   const present = new Set(slides.map((r) => r.opportunity.type));
   const typeOptions = (Object.keys(typeMeta) as OpportunityType[]).filter((t) => present.has(t));
-  const activeCount = types.length + (format !== 'any' ? 1 : 0) + (closingSoon ? 1 : 0);
+  const activeCount = countActive(filters);
   const filtersOn = query.trim() !== '' || activeCount > 0;
-  const toggleType = (t: OpportunityType) =>
-    setTypes((current) => (current.includes(t) ? current.filter((value) => value !== t) : [...current, t]));
+  const patch = (change: Partial<Filters>) => setFilters((current) => ({ ...current, ...change }));
   const clearFilters = () => {
     setQuery('');
-    setTypes([]);
-    setFormat('any');
-    setClosingSoon(false);
+    setFilters(emptyFilters);
   };
-  const results = live
-    .map((r) => r.opportunity)
-    .filter(
-      (o) =>
-        (types.length === 0 || types.includes(o.type)) &&
-        (format === 'any' || o.format === format) &&
-        (!closingSoon || (o.deadline !== null && daysUntil(o.deadline) <= 14)) &&
-        matchesQuery(o, query),
-    );
+  const context: FilterContext = {
+    saved: state.saved,
+    liked: state.liked,
+    roadmap: new Set(
+      plan.steps.filter((step) => step.opportunityId && !state.doneSteps.includes(step.id)).map((step) => step.opportunityId!),
+    ),
+    now: Date.now(),
+  };
+  const searched = live.map((r) => r.opportunity).filter((o) => matchesQuery(o, query));
+  const results = searched.filter((o) => matches(o, filters, context));
+  // How many cards a choice would leave, with the search and the other filters as they are.
+  const countWith = (change: Partial<Filters>) => searched.filter((o) => matches(o, { ...filters, ...change }, context)).length;
+  const activeChips: { label: string; remove: () => void }[] = [
+    ...filters.types.map((value) => ({ label: typeMeta[value].plural, remove: () => patch({ types: toggled(filters.types, value) }) })),
+    ...(filters.format !== 'any' ? [{ label: formatLabel[filters.format], remove: () => patch({ format: 'any' }) }] : []),
+    ...(filters.deadline !== 'any' ? [{ label: deadlineLabel[filters.deadline], remove: () => patch({ deadline: 'any' }) }] : []),
+    ...(filters.minFit > 0 ? [{ label: `Fit ${filters.minFit}+`, remove: () => patch({ minFit: 0 }) }] : []),
+    ...filters.only.map((value) => ({ label: onlyLabel[value], remove: () => patch({ only: toggled(filters.only, value) }) })),
+  ];
   // "Best match" keeps the ranker's order; the other two sort on one field, with blanks last.
   if (sort === 'deadline') {
     const time = (o: Opportunity) => (o.deadline ? new Date(o.deadline).getTime() : Infinity);
@@ -484,40 +501,129 @@ export function Feed() {
 
                 {filtersOpen && (
                   <div id="feed-filters" className="feed-filter-panel" role="group" aria-label="Filters">
+                    <div className="flex items-baseline justify-between">
+                      <h2 className="text-base font-semibold">Filters</h2>
+                      <span className="text-sm text-ink-3">
+                        {results.length} of {searched.length} match
+                      </span>
+                    </div>
+
                     <fieldset>
                       <legend>Type</legend>
-                      <div className="grid grid-cols-2 gap-x-4">
-                        {typeOptions.map((value) => (
-                          <label key={value} className="feed-option">
-                            <input type="checkbox" checked={types.includes(value)} onChange={() => toggleType(value)} />
-                            {typeMeta[value].plural}
-                          </label>
-                        ))}
+                      <div className="filter-pills">
+                        {typeOptions.map((value) => {
+                          const Icon = typeMeta[value].icon;
+                          const on = filters.types.includes(value);
+                          const count = countWith({ types: [value] });
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              className="filter-pill"
+                              aria-pressed={on}
+                              disabled={count === 0 && !on}
+                              onClick={() => patch({ types: toggled(filters.types, value) })}
+                            >
+                              <Icon className="size-4" aria-hidden="true" />
+                              {typeMeta[value].plural}
+                              <span className="filter-pill-count">{count}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </fieldset>
 
                     <fieldset>
-                      <legend>Format</legend>
-                      <div className="grid grid-cols-2 gap-x-4">
-                        {(['any', ...Object.keys(formatLabel)] as FormatFilter[]).map((value) => (
-                          <label key={value} className="feed-option">
-                            <input type="radio" name="feed-format" checked={format === value} onChange={() => setFormat(value)} />
-                            {value === 'any' ? 'Any format' : formatLabel[value]}
-                          </label>
-                        ))}
+                      <legend>Only show</legend>
+                      <div className="filter-pills">
+                        {(Object.keys(onlyLabel) as OnlyFilter[]).map((value) => {
+                          const on = filters.only.includes(value);
+                          const count = countWith({ only: on ? filters.only : [...filters.only, value] });
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              className="filter-pill"
+                              aria-pressed={on}
+                              disabled={count === 0 && !on}
+                              onClick={() => patch({ only: toggled(filters.only, value) })}
+                            >
+                              {onlyLabel[value]}
+                              <span className="filter-pill-count">{count}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </fieldset>
 
-                    <fieldset>
-                      <legend>Deadline</legend>
-                      <label className="feed-option">
-                        <input type="checkbox" checked={closingSoon} onChange={(event) => setClosingSoon(event.target.checked)} />
-                        Closing within two weeks
-                      </label>
-                    </fieldset>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <fieldset>
+                        <legend>Deadline</legend>
+                        <div className="filter-list">
+                          {(Object.keys(deadlineLabel) as DeadlineFilter[]).map((value) => {
+                            const count = countWith({ deadline: value });
+                            return (
+                              <button
+                                key={value}
+                                type="button"
+                                role="radio"
+                                aria-checked={filters.deadline === value}
+                                disabled={count === 0 && filters.deadline !== value}
+                                onClick={() => patch({ deadline: value })}
+                              >
+                                {deadlineLabel[value]}
+                                <span>{count}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </fieldset>
 
-                    <div className="mt-1 flex items-center justify-between border-t border-line pt-3">
-                      <button type="button" onClick={clearFilters} className="h-9 text-sm font-semibold text-ink-2">
+                      <div className="grid content-start gap-4">
+                        <fieldset>
+                          <legend>Format</legend>
+                          <div className="filter-list">
+                            {(['any', ...Object.keys(formatLabel)] as Filters['format'][]).map((value) => {
+                              const count = countWith({ format: value });
+                              return (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={filters.format === value}
+                                  disabled={count === 0 && filters.format !== value}
+                                  onClick={() => patch({ format: value })}
+                                >
+                                  {value === 'any' ? 'Any format' : formatLabel[value]}
+                                  <span>{count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </fieldset>
+
+                        <fieldset>
+                          <legend>Fit score</legend>
+                          <div className="filter-segment">
+                            {fitOptions.map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                role="radio"
+                                aria-checked={filters.minFit === value}
+                                disabled={countWith({ minFit: value }) === 0 && filters.minFit !== value}
+                                onClick={() => patch({ minFit: value })}
+                              >
+                                {value === 0 ? 'Any' : `${value}+`}
+                              </button>
+                            ))}
+                          </div>
+                        </fieldset>
+                      </div>
+                    </div>
+
+                    <div className="filter-footer">
+                      <button type="button" onClick={clearFilters} disabled={!filtersOn} className="h-9 text-sm font-semibold text-ink-2 disabled:opacity-40">
                         Clear all
                       </button>
                       <button type="button" onClick={() => setFiltersOpen(false)} className="btn-primary h-9 px-4 text-sm text-white">
@@ -542,27 +648,13 @@ export function Feed() {
 
             {/* What is switched on, each removable, so the grid never looks filtered for no reason. */}
             <div className="feed-active">
-              {types.map((value) => (
-                <button key={value} type="button" onClick={() => toggleType(value)} className="feed-chip">
-                  {typeMeta[value].plural}
+              {activeChips.map((chip) => (
+                <button key={chip.label} type="button" onClick={chip.remove} className="feed-chip">
+                  {chip.label}
                   <XSmall className="size-3.5" aria-hidden="true" />
                   <span className="sr-only">Remove filter</span>
                 </button>
               ))}
-              {format !== 'any' && (
-                <button type="button" onClick={() => setFormat('any')} className="feed-chip">
-                  {formatLabel[format]}
-                  <XSmall className="size-3.5" aria-hidden="true" />
-                  <span className="sr-only">Remove filter</span>
-                </button>
-              )}
-              {closingSoon && (
-                <button type="button" onClick={() => setClosingSoon(false)} className="feed-chip">
-                  Closing within two weeks
-                  <XSmall className="size-3.5" aria-hidden="true" />
-                  <span className="sr-only">Remove filter</span>
-                </button>
-              )}
               {activeCount > 0 && (
                 <button type="button" onClick={clearFilters} className="h-9 px-2 text-sm font-semibold text-white">
                   Clear filters
