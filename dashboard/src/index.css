@@ -145,21 +145,23 @@ body {
   transform-origin: left center;
   opacity: 0;
   pointer-events: none;
-  will-change: transform, opacity;
-  /* Leaving: an even glide out, with the fade finishing just before it is off screen. */
+  /* Only the slide is animated. A fading element cannot blur the page behind it, so the glass
+     would show the content through; it stays fully there until it is off screen. */
+  will-change: transform;
+  /* Leaving: an even glide out, hidden only once it is off screen. */
   transition:
     transform 0.6s cubic-bezier(0.5, 0, 0.2, 1),
-    opacity 0.45s ease 0.05s;
+    opacity 0s linear 0.6s;
 }
 
 .dock-zone[data-open='true'] {
   transform: none;
   opacity: 1;
   pointer-events: auto;
-  /* Arriving: quick at first, then a long, soft settle. */
+  /* Arriving: quick at first, then a long, soft settle. It is solid glass from the first frame. */
   transition:
     transform 0.75s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.35s ease;
+    opacity 0s;
 }
 
 /* The contents follow the glass in, one row after another. */
@@ -222,6 +224,13 @@ body {
     inset 0 0 0 0.5px rgb(255 255 255 / 0.24),
     inset 0 1px 0 rgb(255 255 255 / 0.16),
     0 24px 60px -18px rgb(0 0 0 / 0.55);
+}
+
+/* Sliding out over the page, the sidebar is the same frosted glass with a wider blur, so what
+   is under it comes through as soft colour and never as shapes or text. */
+.dock-zone[data-pinned='false'] .dock-glass {
+  -webkit-backdrop-filter: blur(64px) saturate(170%);
+  backdrop-filter: blur(64px) saturate(170%);
 }
 
 .dock-spacer {
