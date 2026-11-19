@@ -1,5 +1,7 @@
 # Student Opportunities
 
+Project start date — November 19, 2026
+
 A student asks for the opportunities they want. A coordinating agent scopes the request, delegates discovery to Grok search agents, and brings back listings the student can check and act on. **The hackathon demo covers clubs and events.**
 
 ## The student problem
@@ -46,7 +48,7 @@ The event is **Thursday, November 19, 2026**. Grok account access is expected ar
 
 | When | Milestone | Evidence to move on |
 |---|---|---|
-| Wed, Nov 18 · planning | All three agree on names, one demo query, card fields, and the handoff between the pitch and dashboard. | Everyone can describe the same student journey. C has identified a real club page and a real event page to check. |
+| Thu, Nov 19 · kickoff | All three agree on names, one demo query, card fields, and the handoff between the pitch and dashboard. | Everyone can describe the same student journey. C has identified a real club page and a real event page to check. |
 | Thu, Nov 19 · before expected access | A prepares the discovery and storage path around sample records. B and C prepare the dashboard and pitch walkthrough using the manually checked listings. | The team can rehearse from the pitch through both cards to the organizer links. Prepared data is labeled, and a missing deadline stays unknown. |
 | Around 2 p.m. · account handover | A checks whether the handover includes API credentials, search-tool access, and usable allowance. B and C continue the rehearsal. | A records what the account actually supports. If available, one worker returns a real candidate and its source. |
 | After access · before the rehearsal cutoff | A and B trace one live student request through discovery, validation, storage, and display. C compares the displayed facts with the source. | A judge can follow a displayed claim back to the organizer. Record which parts ran live and how long the search took. |
@@ -77,6 +79,6 @@ The event is **Thursday, November 19, 2026**. Grok account access is expected ar
 
 ## Planning references
 
-The product direction comes from the team’s November 18 clarification and the supplied *Student Opportunity Platform: Brainstorming & Architecture Summary*. The *Luyten* README supplies the structure for describing the student problem, one complete journey, system responsibilities, evidence, and milestones.
+The product direction comes from the team’s product brief and the supplied *Student Opportunity Platform: Brainstorming & Architecture Summary*. The *Luyten* README supplies the structure for describing the student problem, one complete journey, system responsibilities, evidence, and milestones.
 
 This is the first README for BearRokk.
