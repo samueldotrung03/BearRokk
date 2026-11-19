@@ -16,6 +16,7 @@ const { app } = createApp(store, {}, agents);
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`backend listening on http://localhost:${port}`);
   console.log(`  store:  ${store.kind === 'firestore' ? 'Firestore' : `local file (${config.localDataFile})`}`);
-  console.log(`  agents: ${liveAvailable() ? `live, Grok ${config.xaiModel}` : 'simulated on sample data (no XAI_API_KEY)'}`);
+  const m = config.xaiModels;
+  console.log(`  agents: ${liveAvailable() ? `live Grok: master ${m.high}, managers/validation/presentation ${m.normal}, workers ${m.low}` : 'simulated on sample data (no XAI_API_KEY)'}`);
   console.log(`  watch:  http://localhost:${port}/`);
 });

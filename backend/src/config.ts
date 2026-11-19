@@ -5,6 +5,15 @@ export const config = {
   xaiApiKey: env.XAI_API_KEY?.trim() || null,
   xaiBaseUrl: env.XAI_BASE_URL ?? 'https://api.x.ai/v1',
   xaiModel: env.XAI_MODEL ?? 'grok-4.7',
+  /**
+   * One model per tier of the agent system.
+   * high: master agent. normal: search managers, validation agents, presentation manager. low: the worker fleet.
+   */
+  xaiModels: {
+    high: env.XAI_MODEL_HIGH ?? env.XAI_MODEL ?? 'grok-4.7',
+    normal: env.XAI_MODEL_NORMAL ?? 'grok-4.5',
+    low: env.XAI_MODEL_LOW ?? 'grok-4.3',
+  },
   /** Also give workers the X search tool. Off unless the account supports it. */
   xSearch: env.XAI_X_SEARCH === '1',
   /** Path to a Firebase service account JSON file. Without it, results stay in a local file. */

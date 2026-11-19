@@ -34,6 +34,7 @@
   text { fill: var(--ink); font-family: inherit; }
   .tier { fill: var(--ink-3); font-size: 13px; font-weight: 700; letter-spacing: .12em; }
   .tiersub { fill: var(--ink-3); font-size: 12px; }
+  .tiermodel { fill: var(--master); font-size: 12px; font-weight: 600; }
   .edge { stroke: var(--line); stroke-width: 1.5; fill: none; transition: stroke .3s, opacity .3s; }
   .edge.hot { stroke: var(--c, var(--master)); opacity: .85; }
   .edge.thin { stroke-width: 1; opacity: .55; }
@@ -126,8 +127,13 @@
     <text class="tier" x="24" y="408">3 · WORKER FLEET</text>
     <text class="tier" x="24" y="648">4 · VALIDATION AGENTS</text>
     <text class="tier" x="24" y="842">5 · PRESENTATION</text>
-    <text class="tiersub" x="24" y="426" id="fleetsub"></text>
-    <text class="tiersub" x="24" y="666" id="valsub"></text>
+    <text class="tiermodel" x="24" y="58">highest-tier model</text>
+    <text class="tiermodel" x="24" y="280">normal-tier model</text>
+    <text class="tiermodel" x="24" y="426">low-tier models</text>
+    <text class="tiermodel" x="24" y="666">normal-tier model</text>
+    <text class="tiermodel" x="24" y="860">normal-tier model</text>
+    <text class="tiersub" x="24" y="444" id="fleetsub"></text>
+    <text class="tiersub" x="24" y="684" id="valsub"></text>
     <g id="edges"></g>
     <g id="inputs"></g>
     <g id="nodes"></g>

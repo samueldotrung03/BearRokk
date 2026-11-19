@@ -7,6 +7,19 @@ import { grokJson, type GrokTool } from '../grok.ts';
 import type { Brain, MasterInput } from './brain.ts';
 import { CATEGORY_LABEL, type Assignment, type Brief, type Candidate, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
 
+/**
+ * Which model each level runs on. The master decides everything downstream, so it gets the
+ * strongest model. Workers are many and each does one small job, so they get the cheapest.
+ */
+const TIER = config.xaiModels;
+export const AGENT_TIERS = {
+  master: 'high',
+  searchManager: 'normal',
+  worker: 'low',
+  validator: 'normal',
+  presentationManager: 'normal',
+} as const;
+
 const tools = (): GrokTool[] => (config.xSearch ? [{ type: 'web_search' }, { type: 'x_search' }] : [{ type: 'web_search' }]);
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -47,6 +60,7 @@ export class GrokBrain implements Brain {
     });
     const { data } = await grokJson({
       name: 'master',
+      model: TIER.high,
       schema: Out,
       system: `You are the master agent of a system that finds opportunities for one student. You do not search. Read the student's profile and memory and write:
 - brief: goal (one line), hardCriteria (conditions a result must meet: class year, location or remote, still open), preferences (rank by these), avoid (kinds of thing the student keeps disliking), interests (lowercase fields).
@@ -69,6 +83,7 @@ Base everything on the profile and memory. Do not invent constraints.`,
     const Out = z.object({ jobs: z.array(z.object({ label: z.string(), query: z.string(), lensValue: z.string() })) });
     const { data } = await grokJson({
       name: 'search_manager',
+      model: TIER.normal,
       schema: Out,
       system: `You are a search manager for ${CATEGORY_LABEL[assignment.category].toLowerCase()}. Turn your assignment into at most 3 search jobs for scout workers. Each job has a short label, a web search query a scout should run, and the focus value it covers. Favor employer and organizer pages and public listings; avoid sites that need a login. Do not cover what the other managers cover.`,
       user: `Today is ${today()}.\nStudent brief: ${JSON.stringify(brief)}\nYour assignment: lens ${assignment.lens}, focus ${assignment.focus.join(', ')}\nOther managers: ${assignment.others.join('; ') || 'none'}`,
@@ -80,6 +95,7 @@ Base everything on the profile and memory. Do not invent constraints.`,
     const Out = z.object({ leads: z.array(z.object({ title: z.string(), url: z.string() })) });
     const { data } = await grokJson({
       name: 'scout',
+      model: TIER.low,
       schema: Out,
       tools: tools(),
       system: `You are a scout worker. Search the web and return up to 4 leads: real, currently open ${CATEGORY_LABEL[assignment.category].toLowerCase()} that could meet the student's hard criteria. Return only a title and the URL of the posting. Prefer postings the student has not been shown.`,
@@ -92,6 +108,7 @@ Base everything on the profile and memory. Do not invent constraints.`,
     const Out = z.object({ found: z.boolean(), record: CandidateSchema });
     const { data } = await grokJson({
       name: 'extractor',
+      model: TIER.low,
       schema: Out,
       tools: tools(),
       system: `You are an extractor worker. Open the lead. If it is a repost, follow it to the organizer's own page. Read the details off that page. Set found to false if the page cannot be opened or is not a real posting.\n${EVIDENCE}`,
@@ -104,6 +121,7 @@ Base everything on the profile and memory. Do not invent constraints.`,
     const Out = z.object({ prompts: z.array(z.string()), materials: z.array(z.string()) });
     const { data } = await grokJson({
       name: 'application_reader',
+      model: TIER.low,
       schema: Out,
       tools: tools(),
       system: 'You are an application reader. Open the application page and list the questions or essay prompts it asks, and the materials it requires (résumé, transcript, references). Copy prompts as written. Return empty lists if the page needs a login or shows none.',
@@ -116,6 +134,7 @@ Base everything on the profile and memory. Do not invent constraints.`,
     const Out = z.object({ keep: z.boolean(), reason: z.string(), fit: z.number(), record: CandidateSchema });
     const { data } = await grokJson({
       name: 'validator',
+      model: TIER.normal,
       schema: Out,
       tools: tools(),
       system: `You are a validation agent. Check one posting before a student sees it. Open the organizer's page and confirm: (1) every hard criterion holds, (2) it is the kind of thing this student is looking for and not just a keyword match, (3) it is real and still open. Correct any field the page contradicts. Set keep to false if any check fails and give the reason in one sentence. fit is 0 to 1: how well it matches the student's interests and preferences.\n${EVIDENCE}`,
@@ -130,6 +149,7 @@ Base everything on the profile and memory. Do not invent constraints.`,
     const Out = z.object({ cards: z.array(z.object({ id: z.string(), reason: z.string() })) });
     const { data } = await grokJson({
       name: 'presentation_manager',
+      model: TIER.normal,
       schema: Out,
       system: 'You are the presentation manager. For each opportunity write one sentence, addressed to the student, saying why it is in their feed. Refer to their interests, what they have liked, and who it is open to. Only state what the record supports.',
       user: `Brief: ${JSON.stringify(brief)}\nLiked: ${memory.likes.map((l) => l.feature).join(', ') || 'nothing yet'}\nOpportunities: ${JSON.stringify(kept.map((o) => ({ id: o.id, title: o.title, organizer: o.organizer, field: o.field, tags: o.tags, eligibility: o.eligibility, format: o.format, location: o.location })))}`,

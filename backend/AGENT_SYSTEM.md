@@ -57,6 +57,20 @@ Two more agents run on demand, not in every run:
 | **Career discovery** | Profile created or changed a lot | 3 to 5 career paths: what each is, why it fits, what it expects, first steps |
 | **Roadmap builder** | Student sets or changes a goal | Phases and dated steps; steps link to validated opportunities when one fits |
 
+### Model tiers
+
+Each level runs on a model matched to its job. The master makes the decisions everything else depends on, so it gets the strongest model. The fleet is many small jobs, so it gets the cheapest, which is where most of the calls and most of the cost are.
+
+| Level | Model tier | Default (`backend/.env` to change) |
+|---|---|---|
+| Master agent | Highest | `XAI_MODEL_HIGH`, `grok-4.7` |
+| Search managers | Normal | `XAI_MODEL_NORMAL`, `grok-4.5` |
+| Worker fleet (scouts, readers, application readers) | Low | `XAI_MODEL_LOW`, `grok-4.3` |
+| Validation agents | Normal | `XAI_MODEL_NORMAL` |
+| Presentation manager | Normal | `XAI_MODEL_NORMAL` |
+
+The default names come from xAI's model list and are not yet tested: each one has to support web search together with JSON output on the team's account, which needs checking when the key arrives.
+
 ### Search managers scale to what the student wants
 
 Search managers are not fixed one per category. Every run has the same number of manager slots, and the master decides how to fill them.
