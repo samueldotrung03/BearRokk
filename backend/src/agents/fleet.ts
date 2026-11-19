@@ -114,3 +114,27 @@ export async function pooled<T, R>(items: T[], limit: number, fn: (item: T) => P
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
   return out;
 }
+
+/** Runs at most `limit` of the given tasks at once, in the order they were handed in. */
+export function limiter(limit: number) {
+  let active = 0;
+  const queue: (() => void)[] = [];
+  const next = () => {
+    if (active >= limit) return;
+    const start = queue.shift();
+    if (start) start();
+  };
+  return <R>(task: () => Promise<R>): Promise<R> =>
+    new Promise<R>((resolve, reject) => {
+      queue.push(() => {
+        active++;
+        task()
+          .then(resolve, reject)
+          .finally(() => {
+            active--;
+            next();
+          });
+      });
+      next();
+    });
+}

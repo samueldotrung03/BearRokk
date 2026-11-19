@@ -406,6 +406,8 @@ export interface LearnedMemory {
   rejectedUrls: string[];
   /** Searches already run, newest last. */
   searches: SearchRecord[];
+  /** Postings read but not yet decided by the validation agents when the memory was saved. */
+  pending?: PendingPosting[];
   runs: RunRecord[];
   applications: Application[];
   runCount: number;
@@ -416,4 +418,13 @@ export interface StudentMemory {
   updatedAt: string;
   profile: ProfileMemory;
   learned: LearnedMemory;
+}
+
+/** A posting a reader brought back, stored before the validation agents have decided on it. */
+export interface PendingPosting {
+  key: string;
+  candidate: Candidate;
+  managerId: string;
+  alsoSeenAt: string[];
+  foundAt: string;
 }

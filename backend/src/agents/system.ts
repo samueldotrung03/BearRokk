@@ -5,7 +5,7 @@ import { addToCalendarUrl, type DeadlineEvent } from '../calendar.ts';
 import { resumeInfo, type Resume, type ResumeInfo } from '../resume.ts';
 import { canonicalUrl } from '../validate.ts';
 import type { Brain } from './brain.ts';
-import { Fleet, pooled } from './fleet.ts';
+import { Fleet, limiter } from './fleet.ts';
 import { allocateSlots, buildMemory, categoryWeights, noteSignals, rankFeed, summarize } from './scoring.ts';
 import {
   CATEGORY_LABEL,
@@ -24,6 +24,7 @@ import {
   type LearnedMemory,
   type LogEvent,
   type MemorySummary,
+  type PendingPosting,
   type Opportunity,
   type Profile,
   type RunRecord,
@@ -150,6 +151,8 @@ export class AgentSystem {
   private feedbackSinceRun = 0;
   /** Searches in a row started only to fill the feed. */
   private fillRuns = 0;
+  /** Postings read but not yet decided by the validation agents, kept so a stop does not lose them. */
+  private pending = new Map<string, PendingPosting>();
   /** Searches the scouts have run, newest last, and the outline of each finished run. */
   private searches: SearchRecord[] = [];
   private runs: RunRecord[] = [];
@@ -266,6 +269,7 @@ export class AgentSystem {
         rejected: [...this.rejected].map(([url, reason]) => ({ url, reason })),
         rejectedUrls: [...this.rejectedUrls],
         searches: this.searches,
+        pending: [...this.pending.values()],
         runs: this.runs,
         applications: [...this.applications.values()],
         runCount: this.runCount,
@@ -286,6 +290,7 @@ export class AgentSystem {
     this.rejected = new Map((l.rejected ?? []).map((r) => [r.url, r.reason]));
     this.rejectedUrls = new Set(l.rejectedUrls ?? []);
     this.searches = structuredClone(l.searches ?? []);
+    this.pending = new Map((l.pending ?? []).map((p) => [p.key, structuredClone(p)]));
     this.runs = structuredClone(l.runs ?? []);
     this.applications = new Map((l.applications ?? []).map((a) => [a.opportunityId, structuredClone(a)]));
     this.runCount = l.runCount ?? this.runs.length;
@@ -385,6 +390,7 @@ export class AgentSystem {
     this.feedbackSinceRun = 0;
     this.fillRuns = 0;
     this.searches = [];
+    this.pending.clear();
     this.runs = [];
     this.runCount = 0;
     this.run = null;
@@ -605,9 +611,148 @@ export class AgentSystem {
           this.emitRun();
         },
       });
-      const known = new Set([...[...this.opportunities.values()].map((o) => o.sourceUrl), ...this.rejectedUrls]);
+      const known = new Set([
+        ...[...this.opportunities.values()].map((o) => o.sourceUrl),
+        ...this.rejectedUrls,
+        ...[...this.pending.values()].map((p) => p.candidate.sourceUrl),
+      ]);
       let alreadyRejected = 0;
-      const found = new Map<string, { candidate: Candidate; managerId: string; alsoSeenAt: string[] }>();
+      type Found = { candidate: Candidate; managerId: string; alsoSeenAt: string[] };
+      const found = new Map<string, Found>();
+
+      // ---- validation, deadline finding and storing, posting by posting ------------------
+      // Each posting is handed to the validation agents the moment a reader brings it back, while
+      // the other workers keep searching. It is stored as pending as soon as it is read, and as a
+      // feed result as soon as its reviews keep it, so nothing found waits for the end of the run.
+      const verdicts = new Map<string, Partial<Record<ReviewFocus, Verdict>>>();
+      const kept: Opportunity[] = [];
+      const working: Promise<void>[] = [];
+      const reviewSlot = limiter(Math.max(2, Math.min(this.opts.concurrency, 6)));
+      let undated = 0;
+      let filled = 0;
+
+      // A posting whose own pages state no deadline is looked up on other public listings.
+      // A date is only taken with the page and the words it was read from, and never one that has passed.
+      const findDeadline = async (o: Opportunity) => {
+        undated++;
+        const hit = await fleet.run({ kind: 'deadline', managerId: o.foundBy, label: `Deadline: ${o.title}`, exempt: true }, async () => {
+          const value = await this.brain.findDeadline(o);
+          const due = value ? Date.parse(value.deadline) : NaN;
+          const usable = value !== null && !Number.isNaN(due) && due >= now().getTime();
+          return { value: usable ? value : null, summary: usable ? `${value.deadline.slice(0, 10)} on another listing` : value ? 'only a date that cannot be used' : 'no listing states one' };
+        });
+        if (!hit) return;
+        o.deadline = new Date(hit.deadline).toISOString();
+        o.deadlineSource = 'listing';
+        o.unknowns = o.unknowns.filter((u) => u.field !== 'deadline');
+        o.evidence = [...o.evidence.filter((e) => e.field !== 'deadline'), { field: 'deadline', quote: hit.quote, url: hit.url }];
+        filled++;
+        this.emitStudent();
+      };
+
+      /** Decide one posting once its last review is in. */
+      const settle = (key: string, f: Found) => {
+        const v = run.validations.find((x) => x.id === idFor(key))!;
+        const against = v.reviews.filter((r) => r.status !== 'kept');
+        if (against.length > 0) {
+          v.status = 'rejected';
+          v.reason = against.map((r) => `${r.reviewer}: ${r.reason}`).join(' ');
+          run.stats.rejected++;
+          const failedOnly = against.every((r) => r.reason?.startsWith('Could not be reviewed'));
+          // A review that only failed to run says nothing about the posting: one found earlier
+          // stays, and a new one is kept as pending to be reviewed again on the next run.
+          if (!failedOnly) {
+            this.pending.delete(key);
+            this.opportunities.delete(v.id);
+            this.rejected.set(key, v.reason);
+            this.rejectedUrls.add(f.candidate.sourceUrl);
+          }
+          log('Validation agents', `Rejected "${f.candidate.title}". ${against.map((r) => `${r.reviewer}: ${r.reason}`).join(' ')}`.replace(/\.?$/, '.'), 'bad');
+          this.emitStudent();
+          return;
+        }
+        const both = verdicts.get(key)!;
+        // The status reviewer read the official page, so its version of the facts is the one kept;
+        // the criteria reviewer's words are why it fits.
+        const c = (both.status ?? both.criteria)!.record;
+        const fits = v.reviews.map((r) => r.fit ?? 0);
+        const fit = Number((fits.reduce((x, y) => x + y, 0) / fits.length).toFixed(2));
+        v.status = 'kept';
+        v.fit = fit;
+        v.reason = (both.criteria ?? both.status)!.reason;
+        const id = v.id;
+        const previous = this.opportunities.get(id);
+        const unknowns: Unknown[] = c.deadline ? [] : [{ field: 'deadline', label: UNKNOWN_DEADLINE[CATEGORY_OF[c.type]] }];
+        const o: Opportunity = {
+          ...c,
+          id,
+          origin: this.brain.mode === 'live' ? 'live' : 'prepared',
+          fitExplanation: v.reason,
+          unknowns,
+          deadlineSource: c.deadline ? (c.deadlineSource ?? 'official') : null,
+          foundAt: previous?.foundAt ?? now().toISOString(),
+          lastCheckedAt: now().toISOString(),
+          baseScore: fit,
+          foundBy: assignments.find((a) => a.managerId === f.managerId)?.name ?? f.managerId,
+          alsoSeenAt: f.alsoSeenAt,
+          application: previous?.application ?? null,
+        };
+        kept.push(o);
+        if (!previous) this.newIds.add(id);
+        // Into the feed and the stored memory now. Later steps improve this same record.
+        this.pending.delete(key);
+        this.opportunities.set(id, o);
+        run.stats.kept = kept.length;
+        run.stats.added = this.newIds.size;
+        this.emitStudent();
+        if (!o.deadline) working.push(findDeadline(o).catch((e) => log('Worker fleet', `Deadline finder failed for "${o.title}": ${errorText(e)}`, 'bad')));
+      };
+
+      /** Store a posting the moment it is read, and send it to every validation agent. */
+      const review = (key: string, f: Found) => {
+        this.pending.set(key, { key, candidate: f.candidate, managerId: f.managerId, alsoSeenAt: f.alsoSeenAt, foundAt: now().toISOString() });
+        const v: Validation = {
+          id: idFor(key),
+          title: f.candidate.title,
+          managerId: f.managerId,
+          status: 'checking',
+          reason: null,
+          fit: null,
+          reviews: REVIEWERS.map((r) => ({ focus: r.focus, reviewer: r.name, status: 'checking', reason: null, fit: null })),
+        };
+        run.validations.push(v);
+        this.emitStudent();
+        this.emitRun();
+        const reviews = REVIEWERS.map((reviewer) =>
+          reviewSlot(async () => {
+            const r = v.reviews.find((x) => x.focus === reviewer.focus)!;
+            try {
+              const verdict = await this.brain.validate(f.candidate, brief, summary, reviewer.focus);
+              verdicts.set(key, { ...verdicts.get(key), [reviewer.focus]: verdict });
+              r.status = verdict.keep ? 'kept' : 'rejected';
+              r.reason = verdict.reason;
+              r.fit = verdict.keep ? verdict.fit : null;
+            } catch (e) {
+              // A review that could not be done is not a pass.
+              r.status = 'rejected';
+              r.reason = `Could not be reviewed: ${errorText(e)}`;
+            }
+            this.emitRun();
+          }),
+        );
+        working.push(Promise.all(reviews).then(() => settle(key, f)));
+      };
+
+      // Postings an earlier run read but stopped before reviewing go first.
+      const carried = [...this.pending.values()].filter((p) => !this.opportunities.has(idFor(p.key)) && !this.rejected.has(p.key));
+      if (carried.length) {
+        log('Validation agents', `${carried.length} postings read in an earlier search were not reviewed before it stopped. Reviewing them now.`);
+        for (const p of carried) {
+          const f: Found = { candidate: p.candidate, managerId: p.managerId, alsoSeenAt: p.alsoSeenAt };
+          found.set(p.key, f);
+          review(p.key, f);
+        }
+      }
 
       await Promise.all(
         assignments.map(async (a, index) => {
@@ -661,8 +806,10 @@ export class AgentSystem {
                       log(a.name, `Merged a repost of "${candidate.title}" into the record already found`);
                       return;
                     }
-                    found.set(official, { candidate, managerId: a.managerId, alsoSeenAt: key === official ? [] : [lead.url] });
+                    const posting: Found = { candidate, managerId: a.managerId, alsoSeenAt: key === official ? [] : [lead.url] };
+                    found.set(official, posting);
                     mine++;
+                    review(official, posting);
                   }),
                 );
               }),
@@ -681,115 +828,15 @@ export class AgentSystem {
       run.stats.skipped = fleet.jobs.filter((j) => j.status === 'skipped').length;
       if (run.stats.skipped) log('Worker fleet', `${run.stats.skipped} jobs were not run: the run's budget was reached`);
 
-      // 3. Validation agents ----------------------------------------------------------
-      // Every posting the workers brought back is reviewed, with none left out, and each one
-      // gets a separate review from every validation agent. It is kept only if all of them keep it.
-      const queue = [...found.entries()];
-      run.validations = queue.map(([key, f]): Validation => ({
-        id: idFor(key),
-        title: f.candidate.title,
-        managerId: f.managerId,
-        status: 'checking',
-        reason: null,
-        fit: null,
-        reviews: REVIEWERS.map((r) => ({ focus: r.focus, reviewer: r.name, status: 'checking', reason: null, fit: null })),
-      }));
-      this.emitRun();
-
-      const verdicts = new Map<string, Partial<Record<ReviewFocus, Verdict>>>();
-      const tasks = queue.flatMap(([key, f]) => REVIEWERS.map((reviewer) => ({ key, f, reviewer })));
-      await pooled(tasks, Math.max(2, Math.min(this.opts.concurrency, 6)), async ({ key, f, reviewer }) => {
-        const review = run.validations.find((x) => x.id === idFor(key))!.reviews.find((r) => r.focus === reviewer.focus)!;
-        try {
-          const verdict = await this.brain.validate(f.candidate, brief, summary, reviewer.focus);
-          verdicts.set(key, { ...verdicts.get(key), [reviewer.focus]: verdict });
-          review.status = verdict.keep ? 'kept' : 'rejected';
-          review.reason = verdict.reason;
-          review.fit = verdict.keep ? verdict.fit : null;
-        } catch (e) {
-          // A review that could not be done is not a pass.
-          review.status = 'rejected';
-          review.reason = `Could not be reviewed: ${errorText(e)}`;
-        }
-        this.emitRun();
-      });
-
-      const kept: Opportunity[] = [];
-      for (const [key, f] of queue) {
-        const v = run.validations.find((x) => x.id === idFor(key))!;
-        const against = v.reviews.filter((r) => r.status !== 'kept');
-        if (against.length > 0) {
-          v.status = 'rejected';
-          v.reason = against.map((r) => `${r.reviewer}: ${r.reason}`).join(' ');
-          run.stats.rejected++;
-          this.opportunities.delete(v.id);
-          // Remembered so it is not re-checked every run, unless a review simply failed to run.
-          if (against.every((r) => !r.reason?.startsWith('Could not be reviewed'))) {
-            this.rejected.set(key, v.reason);
-            this.rejectedUrls.add(f.candidate.sourceUrl);
-          }
-          log('Validation agents', `Rejected "${f.candidate.title}". ${against.map((r) => `${r.reviewer}: ${r.reason}`).join(' ')}`.replace(/\.?$/, '.'), 'bad');
-          continue;
-        }
-        const both = verdicts.get(key)!;
-        // The status reviewer read the official page, so its version of the facts is the one kept;
-        // the criteria reviewer's words are why it fits.
-        const c = (both.status ?? both.criteria)!.record;
-        const fits = v.reviews.map((r) => r.fit ?? 0);
-        const fit = Number((fits.reduce((x, y) => x + y, 0) / fits.length).toFixed(2));
-        v.status = 'kept';
-        v.fit = fit;
-        v.reason = (both.criteria ?? both.status)!.reason;
-        const id = v.id;
-        const previous = this.opportunities.get(id);
-        const unknowns: Unknown[] = c.deadline ? [] : [{ field: 'deadline', label: UNKNOWN_DEADLINE[CATEGORY_OF[c.type]] }];
-        kept.push({
-          ...c,
-          id,
-          origin: this.brain.mode === 'live' ? 'live' : 'prepared',
-          fitExplanation: v.reason,
-          unknowns,
-          foundAt: previous?.foundAt ?? now().toISOString(),
-          lastCheckedAt: now().toISOString(),
-          baseScore: fit,
-          foundBy: assignments.find((a) => a.managerId === f.managerId)?.name ?? f.managerId,
-          alsoSeenAt: f.alsoSeenAt,
-          application: previous?.application ?? null,
-        });
-        if (!previous) this.newIds.add(id);
-      }
-      this.emitRun();
+      // 3. Waiting for the reviews and deadline finders still running -------------------
+      while (working.length) await Promise.all(working.splice(0));
       run.stats.kept = kept.length;
       run.stats.added = this.newIds.size;
-      log('Validation agents', `Reviewed all ${queue.length} postings, ${REVIEWERS.length} reviews each (${tasks.length} in total): kept ${kept.length}, rejected ${run.stats.rejected}`, 'good');
+      this.emitRun();
+      log('Validation agents', `Reviewed all ${run.validations.length} postings, ${REVIEWERS.length} reviews each, as they came in: kept ${kept.length}, rejected ${run.stats.rejected}`, 'good');
+      if (undated) log('Worker fleet', `${undated} postings stated no deadline on the organizer's pages. Other listings gave one for ${filled}; the rest stay marked unknown.`, filled ? 'good' : 'info');
 
-      // 4. Deadline finders (from the fleet) ------------------------------------------
-      // A posting whose own pages state no deadline is looked up on other public listings.
-      // A date is only taken with the page and the words it was read from, and never one that has passed.
-      for (const o of kept) if (o.deadline && !o.deadlineSource) o.deadlineSource = 'official';
-      const undated = kept.filter((o) => !o.deadline);
-      if (undated.length) {
-        let filled = 0;
-        await Promise.all(
-          undated.map(async (o) => {
-            const hit = await fleet.run({ kind: 'deadline', managerId: o.foundBy, label: `Deadline: ${o.title}`, exempt: true }, async () => {
-              const value = await this.brain.findDeadline(o);
-              const due = value ? Date.parse(value.deadline) : NaN;
-              const usable = value !== null && !Number.isNaN(due) && due >= now().getTime();
-              return { value: usable ? value : null, summary: usable ? `${value.deadline.slice(0, 10)} on another listing` : value ? 'only a date that cannot be used' : 'no listing states one' };
-            });
-            if (!hit) return;
-            o.deadline = new Date(hit.deadline).toISOString();
-            o.deadlineSource = 'listing';
-            o.unknowns = o.unknowns.filter((u) => u.field !== 'deadline');
-            o.evidence = [...o.evidence.filter((e) => e.field !== 'deadline'), { field: 'deadline', quote: hit.quote, url: hit.url }];
-            filled++;
-          }),
-        );
-        log('Worker fleet', `${undated.length} postings stated no deadline on the organizer's pages. Other listings gave one for ${filled}; the rest stay marked unknown.`, filled ? 'good' : 'info');
-      }
-
-      // 5. Application readers (from the fleet) for the strongest new results ----------
+      // 4. Application readers (from the fleet) for the strongest new results ----------
       const toRead = kept.filter((o) => !o.application).sort((a, b) => b.baseScore - a.baseScore).slice(0, 4);
       await Promise.all(
         toRead.map(async (o) => {
@@ -800,7 +847,7 @@ export class AgentSystem {
         }),
       );
 
-      // 6. Presentation manager -------------------------------------------------------
+      // 5. Presentation manager -------------------------------------------------------
       const presenter = node({ id: 'presentation', level: 'presentation', name: 'Presentation manager', role: 'Orders the feed and writes the reasons', status: 'running', detail: 'Writing why each card fits…' });
       const reasons = await this.brain.present(kept, brief, summary);
       for (const o of kept) {
