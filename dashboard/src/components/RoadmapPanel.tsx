@@ -4,12 +4,11 @@
 import { ArrowRight, Bookmark, BookmarkCheck, Check, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { opportunities } from '../data/sample.ts';
 import { planFor } from '../lib/roadmap.ts';
 import { coachLine, opportunitiesForRoadmap } from '../lib/roadmapMatch.ts';
 import { daysUntil, dueLabel, shortDate } from '../lib/time.ts';
-import { rankFeed } from '../state/ranking.ts';
 import { useOpportunities } from '../state/live.tsx';
+import { rankFeed } from '../state/ranking.ts';
 import { useStore } from '../state/StoreProvider.tsx';
 import type { Opportunity } from '../types.ts';
 import { askAssistant } from './Assistant.tsx';
@@ -23,7 +22,9 @@ const QUESTIONS = ['What should I do this week?', 'Am I on track?', 'What are my
 export function RoadmapPanel({ highlight }: { highlight?: (opportunityId: string | null) => void }) {
   const { state, dispatch } = useStore();
   const [details, setDetails] = useState<Opportunity | null>(null);
-  const plan = planFor(state);
+  // What the agents found, not the sample set.
+  const opportunities = useOpportunities();
+  const plan = planFor(state, opportunities);
   const { roadmap, steps, doneCount, percent, next } = plan;
   const matches = opportunitiesForRoadmap(plan, state, rankFeed(opportunities, state), 9);
   const nextCard = next?.opportunityId ? opportunities.find((o) => o.id === next.opportunityId && !state.dismissed.includes(o.id)) : undefined;

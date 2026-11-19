@@ -32,6 +32,11 @@ export interface Brain {
    */
   findDeadline(candidate: Candidate): Promise<FoundDeadline | null>;
   /**
+   * Draws an SVG illustration for a posting no real or stock picture could be found for.
+   * Null when the agents cannot draw (the simulated agents never do).
+   */
+  illustrate(candidate: Candidate): Promise<string | null>;
+  /**
    * Validation agent: one review of one posting. `focus` says which review this is: "criteria"
    * (does it meet the student's rules and is it what they want?) or "status" (is it real and still open?).
    */

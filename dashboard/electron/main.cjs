@@ -86,8 +86,6 @@ ipcMain.handle('permissions:open', (_event, kind) => {
   return true;
 });
 
-backend.mount();
-
 // Clicking a deadline notification: the page's own window.focus() is not relied on to raise or
 // un-minimize the window, so the page asks the shell to bring it to the front.
 ipcMain.on('window:focus', (event) => {
@@ -98,6 +96,8 @@ ipcMain.on('window:focus', (event) => {
   window.focus();
   if (process.platform === 'darwin') app.focus({ steal: true });
 });
+
+backend.mount();
 
 app.whenReady().then(async () => {
   // The page needs the backend from its first request, so it is started before the window opens.

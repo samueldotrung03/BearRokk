@@ -6,7 +6,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthProvider.tsx';
 import { API_URL } from '../auth/firebase.ts';
-import { applicationInfo, coverFor, opportunities as sampleOpportunities } from '../data/sample.ts';
+import { applicationInfo, coverFor } from '../data/sample.ts';
 import type { AgentEvent, AgentNode, Opportunity, OpportunityType } from '../types.ts';
 import { useStore } from './StoreProvider.tsx';
 
@@ -24,6 +24,9 @@ interface BackendOpportunity {
   deadline: string | null;
   startTime: string | null;
   image: string | null;
+  imageKind?: Opportunity['imageKind'];
+  imageCredit?: string | null;
+  imageCreditUrl?: string | null;
   unknowns: Opportunity['unknowns'];
   foundAt: string;
   lastCheckedAt: string;
@@ -52,7 +55,7 @@ interface BackendRun {
   finishedAt: string | null;
   error: string | null;
   agents: { id: string; level: 'master' | 'manager' | 'presentation'; name: string; role: string; status: 'idle' | 'running' | 'done' | 'failed'; detail: string }[];
-  jobs: { id: string; kind: 'scout' | 'extract' | 'application' | 'deadline'; label: string; status: 'queued' | 'running' | 'done' | 'failed' | 'skipped'; result: string | null }[];
+  jobs: { id: string; kind: 'scout' | 'extract' | 'application' | 'deadline' | 'image'; label: string; status: 'queued' | 'running' | 'done' | 'failed' | 'skipped'; result: string | null }[];
   validations: { id: string; title: string; status: 'checking' | 'kept' | 'rejected'; reason: string | null; fit: number | null; reviews?: { reviewer: string; status: 'checking' | 'kept' | 'rejected'; reason: string | null }[] }[];
   log: { seq: number; at: string; agent: string; text: string }[];
   stats: { jobs: number; kept: number; rejected: number; added: number };
@@ -99,7 +102,8 @@ const hash = (text: string) => {
 /** A backend result as the card the pages draw. */
 function toCard(entry: BackendFeedEntry, simulated: boolean): Opportunity {
   const o = entry.opportunity;
-  // The agents do not collect pictures yet, so a card without one gets a stock clip for its kind.
+  // The agents look for a picture (event, logo, stock photo, or an illustration they draw). Only a
+  // card they found nothing for gets a stock clip for its kind.
   const cover = coverFor(o.type, hash(o.id));
   return {
     id: o.id,
@@ -116,6 +120,9 @@ function toCard(entry: BackendFeedEntry, simulated: boolean): Opportunity {
     startTime: o.startTime,
     image: o.image ?? cover.image,
     video: o.image ? null : cover.video,
+    imageKind: o.image ? (o.imageKind ?? null) : null,
+    imageCredit: o.image ? (o.imageCredit ?? null) : null,
+    imageCreditUrl: o.image ? (o.imageCreditUrl ?? null) : null,
     imageAspect: 0.8 + 0.5 * hash(o.id),
     tags: o.tags,
     unknowns: o.unknowns,
@@ -130,7 +137,7 @@ const nodeStatus = (s: string): AgentNode['status'] => (s === 'running' || s ===
 
 function toAgents(run: BackendRun): LiveAgents {
   const node = (a: BackendRun['agents'][number]): AgentNode => ({ id: a.id, name: a.name, role: a.role, status: nodeStatus(a.status), detail: a.status === 'failed' ? `Failed. ${a.detail}` : a.detail });
-  const kind = { scout: 'Scout: searches for leads', extract: 'Reader: opens a posting and reads its details', application: 'Application reader: collects prompts and materials', deadline: 'Deadline finder: checks other listings for a deadline' };
+  const kind = { scout: 'Scout: searches for leads', extract: 'Reader: opens a posting and reads its details', application: 'Application reader: collects prompts and materials', deadline: 'Deadline finder: checks other listings for a deadline', image: 'Picture finder: event photo, logo, stock photo or a drawn illustration' };
   const master = run.agents.find((a) => a.level === 'master');
   const presenter = run.agents.find((a) => a.level === 'presentation');
   const jobs = run.jobs.filter((j) => j.status !== 'skipped');
@@ -269,9 +276,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       usingLive,
       provider: student?.provider ?? 'simulated',
       feedTarget: student?.feedTarget ?? FEED_TARGET,
-      // Real agent results stand alone. A simulated run is invented and covers few fields, so the
-      // prepared sample set, which spans every field, is shown with it.
-      opportunities: !usingLive ? sampleOpportunities : simulated ? [...sampleOpportunities, ...liveCards] : liveCards,
+      // Only what the agents found. The sample set is not mixed in: pages show real results or say why they are empty.
+      opportunities: liveCards,
       agents: status === 'connected' && run ? toAgents(run) : null,
       searching: status === 'connected' && run?.status === 'running',
       runNow: async () => {

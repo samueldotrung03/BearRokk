@@ -120,6 +120,16 @@ export interface Candidate {
   deadlineSource?: 'official' | 'listing' | null;
   startTime: string | null;
   image: string | null;
+  /**
+   * What the picture is, best first: the event's own, the organizer's logo, a free stock photo,
+   * or an AI-generated illustration. Unset until the image finder has looked.
+   */
+  imageKind?: 'event' | 'logo' | 'stock' | 'generated' | null;
+  /** The photographer and licence of a stock photo, or the label on a generated one. */
+  imageCredit?: string | null;
+  imageCreditUrl?: string | null;
+  /** When pictures were last looked for. One that found none is looked for again a day later. */
+  imageTriedAt?: string;
   evidence: Evidence[];
 }
 
@@ -198,7 +208,7 @@ export interface AgentNode {
   detail: string;
 }
 
-export type JobKind = 'scout' | 'extract' | 'application' | 'deadline';
+export type JobKind = 'scout' | 'extract' | 'application' | 'deadline' | 'image';
 
 export interface Job {
   id: string;
@@ -406,6 +416,8 @@ export interface LearnedMemory {
   rejectedUrls: string[];
   /** Searches already run, newest last. */
   searches: SearchRecord[];
+  /** Postings read but not yet decided by the validation agents when the memory was saved. */
+  pending?: PendingPosting[];
   runs: RunRecord[];
   applications: Application[];
   runCount: number;
@@ -416,4 +428,13 @@ export interface StudentMemory {
   updatedAt: string;
   profile: ProfileMemory;
   learned: LearnedMemory;
+}
+
+/** A posting a reader brought back, stored before the validation agents have decided on it. */
+export interface PendingPosting {
+  key: string;
+  candidate: Candidate;
+  managerId: string;
+  alsoSeenAt: string[];
+  foundAt: string;
 }

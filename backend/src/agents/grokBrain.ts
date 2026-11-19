@@ -156,6 +156,18 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     return { deadline: data.deadline, url: data.url, quote: data.quote };
   }
 
+  async illustrate(candidate: Candidate): Promise<string | null> {
+    const Out = z.object({ svg: z.string() });
+    const { data } = await grokJson({
+      name: 'illustrator',
+      model: TIER.low,
+      schema: Out,
+      system: `You draw a simple, attractive cover illustration as SVG for an opportunity card, used only when no photo of it exists. Rules: one <svg> element with viewBox="0 0 800 500" and no width or height; flat shapes, gradients and paths only; no text, letters, logos, people's faces, or brand marks; no <image>, <use>, <style>, <script>, links, external references or data URLs; under 7000 characters. Show the subject in an abstract way (for example a laptop and circuit lines for a coding hackathon, flasks for a lab, a stage for a conference) in a calm palette.`,
+      user: `Type: ${candidate.type}\nField: ${candidate.field ?? 'not stated'}\nTitle: ${candidate.title}\nTags: ${candidate.tags.join(', ') || 'none'}`,
+    });
+    return data.svg;
+  }
+
   async readApplication(candidate: Candidate) {
     const Out = z.object({ prompts: z.array(z.string()), materials: z.array(z.string()) });
     const { data } = await grokJson({

@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { GrokBrain } from './agents/grokBrain.ts';
+import { ImageFinder } from './agents/images.ts';
 import { SimBrain } from './agents/simBrain.ts';
 import { AgentSystem } from './agents/system.ts';
 import type { StudentMemory } from './agents/types.ts';
@@ -11,7 +12,7 @@ import { UserFirestore } from './store/userFirestore.ts';
 
 const store = await openStore();
 // Live agents need a key; without one the same system runs on simulated agents and sample data.
-const feed = { feedTarget: config.feed.target, maxFillRuns: config.feed.maxFillRuns };
+const feed = { feedTarget: config.feed.target, maxFillRuns: config.feed.maxFillRuns, images: new ImageFinder() };
 const newSystem = (profile = {}) =>
   liveAvailable()
     ? new AgentSystem(

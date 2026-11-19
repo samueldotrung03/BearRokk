@@ -20,7 +20,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, NavLink, useNavigate } from 'react-router';
-import { agentEvents, agents, agentUsage, opportunities, roadmaps } from '../data/sample.ts';
+import { roadmaps } from '../data/sample.ts';
 import { matchesShortcut, useShortcuts } from '../lib/shortcuts.ts';
 import { relativeTime } from '../lib/time.ts';
 import { useLive, useOpportunities, type LiveAgents } from '../state/live.tsx';

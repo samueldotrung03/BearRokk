@@ -826,3 +826,96 @@ test('memory: deleting the account removes what was stored', async () => {
   const second = backendOn(file);
   assert.equal((await second.call('GET', '/api/students/me/state', 'token-ana')).body.student.runCount, 0);
 });
+
+test('memory: postings are kept and stored as soon as they pass review, so a run that stops part way loses none of them', async () => {
+  // The run breaks at its last step, after every posting was reviewed.
+  class BreaksLate extends SimBrain {
+    override async present(): Promise<Map<string, string>> {
+      throw new Error('stopped');
+    }
+  }
+  const s = new AgentSystem(new BreaksLate({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  let saves = 0;
+  s.onChange(() => saves++);
+  await s.trigger('first');
+  const run = s.currentRun()!;
+  assert.equal(run.status, 'failed');
+  const kept = run.validations.filter((v) => v.status === 'kept').map((v) => v.id).sort();
+  assert.ok(kept.length > 0);
+  assert.deepEqual(s.student().feed.map((f) => f.opportunity.id).sort(), kept);
+  assert.ok(saves > kept.length, 'the memory was saved as each posting was kept');
+
+  // What was stored comes back in a new backend, and the next search builds on it.
+  const next = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  next.restore(JSON.parse(JSON.stringify(s.memorySnapshot())));
+  assert.deepEqual(next.student().feed.map((f) => f.opportunity.id).sort(), kept);
+  await next.trigger('manual');
+  const after = next.student().feed.map((f) => f.opportunity.id);
+  assert.ok(kept.every((id) => after.includes(id)), 'nothing found earlier was dropped');
+  assert.ok(after.length > kept.length, 'the new search added to what was there');
+});
+
+
+const until = async (check: () => boolean, ms = 3000) => {
+  const end = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > end) throw new Error('timed out waiting');
+    await new Promise((r) => setTimeout(r, 5));
+  }
+};
+
+test('storing: postings reach the feed and the stored memory while other workers are still searching', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  // One search manager's scouts are slow; the others finish.
+  class SlowManager extends SimBrain {
+    override async scout(...args: Parameters<SimBrain['scout']>) {
+      if (args[1].managerId === 'manager-4') await gate;
+      return super.scout(...args);
+    }
+  }
+  const s = new AgentSystem(new SlowManager({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  const saved: number[] = [];
+  s.onChange(() => saved.push(s.memorySnapshot().learned.opportunities.length));
+  const done = s.trigger('first');
+  await until(() => s.student().feed.length > 0);
+  assert.equal(s.currentRun()!.status, 'running', 'the run is still going');
+  assert.ok(s.currentRun()!.jobs.some((j) => j.kind === 'scout' && j.status === 'running'), 'a scout is still searching');
+  assert.ok(s.memorySnapshot().learned.opportunities.length > 0, 'already in the memory that is saved');
+  assert.ok(saved.some((n) => n > 0), 'and a save was asked for');
+  release();
+  await done;
+  assert.equal(s.currentRun()!.status, 'complete');
+  assert.ok(s.student().feed.length > saved.find((n) => n > 0)!);
+});
+
+test('storing: a posting read but not yet reviewed is stored as pending, and reviewed first by the next run', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let stuck = '';
+  // Reviews of one posting never finish: the backend stops while they run.
+  class Stops extends SimBrain {
+    override async validate(...args: Parameters<SimBrain['validate']>) {
+      if (!stuck) stuck = args[0].title;
+      if (args[0].title === stuck) await gate;
+      return super.validate(...args);
+    }
+  }
+  const s = new AgentSystem(new Stops({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  void s.trigger('first');
+  await until(() => s.currentRun()!.validations.filter((v) => v.status !== 'checking').length >= 3);
+  const memory = JSON.parse(JSON.stringify(s.memorySnapshot()));
+  assert.ok(memory.learned.pending.some((p: any) => p.candidate.title === stuck), 'stored before any review came back');
+  assert.ok(!memory.learned.pending.some((p: any) => memory.learned.opportunities.some((o: Opportunity) => o.title === p.candidate.title)), 'kept ones leave pending');
+
+  // A new backend starts from that memory: the unreviewed posting is reviewed, not lost.
+  const next = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  next.restore(memory);
+  await next.trigger('manual');
+  const run = next.currentRun()!;
+  assert.ok(run.log.some((l) => l.text.includes('were not reviewed before it stopped')));
+  const v = run.validations.find((x) => x.title === stuck)!;
+  assert.ok(v && v.status !== 'checking');
+  assert.equal(next.memorySnapshot().learned.pending?.length ?? 0, 0, 'nothing is left pending after a full run');
+  release();
+});

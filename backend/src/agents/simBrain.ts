@@ -217,6 +217,11 @@ export class SimBrain implements Brain {
     return item ? toCandidate(item, this.now()) : null;
   }
 
+  /** Simulated agents do not draw: an invented picture would pass for a made one. */
+  async illustrate(_candidate: Candidate): Promise<string | null> {
+    return null;
+  }
+
   /** The sample postings have no second listing to read a deadline from. */
   async findDeadline(_candidate: Candidate): Promise<FoundDeadline | null> {
     return null;
