@@ -1,11 +1,13 @@
 // HTTP API the dashboard calls. See backend/README.md for the contract.
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { mountAgents } from './agents/api.ts';
+import type { AgentSystem } from './agents/system.ts';
 import { config } from './config.ts';
 import { Engine, UserError, type Deps, type Mode } from './pipeline.ts';
 import type { Store } from './store/index.ts';
 
-export function createApp(store: Store, deps: Partial<Deps> = {}) {
+export function createApp(store: Store, deps: Partial<Deps> = {}, agents?: AgentSystem) {
   const engine = new Engine(store, deps);
   const app = new Hono();
   app.use('/api/*', cors());
@@ -35,6 +37,8 @@ export function createApp(store: Store, deps: Partial<Deps> = {}) {
   });
 
   app.get('/api/searches', async (c) => c.json({ searches: await store.listSearches(20) }));
+
+  if (agents) mountAgents(app, agents);
 
   app.onError((err, c) => {
     if (err instanceof UserError) return c.json({ error: err.message }, err.status as 400);

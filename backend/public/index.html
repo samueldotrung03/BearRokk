@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grok agent system</title>
+<style>
+  :root {
+    --bg: #080b12; --panel: #111624; --ink: #f1f4fb; --ink-2: #aab3c8; --ink-3: #6b7590; --line: #232a3d;
+    --master: #8ea2ff; --good: #3ddc97; --bad: #ff6b6b; --warn: #ffc857; --idle: #39425a;
+    --m1: #5b8cff; --m2: #d37bff; --m3: #ff9a4d; --m4: #2fd3cb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: radial-gradient(1200px 600px at 50% -10%, #17203a 0%, var(--bg) 60%) fixed; color: var(--ink); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; min-height: 100vh; }
+  button { font: inherit; color: inherit; }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0; font-size: 18px; letter-spacing: -.01em; }
+  .pill { padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; background: #3a2f10; color: var(--warn); white-space: nowrap; }
+  .pill.live { background: #10382a; color: var(--good); }
+  .stats { display: flex; flex-wrap: wrap; gap: 6px 18px; flex: 1; color: var(--ink-2); font-size: 13px; }
+  .stats b { color: var(--ink); font-variant-numeric: tabular-nums; font-size: 15px; margin-right: 4px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { background: transparent; border: 0; padding: 7px 12px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: #1b2540; color: var(--ink); font-weight: 600; }
+  .seg button:hover { color: var(--ink); }
+  .run { background: var(--master); color: #0a0f24; border: 0; border-radius: 9px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
+  .run:disabled { opacity: .5; cursor: default; }
+
+  .stagewrap { flex: 1; min-height: 0; padding: 6px 12px 0; display: flex; }
+  svg { width: 100%; height: auto; max-height: calc(100vh - 150px); display: block; margin: auto; }
+  text { fill: var(--ink); font-family: inherit; }
+  .tier { fill: var(--ink-3); font-size: 13px; font-weight: 700; letter-spacing: .12em; }
+  .tiersub { fill: var(--ink-3); font-size: 12px; }
+  .edge { stroke: var(--line); stroke-width: 1.5; fill: none; transition: stroke .3s, opacity .3s; }
+  .edge.hot { stroke: var(--c, var(--master)); opacity: .85; }
+  .edge.thin { stroke-width: 1; opacity: .55; }
+
+  .input rect { fill: var(--panel); stroke: var(--line); }
+  .input text { font-size: 13px; fill: var(--ink-2); }
+  .input.hot rect { stroke: var(--master); } .input.hot text { fill: var(--ink); }
+
+  .ring { fill: none; stroke: var(--c, var(--master)); stroke-width: 3; stroke-dasharray: 10 8; opacity: 0; transform-box: fill-box; transform-origin: center; }
+  .working > .ring { opacity: 1; animation: spin 2.4s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .core { fill: var(--panel); stroke: var(--c, var(--master)); stroke-width: 2.5; transition: fill .3s; }
+  .done > .core { fill: color-mix(in srgb, var(--c, var(--master)) 22%, var(--panel)); }
+  .halo { fill: var(--c, var(--master)); opacity: .14; transform-box: fill-box; transform-origin: center; animation: breathe 2.6s ease-in-out infinite; }
+  .working > .halo { opacity: .3; animation-duration: 1.1s; }
+  @keyframes breathe { 50% { transform: scale(1.18); opacity: .06; } }
+
+  .name { font-size: 15px; font-weight: 700; }
+  .role { font-size: 12px; fill: var(--ink-2); }
+  .state { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; fill: var(--ink-3); }
+  .working .state { fill: var(--c, var(--master)); } .done .state { fill: var(--good); } .failed .state { fill: var(--bad); }
+  .command { font-size: 17px; font-weight: 600; }
+  .commandsub { font-size: 13px; fill: var(--ink-2); }
+
+  .mgr rect.box { fill: var(--panel); stroke: var(--c); stroke-width: 2; rx: 14; transition: fill .3s; }
+  .mgr.working rect.box { fill: color-mix(in srgb, var(--c) 14%, var(--panel)); }
+  .mgr .glow { fill: none; stroke: var(--c); stroke-width: 6; opacity: 0; rx: 16; }
+  .mgr.working .glow { opacity: .25; animation: blink 1.2s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .05; } }
+  .mgr .doing { font-size: 12px; fill: var(--ink-2); }
+
+  .job circle.dot { fill: var(--panel); stroke: var(--c); stroke-width: 2; transition: fill .25s, opacity .25s; }
+  .job text { font-size: 11px; font-weight: 800; fill: var(--ink-2); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .job .ring { stroke-width: 2.5; stroke-dasharray: 6 5; }
+  .job.running circle.dot { fill: color-mix(in srgb, var(--c) 35%, var(--panel)); }
+  .job.running text { fill: #fff; }
+  .job.done circle.dot { fill: var(--c); } .job.done text { fill: #071018; }
+  .job.failed circle.dot { fill: var(--bad); stroke: var(--bad); }
+  .job.skipped { opacity: .28; }
+  .job.queued { opacity: .6; }
+
+  .val circle.dot { fill: var(--panel); stroke: var(--idle); stroke-width: 2; transition: fill .3s, stroke .3s; }
+  .val .mark { font-size: 15px; font-weight: 800; text-anchor: middle; dominant-baseline: central; fill: var(--ink-2); }
+  .val .title { font-size: 10.5px; fill: var(--ink-3); text-anchor: middle; }
+  .val.checking circle.dot { stroke: var(--master); } .val.checking .ring { opacity: 1; animation: spin 1.6s linear infinite; stroke-width: 2.5; stroke-dasharray: 6 5; }
+  .val.kept circle.dot { fill: var(--good); stroke: var(--good); } .val.kept .mark { fill: #062016; } .val.kept .title { fill: var(--ink-2); }
+  .val.rejected circle.dot { fill: var(--bad); stroke: var(--bad); } .val.rejected .mark { fill: #2a0808; } .val.rejected .title { fill: var(--bad); text-decoration: line-through; }
+
+  .feedbox rect { fill: var(--panel); stroke: var(--good); stroke-width: 2; }
+  .feedbox .big { font-size: 30px; font-weight: 800; fill: var(--good); }
+  .pop { animation: pop .45s cubic-bezier(.2,1.6,.4,1) both; transform-box: fill-box; transform-origin: center; }
+  @keyframes pop { from { transform: scale(0); opacity: 0; } }
+  .job, .val, .mgr, .feedbox { transform-box: fill-box; transform-origin: center; }
+  .packet { pointer-events: none; }
+  .hint { font-size: 20px; fill: var(--ink-3); text-anchor: middle; }
+
+  footer { border-top: 1px solid var(--line); padding: 8px 22px 12px; display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; align-items: end; }
+  .ticker { display: grid; gap: 2px; min-height: 60px; align-content: end; font-size: 13.5px; overflow: hidden; }
+  .ticker div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
+  .ticker div:last-child { color: var(--ink); font-size: 15px; }
+  .ticker b { color: var(--ink-2); margin-right: 8px; }
+  .ticker div:last-child b { color: var(--master); }
+  .ticker .good:last-child { color: var(--good); } .ticker .bad:last-child { color: var(--bad); }
+  .legend { color: var(--ink-3); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: flex-end; max-width: 520px; }
+  .legend b { color: var(--ink-2); }
+  @media (max-width: 800px) { footer { grid-template-columns: 1fr; } .legend { justify-content: flex-start; } }
+  @media (prefers-reduced-motion: reduce) { .ring, .halo, .glow, .pop { animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Grok agent system</h1>
+  <span class="pill" id="mode">Connecting…</span>
+  <div class="stats" id="stats"></div>
+  <div class="seg" id="scenario" title="What the student wants searched. The master agent re-assigns its managers to match.">
+    <button data-cats="internship,event,club,program">Everything</button>
+    <button data-cats="internship">Internships only</button>
+    <button data-cats="internship,club">Internships + clubs</button>
+  </div>
+  <button class="run" id="run">Run the agents</button>
+</header>
+
+<div class="stagewrap">
+  <svg id="stage" viewBox="0 0 1600 950" role="img" aria-label="Animated diagram of the agent system">
+    <defs>
+      <filter id="blur" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="5"/></filter>
+    </defs>
+    <text class="tier" x="24" y="40">1 · MASTER AGENT</text>
+    <text class="tier" x="24" y="262">2 · SEARCH MANAGERS</text>
+    <text class="tier" x="24" y="408">3 · WORKER FLEET</text>
+    <text class="tier" x="24" y="648">4 · VALIDATION AGENTS</text>
+    <text class="tier" x="24" y="842">5 · PRESENTATION</text>
+    <text class="tiersub" x="24" y="426" id="fleetsub"></text>
+    <text class="tiersub" x="24" y="666" id="valsub"></text>
+    <g id="edges"></g>
+    <g id="inputs"></g>
+    <g id="nodes"></g>
+    <g id="packets"></g>
+    <text class="hint" x="800" y="520" id="hint">Press “Run the agents” to watch the system work.</text>
+  </svg>
+</div>
+
+<footer>
+  <div class="ticker" id="ticker"></div>
+  <div class="legend">
+    <span><b>S</b> scout: searches for leads</span><span><b>R</b> reader: opens a page, extracts details</span><span><b>A</b> application reader</span>
+    <span><b>✓</b> meets the student's criteria</span><span><b>✕</b> rejected</span><span>Colour = the manager a worker reports to</span>
+  </div>
+</footer>
+
+<script>
+const API = '/api/students/demo';
+const NS = 'http://www.w3.org/2000/svg';
+const MX = [370, 700, 1030, 1360];           // manager columns
+const MASTER = { x: 700, y: 128 }, MGR_Y = 318, JOB_Y = 448, VAL_Y = 694, PRES = { x: 800, y: 896 }, FEED = { x: 1330, y: 896 };
+const INPUTS = [['Profile', 'year, major, interests'], ['Background', 'skills, coursework'], ['Memory', 'likes, dislikes, history']];
+const COLORS = ['var(--m1)', 'var(--m2)', 'var(--m3)', 'var(--m4)'];
+const LENS = { field: 'by field', employer: 'by organization type', location: 'by location', source: 'by source', all: 'everything' };
+const CAT = { internship: 'internships', event: 'events and networking', club: 'clubs and communities', program: 'programs' };
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const $ = (id) => document.getElementById(id);
+const layers = { edges: $('edges'), nodes: $('nodes'), packets: $('packets'), inputs: $('inputs') };
+let student = null, run = null, seen = null, timers = [];
+
+function el(tag, attrs = {}, parent, text) {
+  const n = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (text !== undefined) n.textContent = text;
+  parent?.appendChild(n);
+  return n;
+}
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
+const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+
+/** A glowing dot that travels from a to b: one command or one result moving between agents. */
+function packet(a, b, color, { delay = 0, dur = 650, size = 6 } = {}) {
+  if (reduced || document.hidden) return;
+  later(() => {
+    const g = el('g', { class: 'packet' }, layers.packets);
+    el('circle', { r: size * 2.2, fill: color, opacity: .5, filter: 'url(#blur)' }, g);
+    el('circle', { r: size, fill: color }, g);
+    el('circle', { r: size * .45, fill: '#fff' }, g);
+    const anim = g.animate([{ transform: `translate(${a.x}px,${a.y}px)` }, { transform: `translate(${b.x}px,${b.y}px)` }], { duration: dur, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' });
+    anim.onfinish = () => g.remove();
+  }, delay);
+}
+
+function edge(a, b, color, thin) {
+  const midY = (a.y + b.y) / 2;
+  return el('path', { class: 'edge' + (thin ? ' thin' : ''), d: `M${a.x},${a.y} C${a.x},${midY} ${b.x},${midY} ${b.x},${b.y}`, style: `--c:${color}` }, layers.edges);
+}
+
+// ---- static parts ------------------------------------------------------------
+function buildStatic() {
+  for (const k of ['edges', 'nodes', 'packets', 'inputs']) layers[k].replaceChildren();
+  timers.forEach(clearTimeout); timers = [];
+  seen = { managers: new Map(), jobs: new Map(), vals: new Map(), slots: new Map(), presenter: null, master: null, feedCount: null, logSeq: 0, masterStatus: null, presStatus: null };
+
+  // What the master reads.
+  seen.inputs = INPUTS.map(([name, sub], i) => {
+    const y = 78 + i * 50, g = el('g', { class: 'input' }, layers.inputs);
+    el('rect', { x: 250, y: y - 19, width: 250, height: 38, rx: 10 }, g);
+    el('text', { x: 266, y: y + 5, style: 'font-weight:700' }, g, name);
+    el('text', { x: 266 + name.length * 8.6 + 10, y: y + 5, style: 'font-size:12px' }, g, sub);
+    const from = { x: 500, y };
+    return { g, from, line: edge(from, { x: MASTER.x - 56, y: MASTER.y }, 'var(--master)') };
+  });
+  el('text', { class: 'tiersub', x: 250, y: 46 }, layers.inputs, 'What the master reads about the student');
+
+  const m = el('g', { class: 'master' }, layers.nodes);
+  el('circle', { class: 'halo', cx: MASTER.x, cy: MASTER.y, r: 74 }, m);
+  el('circle', { class: 'ring', cx: MASTER.x, cy: MASTER.y, r: 62 }, m);
+  el('circle', { class: 'core', cx: MASTER.x, cy: MASTER.y, r: 52 }, m);
+  el('text', { class: 'name', x: MASTER.x, y: MASTER.y - 2, 'text-anchor': 'middle' }, m, 'MASTER');
+  const state = el('text', { class: 'state', x: MASTER.x, y: MASTER.y + 17, 'text-anchor': 'middle' }, m, 'WAITING');
+  const command = el('text', { class: 'command', x: 800, y: 108 }, layers.nodes, '');
+  const commandSub = el('text', { class: 'commandsub', x: 800, y: 134 }, layers.nodes, '');
+  const commandSub2 = el('text', { class: 'commandsub', x: 800, y: 156 }, layers.nodes, '');
+  seen.master = { g: m, state, command, commandSub, commandSub2 };
+}
+
+function say(line, sub = '', sub2 = '') {
+  seen.master.command.textContent = clip(line, 80);
+  seen.master.commandSub.textContent = clip(sub, 108);
+  seen.master.commandSub2.textContent = clip(sub2, 108);
+  if (!reduced) seen.master.command.animate([{ opacity: 0, transform: 'translateX(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 300 });
+}
+
+function setState(node, status, labels) {
+  node.g.classList.remove('working', 'done', 'failed');
+  if (status === 'running') node.g.classList.add('working');
+  if (status === 'done') node.g.classList.add('done');
+  if (status === 'failed') node.g.classList.add('failed');
+  node.state.textContent = labels[status] ?? 'WAITING';
+}
+
+// ---- applying one snapshot -----------------------------------------------------
+function apply(snapshot, animate) {
+  if (!seen || seen.runId !== snapshot.id) { buildStatic(); seen.runId = snapshot.id; }
+  $('hint').style.display = 'none';
+  const pk = animate ? packet : () => {};
+  const byId = Object.fromEntries(snapshot.agents.map((a) => [a.id, a]));
+
+  // Master: reads its three inputs while working.
+  const master = byId.master;
+  if (master && master.status !== seen.masterStatus) {
+    seen.masterStatus = master.status;
+    setState(seen.master, master.status, { running: 'READING', done: 'COMMANDING', failed: 'FAILED' });
+    if (master.status === 'running') {
+      say('Reading the student…', 'Profile, background, and memory of what they saved, liked and disliked.');
+      const pulse = () => {
+        if (seen.masterStatus !== 'running') return seen.inputs.forEach((i) => { i.g.classList.remove('hot'); i.line.classList.remove('hot'); });
+        seen.inputs.forEach((i, n) => {
+          i.g.classList.add('hot'); i.line.classList.add('hot');
+          pk(i.from, { x: MASTER.x - 56, y: MASTER.y }, 'var(--master)', { delay: n * 220, dur: 700, size: 5 });
+        });
+        later(pulse, 1000);
+      };
+      pulse();
+    }
+    if (master.status === 'done' && snapshot.brief) {
+      const b = snapshot.brief;
+      say('Brief written. Commanding the search managers.', `Looking for: ${b.goal}`, `Must be: ${b.hardCriteria.join(' · ')}${b.avoid.length ? '   Avoid: ' + b.avoid.join(', ') : ''}`);
+    }
+  }
+
+  // Search managers appear one by one as the master commands each.
+  snapshot.agents.filter((a) => a.level === 'manager').forEach((a) => {
+    const assignment = snapshot.assignments.find((x) => x.managerId === a.id);
+    const col = snapshot.assignments.indexOf(assignment);
+    let m = seen.managers.get(a.id);
+    if (!m) {
+      const x = MX[col % 4], color = COLORS[col % 4];
+      const g = el('g', { class: 'mgr' + (animate ? ' pop' : ''), style: `--c:${color}` }, layers.nodes);
+      const line = edge({ x: MASTER.x, y: MASTER.y + 54 }, { x, y: MGR_Y - 38 }, color);
+      el('rect', { class: 'glow', x: x - 152, y: MGR_Y - 40, width: 304, height: 80, rx: 16 }, g);
+      el('rect', { class: 'box', x: x - 150, y: MGR_Y - 38, width: 300, height: 76, rx: 14 }, g);
+      el('text', { class: 'name', x: x - 134, y: MGR_Y - 12 }, g, a.name);
+      const state = el('text', { class: 'state', x: x + 134, y: MGR_Y - 13, 'text-anchor': 'end' }, g, '');
+      el('text', { class: 'role', x: x - 134, y: MGR_Y + 7 }, g, clip(`${CAT[assignment.category]} ${LENS[assignment.lens]}`, 42));
+      el('text', { class: 'role', x: x - 134, y: MGR_Y + 26, style: 'fill:var(--c);font-weight:600' }, g, clip(assignment.focus.join(' · '), 42));
+      const doing = el('text', { class: 'doing', x, y: JOB_Y - 28, 'text-anchor': 'middle' }, g, '');
+      m = { g, state, doing, x, color, line, pos: { x, y: MGR_Y }, status: null, jobs: 0 };
+      seen.managers.set(a.id, m);
+      seen.managers.set(a.name, m);
+      line.classList.add('hot');
+      pk({ x: MASTER.x, y: MASTER.y + 54 }, { x, y: MGR_Y - 38 }, color, { dur: 800, size: 8 });
+      pk({ x: MASTER.x, y: MASTER.y + 54 }, { x, y: MGR_Y - 38 }, color, { delay: 160, dur: 800, size: 5 });
+      if (animate) say(`Master → ${a.name}`, `“Cover ${CAT[assignment.category]} ${LENS[assignment.lens]}: ${assignment.focus.join(', ')}.”`, assignment.others.length ? `Stay out of the others' way: ${assignment.others.join('; ')}` : 'You are the only manager on this category.');
+    }
+    if (m.status !== a.status) {
+      m.status = a.status;
+      setState(m, a.status, { running: 'COMMANDING', done: 'REPORTED', failed: 'FAILED' });
+      if (a.status === 'done') {
+        m.doing.textContent = clip(a.detail.replace(/^Covered [^.]*\. /, ''), 46);
+        m.line.classList.remove('hot');
+        pk({ x: m.x, y: MGR_Y - 38 }, { x: MASTER.x, y: MASTER.y + 54 }, 'var(--good)', { dur: 800 });
+      }
+    }
+  });
+
+  // Worker fleet: each job is one worker under the manager that ordered it.
+  for (const j of snapshot.jobs) {
+    const m = seen.managers.get(j.managerId);
+    if (!m) continue;
+    let w = seen.jobs.get(j.id);
+    if (!w) {
+      const n = m.jobs++, perRow = 7;
+      const pos = { x: m.x - 114 + (n % perRow) * 38, y: JOB_Y + Math.floor(n / perRow) * 40 };
+      const line = edge({ x: m.x, y: MGR_Y + 38 }, { x: pos.x, y: pos.y - 14 }, m.color, true);
+      const g = el('g', { class: 'job' + (animate ? ' pop' : ''), style: `--c:${m.color}` }, layers.nodes);
+      el('title', {}, g, j.label);
+      el('circle', { class: 'ring', cx: pos.x, cy: pos.y, r: 17 }, g);
+      el('circle', { class: 'dot', cx: pos.x, cy: pos.y, r: 13 }, g);
+      el('text', { x: pos.x, y: pos.y + .5 }, g, { scout: 'S', extract: 'R', application: 'A' }[j.kind]);
+      w = { g, pos, line, status: null };
+      seen.jobs.set(j.id, w);
+      if (j.status !== 'skipped') pk({ x: m.x, y: MGR_Y + 38 }, pos, m.color, { dur: 500, size: 4.5 });
+    }
+    if (w.status !== j.status) {
+      w.status = j.status;
+      w.g.setAttribute('class', `job ${j.status}` + (j.status === 'running' ? ' working' : ''));
+      w.line.classList.toggle('hot', j.status === 'running');
+      if (j.status === 'running' && m.status !== 'done') m.doing.textContent = clip(j.label, 46);
+      if (j.status === 'done') pk(w.pos, { x: m.x, y: MGR_Y + 38 }, 'var(--good)', { dur: 500, size: 3.5 });
+    }
+  }
+
+  // Validation agents: one per posting, fed by the manager whose workers found it.
+  snapshot.validations.forEach((v, i) => {
+    let n = seen.vals.get(v.id);
+    if (!n) {
+      const perRow = 12, pos = { x: 262 + (i % perRow) * 107, y: VAL_Y + Math.floor(i / perRow) * 62 };
+      const g = el('g', { class: 'val' + (animate ? ' pop' : '') }, layers.nodes);
+      el('title', {}, g, v.title);
+      el('circle', { class: 'ring', cx: pos.x, cy: pos.y, r: 19 }, g);
+      el('circle', { class: 'dot', cx: pos.x, cy: pos.y, r: 15 }, g);
+      const mark = el('text', { class: 'mark', x: pos.x, y: pos.y + 1 }, g, '');
+      el('text', { class: 'title', x: pos.x, y: pos.y + 33 }, g, clip(v.title, 16));
+      n = { g, pos, mark, status: null };
+      seen.vals.set(v.id, n);
+      const m = seen.managers.get(v.managerId);
+      if (m) pk({ x: m.x, y: JOB_Y + 60 }, pos, m.color, { delay: i * 45, dur: 700, size: 4.5 });
+    }
+    if (n.status !== v.status) {
+      n.status = v.status;
+      n.g.setAttribute('class', `val ${v.status}`);
+      n.mark.textContent = v.status === 'kept' ? '✓' : v.status === 'rejected' ? '✕' : '';
+      n.g.querySelector('title').textContent = `${v.title}\n${v.status === 'kept' ? 'Kept, fit ' + v.fit : v.reason ?? 'Checking against the criteria'}`;
+      if (v.status !== 'checking' && animate && !reduced) n.g.animate([{ transform: 'scale(1.35)' }, { transform: 'none' }], { duration: 350 });
+    }
+  });
+
+  // Presentation manager, then the feed.
+  const pres = byId.presentation;
+  if (pres) {
+    if (!seen.presenter) {
+      const g = el('g', { class: 'mgr' + (animate ? ' pop' : ''), style: '--c:var(--master)' }, layers.nodes);
+      el('rect', { class: 'glow', x: PRES.x - 182, y: PRES.y - 36, width: 364, height: 72, rx: 16 }, g);
+      el('rect', { class: 'box', x: PRES.x - 180, y: PRES.y - 34, width: 360, height: 68, rx: 14 }, g);
+      el('text', { class: 'name', x: PRES.x - 162, y: PRES.y - 7 }, g, 'Presentation manager');
+      const state = el('text', { class: 'state', x: PRES.x + 162, y: PRES.y - 8, 'text-anchor': 'end' }, g, '');
+      el('text', { class: 'role', x: PRES.x - 162, y: PRES.y + 15 }, g, 'Orders the feed, writes why each one fits');
+      const line = edge({ x: PRES.x + 180, y: PRES.y }, { x: FEED.x - 110, y: FEED.y }, 'var(--good)');
+      seen.presenter = { g, state, line };
+      [...seen.vals.values()].filter((n) => n.status === 'kept').forEach((n, i) => pk(n.pos, { x: PRES.x, y: PRES.y - 34 }, 'var(--good)', { delay: i * 70, dur: 800, size: 5 }));
+    }
+    if (seen.presStatus !== pres.status) {
+      seen.presStatus = pres.status;
+      setState(seen.presenter, pres.status, { running: 'ARRANGING', done: 'DELIVERED', failed: 'FAILED' });
+      if (pres.status === 'done') {
+        seen.presenter.line.classList.add('hot');
+        const kept = snapshot.stats.kept;
+        for (let i = 0; i < Math.min(kept, 10); i++) pk({ x: PRES.x + 180, y: PRES.y }, { x: FEED.x - 110, y: FEED.y }, 'var(--good)', { delay: i * 90, dur: 600, size: 5 });
+        later(() => {
+          const g = el('g', { class: 'feedbox' + (animate ? ' pop' : '') }, layers.nodes);
+          el('rect', { x: FEED.x - 110, y: FEED.y - 36, width: 250, height: 72, rx: 14 }, g);
+          el('text', { class: 'big', x: FEED.x - 92, y: FEED.y + 11 }, g, String(kept));
+          el('text', { class: 'name', x: FEED.x - 92 + String(kept).length * 19 + 12, y: FEED.y - 3 }, g, 'opportunities');
+          el('text', { class: 'role', x: FEED.x - 92 + String(kept).length * 19 + 12, y: FEED.y + 17 }, g, 'handed to the student');
+          say('Run complete.', `${snapshot.stats.jobs} worker jobs · ${snapshot.stats.kept} kept · ${snapshot.stats.rejected} rejected by validation · ${snapshot.stats.merged} duplicates removed`, 'The master runs again on its own when the profile or the student’s reactions change.');
+          setState(seen.master, 'done', { done: 'WATCHING' });
+        }, animate ? 900 : 0);
+      }
+    }
+  }
+
+  const jobs = snapshot.jobs, count = (s) => jobs.filter((j) => j.status === s).length;
+  $('fleetsub').textContent = jobs.length ? `${count('running')} working · ${count('done')} done${count('skipped') ? ` · ${count('skipped')} over budget` : ''}` : '';
+  const vals = snapshot.validations, vc = (s) => vals.filter((v) => v.status === s).length;
+  $('valsub').textContent = vals.length ? `${vc('kept')} kept · ${vc('rejected')} rejected` : '';
+
+  const lines = snapshot.log.slice(-3);
+  $('ticker').replaceChildren(...lines.map((l) => {
+    const d = document.createElement('div'); d.className = l.tone;
+    const b = document.createElement('b'); b.textContent = l.agent; d.append(b, l.text); return d;
+  }));
+}
+
+function renderHeader() {
+  if (student) {
+    const mode = $('mode');
+    mode.textContent = student.mode === 'live' ? 'Live Grok agents' : 'Simulated agents · sample data';
+    mode.className = 'pill' + (student.mode === 'live' ? ' live' : '');
+    const cur = [...student.profile.categories].sort().join(',');
+    for (const b of $('scenario').children) b.classList.toggle('on', b.dataset.cats.split(',').sort().join(',') === cur);
+  }
+  const busy = run?.status === 'running';
+  $('run').disabled = busy;
+  $('run').textContent = busy ? 'Agents working…' : run ? 'Run again' : 'Run the agents';
+  if (!run) return void ($('stats').textContent = '');
+  const secs = Math.max(0, Math.round(((run.finishedAt ? Date.parse(run.finishedAt) : Date.now()) - Date.parse(run.startedAt)) / 1000));
+  const why = { first: 'first run', manual: 'started by hand', profile: 'started itself: the profile changed', feedback: 'started itself: new reactions', schedule: 'started itself: schedule' }[run.trigger];
+  const active = run.agents.filter((a) => a.status === 'running').length + run.jobs.filter((j) => j.status === 'running').length + run.validations.filter((v) => v.status === 'checking').length;
+  const total = run.agents.length + run.jobs.filter((j) => j.status !== 'skipped').length + run.validations.length;
+  $('stats').innerHTML = `<span><b>Run ${run.number}</b>${why}</span><span><b>${secs}s</b>elapsed</span><span><b>${active}</b>agents working now</span><span><b>${total}</b>agents used</span>`;
+}
+
+// ---- wiring -----------------------------------------------------------------------
+const put = (path, body) => fetch(API + path, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+$('scenario').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (b) put('/profile', { categories: b.dataset.cats.split(',') });   // a profile change starts a run by itself
+});
+$('run').addEventListener('click', () => fetch(API + '/runs', { method: 'POST' }));
+
+let first = true;
+const stream = new EventSource(API + '/stream');
+stream.addEventListener('student', (e) => { student = JSON.parse(e.data); renderHeader(); });
+stream.addEventListener('run', (e) => {
+  run = JSON.parse(e.data);
+  // A run that had already finished when the page opened is drawn as a still.
+  if (run) apply(run, !(first && run.status !== 'running'));
+  first = false;
+  renderHeader();
+});
+stream.onerror = () => { $('mode').textContent = 'Disconnected, retrying…'; };
+setInterval(() => { if (run?.status === 'running') renderHeader(); }, 1000);
+buildStatic();
+</script>
+</body>
+</html>

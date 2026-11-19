@@ -1,6 +1,34 @@
-# Backend: coordinator, Grok workers, validation, storage
+# Backend: the Grok agent system
 
 Owner: A. TypeScript on Node 24+, no build step.
+
+## Agent system
+
+```
+cd backend
+npm install
+npm run dev        # then open http://localhost:8787/
+npm test
+```
+
+- **http://localhost:8787/** is an animated view of one run: the master agent reads the student and commands the search managers, the managers send out a fleet of workers, validation agents check every result, and the presentation manager delivers the feed.
+- **http://localhost:8787/console** is a testing console with the student profile, memory, and the feed with like, dislike and save.
+
+The design, the data model and what is and is not built are in [`AGENT_SYSTEM.md`](AGENT_SYSTEM.md). Code is in `src/agents/`:
+
+| File | What it holds |
+|---|---|
+| `system.ts` | One student's state, the triggers that start a run on their own, and the run itself |
+| `fleet.ts` | Worker job queue: concurrency cap, budgets, one retry, shared dedupe |
+| `scoring.ts` | Memory, feed ranking, and how search manager slots are split over categories |
+| `brain.ts` | What each agent level must do. `simBrain.ts` does it with rules over `catalog.ts` (invented postings); `grokBrain.ts` does it with live Grok calls |
+| `api.ts` | HTTP API and the live event stream under `/api/students/demo/` |
+
+Without `XAI_API_KEY` the agents are simulated on sample data, and the pages say so. With the key in `.env` the same system runs on Grok. The live path has not been run against a real key yet; `npm run grok:check` tests the account first.
+
+## Earlier prototype: request-driven search for clubs and events
+
+The rest of this file describes the first version, which is still served under `/api/searches`.
 
 ```
 cd backend

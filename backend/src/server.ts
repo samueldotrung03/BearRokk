@@ -1,13 +1,21 @@
 import { serve } from '@hono/node-server';
+import { GrokBrain } from './agents/grokBrain.ts';
+import { SimBrain } from './agents/simBrain.ts';
+import { AgentSystem } from './agents/system.ts';
 import { createApp } from './app.ts';
 import { config, liveAvailable } from './config.ts';
 import { openStore } from './store/index.ts';
 
 const store = await openStore();
-const { app } = createApp(store);
+// Live agents need a key; without one the same system runs on simulated agents and sample data.
+const agents = liveAvailable()
+  ? new AgentSystem(new GrokBrain())
+  : new AgentSystem(new SimBrain({ speed: Number(process.env.SIM_SPEED ?? 0.6) }), { managerStaggerMs: 900 });
+const { app } = createApp(store, {}, agents);
 
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`backend listening on http://localhost:${port}`);
   console.log(`  store:  ${store.kind === 'firestore' ? 'Firestore' : `local file (${config.localDataFile})`}`);
-  console.log(`  search: ${liveAvailable() ? `live, Grok ${config.xaiModel}` : 'prepared examples only (no XAI_API_KEY)'}`);
+  console.log(`  agents: ${liveAvailable() ? `live, Grok ${config.xaiModel}` : 'simulated on sample data (no XAI_API_KEY)'}`);
+  console.log(`  watch:  http://localhost:${port}/`);
 });

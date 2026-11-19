@@ -136,4 +136,4 @@ The event is **Thursday, November 19, 2026**. Grok account access is expected ar
 
 ## Status
 
-This README describes the idea. An early backend prototype is in `backend/`; it predates the feed, the recommendation algorithm, career discovery, the roadmap, application management, and the four-level agent system.
+The agent system is built in `backend/` and can be watched running: `cd backend && npm install && npm run dev`, then open http://localhost:8787/. Until a Grok key is added it runs on simulated agents and sample data. The roadmap, career discovery and application management are not built yet. See `backend/AGENT_SYSTEM.md`.
