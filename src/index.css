@@ -631,10 +631,11 @@ svg {
 
 .feed-board {
   display: flex;
+  width: calc(100% - 168px);
   max-width: 1180px;
   min-height: 100%;
   flex-direction: column;
-  margin: 0 auto;
+  margin: 0 auto 0 0;
 }
 
 .feed-heading {
@@ -1275,7 +1276,19 @@ svg {
 
   .main-col {
     height: 100dvh;
-    padding: 10px 10px 0;
+    padding: 10px 10px 8px;
+  }
+
+  .ask-launch,
+  .ask-panel {
+    position: static;
+    flex: none;
+    margin: 8px 0 4px auto;
+  }
+
+  .ask-panel {
+    width: min(380px, 100%);
+    max-height: min(420px, 46dvh);
   }
 
   .feed-layout {
@@ -1300,11 +1313,11 @@ svg {
 @media (max-width: 720px) {
   .reel-slide {
     grid-template-columns: 1fr;
-    align-content: center;
+    align-content: start;
     justify-items: center;
     gap: 12px;
     overflow: auto;
-    padding-bottom: 88px;
+    padding-bottom: 16px;
   }
 
   .reel-stage {
@@ -1315,11 +1328,44 @@ svg {
   }
 
   .reel-card {
+    display: flex;
+    flex-direction: column;
     width: min(100%, 420px);
     height: auto;
-    aspect-ratio: 4 / 5;
+    aspect-ratio: auto;
     max-width: none;
     max-height: none;
+  }
+
+  .reel-card .cover {
+    position: relative;
+    height: 168px;
+    flex: 0 0 auto;
+  }
+
+  .reel-card .cover-whole {
+    top: 8%;
+    height: 84%;
+  }
+
+  .reel-card .cover::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 48px;
+    background: linear-gradient(0deg, var(--color-ink), transparent);
+  }
+
+  .reel-shade {
+    display: none;
+  }
+
+  .reel-body {
+    position: relative;
+    max-height: none;
+    inset: auto;
   }
 
   .reel-rail {
@@ -1333,6 +1379,18 @@ svg {
   .reel-pager {
     flex-direction: row;
     justify-self: center;
+  }
+
+  .feed-board {
+    width: 100%;
+  }
+
+  .feed-scroller {
+    padding-bottom: 24px;
+  }
+
+  .row-actions {
+    padding-right: 0;
   }
 
   .feed-row {

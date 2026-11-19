@@ -1,7 +1,7 @@
 import { X } from 'lucide-react';
 import { useEffect, useId, useRef } from 'react';
 import type { Opportunity } from '../data/opportunities.ts';
-import { categoryMeta, dateLine, formatLabel, freshness } from '../lib/catalog.ts';
+import { categoryMeta, dateLine, freshness, placeLine } from '../lib/catalog.ts';
 import { RowActions } from './Actions.tsx';
 
 export function Details({ opportunity, onClose }: { opportunity: Opportunity; onClose: () => void }) {
@@ -40,7 +40,7 @@ export function Details({ opportunity, onClose }: { opportunity: Opportunity; on
               {opportunity.title}
             </h2>
             <p className="organizer" style={{ color: 'var(--color-ink-2)' }}>
-              {opportunity.organizer} · {formatLabel(opportunity.format)} · {opportunity.location}
+              {opportunity.organizer} · {placeLine(opportunity)}
             </p>
           </div>
           <button ref={closeRef} type="button" className="close-x" aria-label="Close details" onClick={onClose}>

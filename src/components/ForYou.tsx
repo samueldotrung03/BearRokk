@@ -1,7 +1,7 @@
 import { ArrowUpRight, Bookmark, ChevronDown, ChevronUp, Heart, Info, MapPin, Sparkles, ThumbsDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { opportunities } from '../data/opportunities.ts';
-import { categoryMeta, dateLine, freshness, formatLabel, matchLabel, sortOpportunities } from '../lib/catalog.ts';
+import { categoryMeta, dateLine, freshness, matchLabel, placeLine, sortOpportunities } from '../lib/catalog.ts';
 import { Cover } from './Artwork.tsx';
 import { useChoice } from './Actions.tsx';
 import { Details } from './Details.tsx';
@@ -79,7 +79,7 @@ export function ForYou() {
               <div className="place-line">
                 <span>
                   <MapPin aria-hidden="true" />
-                  {formatLabel(opportunity.format)} · {opportunity.location}
+                  {placeLine(opportunity)}
                 </span>
                 {dateLine(opportunity).map((part) => (
                   <span key={part.text} className={part.unknown ? 'date-note unknown' : undefined}>
