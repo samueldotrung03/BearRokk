@@ -6,6 +6,8 @@ Student Opportunities is a tool for students, built on a system of Grok AI agent
 
 Finding an opportunity is only half of it. The app also creates a personal roadmap for each student: what to learn, in what order, and exactly which actions to take to get from where they are now to the career they want.
 
+It also manages the applications themselves. It collects each application’s prompts and deadlines, tracks the status of everything the student is pursuing, lets them apply from within the app, and sets reminders and Google Calendar entries automatically.
+
 ## The student problem
 
 Most students know they should be building toward a career. Far fewer know which one, which opportunities lead to it, or how to get from where they are to an offer. Three difficulties compound each other.
@@ -24,9 +26,10 @@ Turn the search around. Instead of the student looking for opportunities, an AI 
 
 - **It hands opportunities to you.** There is no query to write and no list of sites to check. The feed is filled before you open the app.
 - **It runs constantly.** The agents keep working while you are away: finding new postings, dropping ones that have closed, and refreshing what you see.
-- **It is based on your preferences.** What you tell the app about yourself, and what you do in it, decides what the agents look for. The more you use it, the better it fits.
+- **It adapts to you.** You save, like, or dislike what it shows you, and each decision changes what the AI recommends next. The longer you use it, the more it becomes your own.
 
 - **It builds your roadmap.** Knowing an internship exists does not tell you how to get it. The app turns a goal into a step-by-step plan, and keeps that plan current as you make progress.
+- **It manages your applications.** Prompts, deadlines, statuses, reminders, and calendar entries are all handled in one place.
 
 The student stays in charge of every decision about what to pursue and where to apply.
 
@@ -39,11 +42,23 @@ The student stays in charge of every decision about what to pursue and where to 
 
 ## What the app does
 
-The app has two halves that feed each other: a feed that brings opportunities to the student, and a roadmap that tells the student what to do about them.
+The app has three parts that feed each other: a feed that brings opportunities to the student, a roadmap that tells the student how to get there, and an application manager that handles everything about applying.
 
 ### A feed that recommends opportunities like posts
 
-Opportunities of every kind appear in one scrolling feed of cards, the way a social app shows posts. The student sets a few preferences to start: interests, class year, skills, and location. After that, the feed learns from history. Saving, dismissing, and opening cards teaches the app what the student wants, so similar opportunities rise and unwanted ones fall away. Each card says why it was recommended and links to the official posting or event page.
+Opportunities of every kind appear in one scrolling feed of cards, the way a social app shows posts. Each card says why it was recommended and links to the official posting or event page.
+
+### An AI that adapts to each student
+
+Adapting to the user is the core of the product. Two students who open the app on the same day should see different feeds, and one student’s feed should look different a month later.
+
+- **Preferences set the start.** The student tells the app a few things up front: interests, class year, skills, and location.
+- **Save, like, or dislike.** Every card has these three actions. Saving keeps an opportunity for later, liking asks for more like it, and disliking asks for less.
+- **Every decision counts.** Each action is a signal the AI learns from. Likes and saves pull similar opportunities up the feed. Dislikes push that kind down and teach the agents what to stop looking for.
+- **It shapes the search, not just the order.** The student’s decisions are saved to memory and read by the master agent, so they change what the agents go out and find next.
+- **It shapes the roadmap too.** What a student likes and saves shows where they are heading, and the roadmap follows.
+
+**Built on X’s recommendation algorithm.** The plan is to base this on the algorithm X uses for its For You feed, which xAI has published as open source ([xai-org/x-algorithm](https://github.com/xai-org/x-algorithm), Apache 2.0 license). That system predicts how likely a person is to take each action on a post, positive ones such as liking and negative ones such as “not interested”, and ranks the feed by combining those predictions. The same idea applies here with opportunities in place of posts, and save, like, and dislike as the actions. It is a proven design for feeds that learn from behavior, and it comes from the same company as Grok.
 
 ### A roadmap built for each student
 
@@ -55,9 +70,21 @@ Students struggle most with the question the feed alone cannot answer: “What d
 - **It connects to the feed.** Steps link to real opportunities the agents have found, so the roadmap is something the student can act on today.
 - **It keeps updating.** As the student completes steps or changes direction, the roadmap adjusts, and so does what the feed recommends.
 
+### Application management, all in one place
+
+Finding an opportunity still leaves the work of applying: collecting the prompts, remembering the deadlines, and keeping track of where each application stands. The app manages all of it, so the student never needs a separate spreadsheet, notes file, or calendar.
+
+- **It gathers what each application needs.** The agents scrape the application prompts, questions, requirements, and deadlines for every opportunity and keep them with it.
+- **It keeps track of everything.** Every opportunity the student is pursuing is in one list, with its status, its deadline, and what is still left to do.
+- **The student can apply from within the app.** The prompts and materials are in front of them, and they work on the application without leaving.
+- **The student marks a status.** Each opportunity is marked as *interested*, *to apply*, *applying*, or *applied*.
+- **Reminders and calendar are automatic.** When something is marked *to apply* or *applying*, the AI sets reminders and adds the deadlines to the student’s Google Calendar on its own.
+
+Everything involved in setting up and managing an application is handled by this app.
+
 ## The Grok agent system
 
-Grok powers every agent. The search for opportunities is automated: the agents start and repeat their work on their own, and are not just called when a user asks. The system has three levels.
+Grok powers every agent. The search for opportunities is automated: the agents start and repeat their work on their own, and are not just called when a user asks. The system has four levels.
 
 ```
               MASTER AGENT
@@ -68,20 +95,24 @@ Grok powers every agent. The search for opportunities is automated: the agents s
                     |
               WORKER AGENTS
    scrape the web and collect opportunity details
+                    |
+             VALIDATION AGENTS
+   check the work against the student's criteria
 ```
 
 - **Master agent.** Reads the student’s profile, background, and memory of what they have done in the app. Decides what this student needs and passes that to the managers.
 - **Manager agents.** Organize how the search is carried out and design how the results are presented to the student, both as feed cards and as roadmap steps. They command the workers.
 - **Worker agents.** Go out to the web, scrape listings, and bring back the details of each internship, event, or other opportunity.
+- **Validation agents.** Take what the workers bring back and check it before the student sees it. They make sure each opportunity actually meets the student’s criteria and is what the student is looking for, and that it is real and still open. Anything that fails is sent back or dropped.
 
-Results flow back up into the two things the student sees: the feed and the roadmap. The same agents that find opportunities also build and update each student’s roadmap. What the student does next is saved to memory, the master agent reads it on the next run, and the cycle continues.
+Only validated results flow back up into the two things the student sees: the feed and the roadmap. The same agents that find opportunities also build and update each student’s roadmap. What the student does next is saved to memory, the master agent reads it on the next run, and the cycle continues.
 
 ## Team
 
 Three people, provisional roles:
 
-- **A · Agent backend and database.** The Grok agent system, memory, and storage.
-- **B · Dashboard.** The feed, the cards, and the roadmap view.
+- **A · Agent backend and database.** The Grok agent system, the recommendation algorithm, application tracking with reminders and Google Calendar, memory, and storage.
+- **B · Dashboard.** The feed, the cards with save, like, and dislike, the roadmap view, and the application manager.
 - **C · Pitch website and demo.** The pitch page and the presentation.
 
 The event is **Thursday, November 19, 2026**. Grok account access is expected around **2 p.m.**
@@ -90,9 +121,10 @@ The event is **Thursday, November 19, 2026**. Grok account access is expected ar
 
 - How much of the agent system runs live in the demo, and what is shown from prepared examples?
 - Is the feed or the roadmap the centerpiece of the demo?
+- How much of X’s algorithm can be adapted in the time available, and what simpler ranking stands in for the rest?
 - What Grok access and budget will the team have?
 - What is the submission time, and how long is the pitch?
 
 ## Status
 
-This README describes the idea. An early backend prototype is in `backend/`; it predates the feed, career discovery, the roadmap, and the three-level agent system.
+This README describes the idea. An early backend prototype is in `backend/`; it predates the feed, the recommendation algorithm, career discovery, the roadmap, application management, and the four-level agent system.
