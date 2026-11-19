@@ -5,6 +5,7 @@ import { SimBrain } from './agents/simBrain.ts';
 import { AgentSystem } from './agents/system.ts';
 import type { StudentMemory } from './agents/types.ts';
 import { createApp } from './app.ts';
+import { CareerGuides } from './careers/guide.ts';
 import { firebaseVerifier, webConfig } from './auth.ts';
 import { config, liveAvailable, provider } from './config.ts';
 import { openStore } from './store/index.ts';
@@ -37,6 +38,7 @@ const memory = account
       deleteStudent: (id: string) => (isGuest(id) ? store : account).deleteStudent(id),
     }
   : store;
+const careers = new CareerGuides();
 const { app } = createApp(store, {}, {
   memory,
   onToken: (uid, token) => tokens.set(uid, token),
@@ -56,7 +58,7 @@ const { app } = createApp(store, {}, {
       : config.grokTransport === 'cli'
       ? { connected: true, mode: 'cli', detail: 'Through the Grok app on this computer, on its Grok subscription.' }
       : { connected: true, mode: 'api', detail: `Through the xAI API (${config.xaiModels.normal} and ${config.xaiModels.low}).` },
-});
+}, careers);
 
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`backend listening on http://localhost:${port}`);

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="1em" height="1em" aria-hidden="true">
+  <!-- Career guide tab: The basics (an open book). Drawn in Figma, "BearRok career guide icons". -->
+  <path fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" d="M128 216V80c0-16-12-24-28-24H40v136h60c16 0 28 8 28 24Z"/>
+  <path fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" d="M128 216V80c0-16 12-24 28-24h60v136h-60c-16 0-28 8-28 24"/>
+</svg>

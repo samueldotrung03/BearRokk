@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="1em" height="1em" aria-hidden="true">
+  <!-- Career guide tab: What people in the job say (two speech bubbles). Drawn in Figma, "BearRok career guide icons". -->
+  <path fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" d="M68 52h88a16 16 0 0 1 16 16v64a16 16 0 0 1-16 16H92l-40 32V68a16 16 0 0 1 16-16Z"/>
+  <path fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" d="M172 84h16a16 16 0 0 1 16 16v104l-32-24h-64a16 16 0 0 1-16-16v-16"/>
+</svg>

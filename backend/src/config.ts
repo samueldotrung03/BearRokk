@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 const env = process.env;
 
 export const config = {
@@ -28,6 +30,8 @@ export const config = {
     bin: env.CLAUDE_CLI_BIN ?? 'claude',
     models: { high: env.CLAUDE_MODEL_HIGH ?? 'opus', normal: env.CLAUDE_MODEL_NORMAL ?? 'sonnet', low: env.CLAUDE_MODEL_LOW ?? 'haiku' },
     timeoutMs: Number(env.CLAUDE_CLI_TIMEOUT_MS ?? 240_000),
+    /** low, medium, high, xhigh or max, passed to the CLI as --effort. Unset leaves the CLI's own default. */
+    effort: env.CLAUDE_EFFORT || undefined,
   },
   /** With a CLI each call is a whole program, so a live run is kept small enough to finish in a few minutes. */
   liveCli: { maxJobs: Number(env.LIVE_MAX_JOBS ?? 12) },
@@ -65,7 +69,9 @@ export const config = {
   grokTimeoutMs: Number(env.GROK_TIMEOUT_MS ?? 120_000),
   /** Pause between prepared-mode stages so the dashboard can show progress. */
   preparedStepMs: Number(env.PREPARED_STEP_MS ?? 1200),
-  localDataFile: env.LOCAL_DATA_FILE ?? new URL('../.data/store.json', import.meta.url).pathname,
+  // fileURLToPath, not URL.pathname: on Windows pathname gives "/C:/..." and file writes fail.
+  localDataFile: env.LOCAL_DATA_FILE ?? fileURLToPath(new URL('../.data/store.json', import.meta.url)),
+  careerGuidesFile: env.CAREER_GUIDES_FILE ?? fileURLToPath(new URL('../.data/career-guides.json', import.meta.url)),
 };
 
 /** Live Grok is available with an API key, or when the subscription CLI is chosen. */
