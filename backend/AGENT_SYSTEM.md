@@ -169,6 +169,8 @@ Rejected candidates are kept with their reason so the log can show the judgment,
 
 **Filling the feed.** The feed aims for at least 12 cards the student can still act on (`FEED_MIN`). When a run ends with fewer, the agents start another on their own (trigger `fill`), up to `FEED_FILL_MAX_RUNS` (default 4) in a row; each one skips what earlier runs already found. A failed run is not repeated, and a dislike that leaves the feed short starts one. This is built and tested on the simulated agents.
 
+**Stopping.** `POST /api/students/:id/runs/stop` (`AgentSystem.stop`) stops the run in flight. A run executes inside an AsyncLocalStorage stop signal (`src/agents/stop.ts`): model calls check it before starting and kill their CLI process or abort their request when it fires, the fleet skips queued jobs, and reviews still waiting for a slot never start. Postings already kept stay in the feed; ones read but not decided stay pending and are reviewed first next run. A stopped run has status `stopped`, and no fill run follows it.
+
 One run per student at a time; a trigger that arrives mid-run is queued once. A run has a hard budget (maximum worker jobs, maximum validations, timeout) so scheduled runs cannot drain the Grok allowance.
 
 ## 4. Memory and data

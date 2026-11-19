@@ -2,7 +2,7 @@
 // that real run (src/lib/agents/fromLive.ts). Without one it plays a simulated run of the agent
 // system on sample data: the pure engine in src/lib/agents, with this page owning the clock (how
 // fast beats arrive), the student's standing instructions, and which agent is selected.
-import { Pause, Play, RotateCcw, Server, SkipForward } from 'lucide-react';
+import { Pause, Play, RotateCcw, Server, SkipForward, Square } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { AnimatedNumber, clockText, compact } from '../components/agents/AnimatedNumber.tsx';
 import { Funnel } from '../components/agents/Funnel.tsx';
@@ -179,10 +179,18 @@ export function Agents() {
           </div>
           <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Run controls">
             {real ? (
-              <button type="button" className="ag-btn" data-primary="true" disabled={real.running} onClick={() => void live.runNow()}>
-                <Play className="size-4" aria-hidden="true" />
-                Run now
-              </button>
+              real.running ? (
+                // Stops the real search. Postings already checked stay in the feed.
+                <button type="button" className="ag-btn" data-primary="true" onClick={() => void live.stopRun()}>
+                  <Square className="size-4" fill="currentColor" aria-hidden="true" />
+                  Stop search
+                </button>
+              ) : (
+                <button type="button" className="ag-btn" data-primary="true" onClick={() => void live.runNow()}>
+                  <Play className="size-4" aria-hidden="true" />
+                  Run now
+                </button>
+              )
             ) : (
               <>
                 <button type="button" className="ag-btn" data-primary="true" onClick={() => start(texts, 'Started by hand with Run now.')}>

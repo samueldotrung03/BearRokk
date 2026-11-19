@@ -15,14 +15,13 @@ import {
   Sparkle,
   ThumbsDown,
 } from '@phosphor-icons/react';
-import { PanelLeft, Search, SlidersHorizontal, Undo2, X as XSmall } from 'lucide-react';
+import { LayoutList, PanelLeft, Search, SlidersHorizontal, Undo2, X as XSmall } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { BrandMark } from '../components/Brand.tsx';
 import { toggleDock } from '../components/Dock.tsx';
 import { formatLabel, typeMeta } from '../components/meta.ts';
-import { Cover, Details, OpportunityTile } from '../components/OpportunityCard.tsx';
-import { RoadmapPanel } from '../components/RoadmapPanel.tsx';
+import { Cover, Details, OpportunityRow } from '../components/OpportunityCard.tsx';
 import { DataBadge, useLive, useOpportunities } from '../state/live.tsx';
 import { WhyThis } from '../components/WhyThis.tsx';
 import { ProfileMenu } from '../components/ProfileMenu.tsx';
@@ -108,7 +107,8 @@ function ReelVideo({ opportunity: o, active, near }: { opportunity: Opportunity;
   }, [active, paused]);
 
   // Only the card on screen and its neighbours load a video; the rest show their still.
-  if (!o.video || failed || !near) return <Cover opportunity={o} className="absolute inset-0 size-full" />;
+  // In the reel the whole picture sits in the upper part of the card, clear of the text below it.
+  if (!o.video || failed || !near) return <Cover opportunity={o} className="absolute inset-0 size-full" box="absolute inset-x-0 top-[6%] h-[44%] px-3" />;
   return (
     <>
       <video
@@ -263,19 +263,55 @@ function Slide({
   );
 }
 
+/** A kind of opportunity with nothing found yet, and a way to ask the agents for more of it. */
+export function EmptyKind({ type, searching, onSearch, saved = false }: { type: OpportunityType; searching: boolean; onSearch: () => void; saved?: boolean }) {
+  const meta = typeMeta[type];
+  const [asked, setAsked] = useState(false);
+  return (
+    <div className="reel-end">
+      <span className={`mx-auto grid size-12 place-items-center rounded-2xl ${meta.tint}`} aria-hidden="true">
+        <meta.icon className="size-6" />
+      </span>
+      <h2 className="mt-4 font-display text-3xl leading-tight">{saved ? `No ${meta.plural.toLowerCase()} saved yet` : `No ${meta.plural.toLowerCase()} yet`}</h2>
+      <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">
+        {asked && searching
+          ? `Your agents are searching for ${meta.plural.toLowerCase()} now. New ones appear in the feed as they are checked.`
+          : asked
+            ? `Your agents looked for ${meta.plural.toLowerCase()}. Anything they found and checked is in the feed.`
+            : saved
+              ? `Nothing here yet. Search for more and save the ones you like.`
+              : `Nothing here yet. Search for more and your agents will look for ${meta.plural.toLowerCase()} specifically.`}
+      </p>
+      <button
+        type="button"
+        disabled={asked && searching}
+        onClick={() => {
+          setAsked(true);
+          onSearch();
+        }}
+        className="btn-primary mt-6 inline-flex h-11 items-center gap-2 rounded-xl px-5 text-sm font-semibold text-white disabled:opacity-60"
+      >
+        <Search className="size-4" aria-hidden="true" />
+        {asked && searching ? 'Searching…' : `Search for more ${meta.plural.toLowerCase()}`}
+      </button>
+    </div>
+  );
+}
+
 export function Feed() {
   const { state, dispatch } = useStore();
-  const [tab, setTab] = useState<Tab>('foryou');
+  // The Saved page links here with ?view=feed&type=… to show one kind in the feed list.
+  const [params] = useSearchParams();
+  const askedType = params.get('type');
+  const [tab, setTab] = useState<Tab>(params.get('view') === 'feed' ? 'feed' : 'foryou');
   const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [filters, setFilters] = useState<Filters>(() => (askedType && askedType in typeMeta ? { ...emptyFilters, types: [askedType as OpportunityType] } : emptyFilters));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterMenu = useRef<HTMLDivElement>(null);
   const [sort, setSort] = useState<Sort>('best');
   const [index, setIndex] = useState(0);
   const [details, setDetails] = useState<Opportunity | null>(null);
   const [lastDismissed, setLastDismissed] = useState<Opportunity | null>(null);
-  // The card to light up while its step is hovered in the roadmap panel.
-  const [lit, setLit] = useState<string | null>(null);
   const opportunities = useOpportunities();
   const agentsLive = useLive();
   const plan = planFor(state, opportunities);
@@ -295,8 +331,22 @@ export function Feed() {
     if (reached.some((id) => !seen.includes(id))) setSeen(reached);
   }, [index, slides, seen]);
 
-  const present = new Set(slides.map((r) => r.opportunity.type));
-  const typeOptions = (Object.keys(typeMeta) as OpportunityType[]).filter((t) => present.has(t));
+  // Until the student's data has arrived there is nothing to say about the feed yet.
+  const loading = agentsLive.status === 'connecting';
+  // When the first cards arrive the reel starts at the first one, not wherever it was while empty.
+  const hadCards = useRef(false);
+  useEffect(() => {
+    if (slides.length > 0 && !hadCards.current) {
+      hadCards.current = true;
+      setSeen([]);
+      setIndex(0);
+      scroller.current?.scrollTo({ top: 0 });
+    }
+    if (slides.length === 0) hadCards.current = false;
+  }, [slides.length]);
+
+  // Every kind is listed, found or not, so an empty one shows 0 and can be searched for.
+  const typeOptions = Object.keys(typeMeta) as OpportunityType[];
   // Fields some card actually leads into, plus the goal's own field for the "My field" shortcut.
   const goalField = fieldOfGoal(state.goalId);
   const presentFields = new Set(slides.flatMap((r) => fieldsOf(r.opportunity)));
@@ -304,6 +354,8 @@ export function Feed() {
   const chosenFields = filters.fields ?? [];
   const myFieldOn = goalField !== null && chosenFields.length === 1 && chosenFields[0] === goalField;
   const activeCount = countActive(filters);
+  // What the Filters button holds: everything but the category, which has its own column.
+  const panelCount = countActive({ ...filters, types: [] });
   const filtersOn = query.trim() !== '' || activeCount > 0;
   const patch = (change: Partial<Filters>) => setFilters((current) => ({ ...current, ...change }));
   const clearFilters = () => {
@@ -319,11 +371,12 @@ export function Feed() {
     now: Date.now(),
   };
   const searched = live.map((r) => r.opportunity).filter((o) => matchesQuery(o, query));
+  // A kind chosen in the categories that the agents have found none of at all.
+  const emptyKind = filters.types.length === 1 && !slides.some((r) => r.opportunity.type === filters.types[0]) ? filters.types[0]! : null;
   const results = searched.filter((o) => matches(o, filters, context));
   // How many cards a choice would leave, with the search and the other filters as they are.
   const countWith = (change: Partial<Filters>) => searched.filter((o) => matches(o, { ...filters, ...change }, context)).length;
   const activeChips: { label: string; remove: () => void }[] = [
-    ...filters.types.map((value) => ({ label: typeMeta[value].plural, remove: () => patch({ types: toggled(filters.types, value) }) })),
     ...(filters.format !== 'any' ? [{ label: formatLabel[filters.format], remove: () => patch({ format: 'any' }) }] : []),
     ...(filters.deadline !== 'any' ? [{ label: deadlineLabel[filters.deadline], remove: () => patch({ deadline: 'any' }) }] : []),
     ...(filters.minFit > 0 ? [{ label: `Fit ${filters.minFit}+`, remove: () => patch({ minFit: 0 }) }] : []),
@@ -454,6 +507,15 @@ export function Feed() {
               <Slide key={r.opportunity.id} ranked={r} active={tab === 'foryou' && position === index && !details} near={Math.abs(position - index) <= 1} onDismiss={dismiss} onDetails={setDetails} opportunities={opportunities} onWhyDismiss={dismissFromWhy} />
             ))}
 
+            {loading && slides.length === 0 ? (
+              <section className="reel-slide" aria-label="Loading">
+                <div className="reel-end">
+                  <span className="live-dot mx-auto block size-2.5 rounded-full bg-brand" aria-hidden="true" />
+                  <h2 className="mt-5 font-display text-4xl leading-tight">Loading your feed…</h2>
+                  <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">Getting what your agents have found.</p>
+                </div>
+              </section>
+            ) : (
             <section className="reel-slide" aria-label="End of feed">
               <div className="reel-end">
                 <span className="live-dot mx-auto block size-2.5 rounded-full bg-[#34c759]" aria-hidden="true" />
@@ -480,6 +542,7 @@ export function Feed() {
                 </div>
               </div>
             </section>
+            )}
           </div>
           <div className="reel-pager">
             <button type="button" onClick={() => goTo(index - 1)} disabled={index === 0} aria-label="Previous opportunity">
@@ -495,267 +558,266 @@ export function Feed() {
         </>
       ) : (
         <div ref={scroller} className="feed-scroller">
-          <div className="feed-board">
+          <div className="feed-board feed-board-list">
             <div className="flex flex-wrap items-baseline gap-x-4">
               <h1 className="font-display text-4xl leading-tight text-white">Feed</h1>
               <p className="text-[15px] font-medium text-white/90">
-                Everything your agents found, next to your roadmap. {results.length} of {slides.length} shown.
+                Everything your agents found. {results.length} of {slides.length} shown.
               </p>
             </div>
 
-            <div className="feed-toolbar mt-3">
-              <label className="feed-search">
-                <Search className="size-[18px] shrink-0 text-ink-3" aria-hidden="true" />
-                <span className="sr-only">Search the feed</span>
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search by title, organizer, place or tag"
-                />
-              </label>
-              <div ref={filterMenu} className="relative">
-                <button
-                  type="button"
-                  className="feed-filter-button"
-                  aria-expanded={filtersOpen}
-                  aria-controls="feed-filters"
-                  data-active={activeCount > 0}
-                  onClick={() => setFiltersOpen((value) => !value)}
-                >
-                  <SlidersHorizontal className="size-4" aria-hidden="true" />
-                  Filters
-                  {activeCount > 0 && <span className="feed-filter-count">{activeCount}</span>}
-                </button>
+            <div className="feed-layout">
+              {/* Categories: one kind of opportunity at a time, or all of them. */}
+              <nav className="feed-cats" aria-label="Categories">
+                {([null, ...typeOptions] as (OpportunityType | null)[]).map((value) => {
+                  const on = value === null ? filters.types.length === 0 : filters.types.length === 1 && filters.types[0] === value;
+                  const Icon = value ? typeMeta[value].icon : LayoutList;
+                  return (
+                    <button key={value ?? 'all'} type="button" className="feed-cat" aria-pressed={on} onClick={() => patch({ types: value === null ? [] : [value] })}>
+                      <Icon className="size-4 shrink-0" aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate text-left">{value === null ? 'All' : typeMeta[value].plural}</span>
+                      <span className="feed-cat-count">{countWith({ types: value === null ? [] : [value] })}</span>
+                    </button>
+                  );
+                })}
+              </nav>
 
-                {filtersOpen && (
-                  <div id="feed-filters" className="feed-filter-panel" role="group" aria-label="Filters">
-                    <div className="flex items-baseline justify-between">
-                      <h2 className="text-base font-semibold">Filters</h2>
-                      <span className="text-sm text-ink-3">
-                        {results.length} of {searched.length} match
-                      </span>
-                    </div>
+              <div className="feed-column">
+                <div className="feed-toolbar">
+                  <label className="feed-search">
+                    <Search className="size-[18px] shrink-0 text-ink-3" aria-hidden="true" />
+                    <span className="sr-only">Search the feed</span>
+                    <input
+                      type="search"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="Search by title, organizer, place or tag"
+                    />
+                  </label>
+                  <div ref={filterMenu} className="relative">
+                    <button
+                      type="button"
+                      className="feed-filter-button"
+                      aria-expanded={filtersOpen}
+                      aria-controls="feed-filters"
+                      data-active={panelCount > 0}
+                      onClick={() => setFiltersOpen((value) => !value)}
+                    >
+                      <SlidersHorizontal className="size-4" aria-hidden="true" />
+                      Filters
+                      {panelCount > 0 && <span className="feed-filter-count">{panelCount}</span>}
+                    </button>
 
-                    <fieldset>
-                      <legend>Type</legend>
-                      <div className="filter-pills">
-                        {typeOptions.map((value) => {
-                          const Icon = typeMeta[value].icon;
-                          const on = filters.types.includes(value);
-                          const count = countWith({ types: [value] });
-                          return (
-                            <button
-                              key={value}
-                              type="button"
-                              className="filter-pill"
-                              aria-pressed={on}
-                              disabled={count === 0 && !on}
-                              onClick={() => patch({ types: toggled(filters.types, value) })}
-                            >
-                              <Icon className="size-4" aria-hidden="true" />
-                              {typeMeta[value].plural}
-                              <span className="filter-pill-count">{count}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </fieldset>
-
-                    <fieldset>
-                      <legend>Field</legend>
-                      <div className="filter-pills">
-                        {goalField && (
-                          <button
-                            type="button"
-                            className="filter-pill"
-                            aria-pressed={myFieldOn}
-                            disabled={countWith({ fields: [goalField] }) === 0 && !myFieldOn}
-                            onClick={() => patch({ fields: myFieldOn ? [] : [goalField] })}
-                            title={`Only ${goalField}, the field of your goal`}
-                          >
-                            My field
-                            <span className="filter-pill-count">{countWith({ fields: [goalField] })}</span>
-                          </button>
-                        )}
-                        {fieldChoices.map((value) => {
-                          const on = chosenFields.includes(value);
-                          const count = countWith({ fields: [value] });
-                          return (
-                            <button
-                              key={value}
-                              type="button"
-                              className="filter-pill"
-                              aria-pressed={on}
-                              disabled={count === 0 && !on}
-                              onClick={() => patch({ fields: toggled(chosenFields, value) })}
-                            >
-                              {value}
-                              <span className="filter-pill-count">{count}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <p className="mt-1.5 text-xs text-ink-3">Cards open to any field stay in every choice.</p>
-                    </fieldset>
-
-                    <fieldset>
-                      <legend>Only show</legend>
-                      <div className="filter-pills">
-                        {(Object.keys(onlyLabel) as OnlyFilter[]).map((value) => {
-                          const on = filters.only.includes(value);
-                          const count = countWith({ only: on ? filters.only : [...filters.only, value] });
-                          return (
-                            <button
-                              key={value}
-                              type="button"
-                              className="filter-pill"
-                              aria-pressed={on}
-                              disabled={count === 0 && !on}
-                              onClick={() => patch({ only: toggled(filters.only, value) })}
-                            >
-                              {onlyLabel[value]}
-                              <span className="filter-pill-count">{count}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </fieldset>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <fieldset>
-                        <legend>Deadline</legend>
-                        <div className="filter-list">
-                          {(Object.keys(deadlineLabel) as DeadlineFilter[]).map((value) => {
-                            const count = countWith({ deadline: value });
-                            return (
-                              <button
-                                key={value}
-                                type="button"
-                                role="radio"
-                                aria-checked={filters.deadline === value}
-                                disabled={count === 0 && filters.deadline !== value}
-                                onClick={() => patch({ deadline: value })}
-                              >
-                                {deadlineLabel[value]}
-                                <span>{count}</span>
-                              </button>
-                            );
-                          })}
+                    {filtersOpen && (
+                      <div id="feed-filters" className="feed-filter-panel" role="group" aria-label="Filters">
+                        <div className="flex items-baseline justify-between">
+                          <h2 className="text-base font-semibold">Filters</h2>
+                          <span className="text-sm text-ink-3">
+                            {results.length} of {searched.length} match
+                          </span>
                         </div>
-                      </fieldset>
 
-                      <div className="grid content-start gap-4">
+
                         <fieldset>
-                          <legend>Format</legend>
-                          <div className="filter-list">
-                            {(['any', ...Object.keys(formatLabel)] as Filters['format'][]).map((value) => {
-                              const count = countWith({ format: value });
+                          <legend>Field</legend>
+                          <div className="filter-pills">
+                            {goalField && (
+                              <button
+                                type="button"
+                                className="filter-pill"
+                                aria-pressed={myFieldOn}
+                                disabled={countWith({ fields: [goalField] }) === 0 && !myFieldOn}
+                                onClick={() => patch({ fields: myFieldOn ? [] : [goalField] })}
+                                title={`Only ${goalField}, the field of your goal`}
+                              >
+                                My field
+                                <span className="filter-pill-count">{countWith({ fields: [goalField] })}</span>
+                              </button>
+                            )}
+                            {fieldChoices.map((value) => {
+                              const on = chosenFields.includes(value);
+                              const count = countWith({ fields: [value] });
                               return (
                                 <button
                                   key={value}
                                   type="button"
-                                  role="radio"
-                                  aria-checked={filters.format === value}
-                                  disabled={count === 0 && filters.format !== value}
-                                  onClick={() => patch({ format: value })}
+                                  className="filter-pill"
+                                  aria-pressed={on}
+                                  disabled={count === 0 && !on}
+                                  onClick={() => patch({ fields: toggled(chosenFields, value) })}
                                 >
-                                  {value === 'any' ? 'Any format' : formatLabel[value]}
-                                  <span>{count}</span>
+                                  {value}
+                                  <span className="filter-pill-count">{count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="mt-1.5 text-xs text-ink-3">Cards open to any field stay in every choice.</p>
+                        </fieldset>
+
+                        <fieldset>
+                          <legend>Only show</legend>
+                          <div className="filter-pills">
+                            {(Object.keys(onlyLabel) as OnlyFilter[]).map((value) => {
+                              const on = filters.only.includes(value);
+                              const count = countWith({ only: on ? filters.only : [...filters.only, value] });
+                              return (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  className="filter-pill"
+                                  aria-pressed={on}
+                                  disabled={count === 0 && !on}
+                                  onClick={() => patch({ only: toggled(filters.only, value) })}
+                                >
+                                  {onlyLabel[value]}
+                                  <span className="filter-pill-count">{count}</span>
                                 </button>
                               );
                             })}
                           </div>
                         </fieldset>
 
-                        <fieldset>
-                          <legend>Fit score</legend>
-                          <div className="filter-segment">
-                            {fitOptions.map((value) => (
-                              <button
-                                key={value}
-                                type="button"
-                                role="radio"
-                                aria-checked={filters.minFit === value}
-                                disabled={countWith({ minFit: value }) === 0 && filters.minFit !== value}
-                                onClick={() => patch({ minFit: value })}
-                              >
-                                {value === 0 ? 'Any' : `${value}+`}
-                              </button>
-                            ))}
-                          </div>
-                        </fieldset>
-                      </div>
-                    </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <fieldset>
+                            <legend>Deadline</legend>
+                            <div className="filter-list">
+                              {(Object.keys(deadlineLabel) as DeadlineFilter[]).map((value) => {
+                                const count = countWith({ deadline: value });
+                                return (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={filters.deadline === value}
+                                    disabled={count === 0 && filters.deadline !== value}
+                                    onClick={() => patch({ deadline: value })}
+                                  >
+                                    {deadlineLabel[value]}
+                                    <span>{count}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </fieldset>
 
-                    <div className="filter-footer">
-                      <button type="button" onClick={clearFilters} disabled={!filtersOn} className="h-9 text-sm font-semibold text-ink-2 disabled:opacity-40">
-                        Clear all
-                      </button>
-                      <button type="button" onClick={() => setFiltersOpen(false)} className="btn-primary h-9 px-4 text-sm text-white">
-                        Show {results.length} {results.length === 1 ? 'result' : 'results'}
-                      </button>
+                          <div className="grid content-start gap-4">
+                            <fieldset>
+                              <legend>Format</legend>
+                              <div className="filter-list">
+                                {(['any', ...Object.keys(formatLabel)] as Filters['format'][]).map((value) => {
+                                  const count = countWith({ format: value });
+                                  return (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      role="radio"
+                                      aria-checked={filters.format === value}
+                                      disabled={count === 0 && filters.format !== value}
+                                      onClick={() => patch({ format: value })}
+                                    >
+                                      {value === 'any' ? 'Any format' : formatLabel[value]}
+                                      <span>{count}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </fieldset>
+
+                            <fieldset>
+                              <legend>Fit score</legend>
+                              <div className="filter-segment">
+                                {fitOptions.map((value) => (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={filters.minFit === value}
+                                    disabled={countWith({ minFit: value }) === 0 && filters.minFit !== value}
+                                    onClick={() => patch({ minFit: value })}
+                                  >
+                                    {value === 0 ? 'Any' : `${value}+`}
+                                  </button>
+                                ))}
+                              </div>
+                            </fieldset>
+                          </div>
+                        </div>
+
+                        <div className="filter-footer">
+                          <button type="button" onClick={clearFilters} disabled={!filtersOn} className="h-9 text-sm font-semibold text-ink-2 disabled:opacity-40">
+                            Clear all
+                          </button>
+                          <button type="button" onClick={() => setFiltersOpen(false)} className="btn-primary h-9 px-4 text-sm text-white">
+                            Show {results.length} {results.length === 1 ? 'result' : 'results'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <label className="feed-select">
+                    <span className="sr-only">Sort by</span>
+                    <select value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
+                      {(Object.keys(sortLabel) as Sort[]).map((value) => (
+                        <option key={value} value={value}>
+                          {sortLabel[value]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {/* What is switched on, each removable, so the list never looks filtered for no reason. */}
+                <div className="feed-active">
+                  {activeChips.map((chip) => (
+                    <button key={chip.label} type="button" onClick={chip.remove} className="feed-chip">
+                      {chip.label}
+                      <XSmall className="size-3.5" aria-hidden="true" />
+                      <span className="sr-only">Remove filter</span>
+                    </button>
+                  ))}
+                  {panelCount > 0 && (
+                    <button type="button" onClick={() => setFilters((current) => ({ ...emptyFilters, types: current.types }))} className="h-9 px-2 text-sm font-semibold text-white">
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+
+                {results.length === 0 && emptyKind && !loading ? (
+                  <div className="feed-list-empty">
+                    <EmptyKind type={emptyKind} searching={agentsLive.searching} onSearch={() => void agentsLive.runNow(emptyKind)} />
+                  </div>
+                ) : results.length === 0 && loading ? (
+                  <div className="feed-list-empty">
+                    <div className="reel-end">
+                      <h2 className="font-display text-3xl leading-tight">Loading your feed…</h2>
+                      <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">Getting what your agents have found.</p>
                     </div>
                   </div>
+                ) : results.length === 0 ? (
+                  <div className="feed-list-empty">
+                    <div className="reel-end">
+                      <h2 className="font-display text-3xl leading-tight">{filtersOn ? 'Nothing matches those filters' : 'Nothing here right now'}</h2>
+                      <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">
+                        {filtersOn ? 'Try fewer words, another category, or clear the filters.' : 'Your agents are still searching. New cards appear here as they are verified.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <ul className="feed-list">
+                    {results.map((o) => (
+                      <li key={o.id}>
+                        <OpportunityRow
+                          opportunity={o}
+                          onDismiss={dismiss}
+                          onRoadmap={plan.steps.some((step) => step.opportunityId === o.id && !state.doneSteps.includes(step.id))}
+                        />
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
-
-              <label className="feed-select">
-                <span className="sr-only">Sort by</span>
-                <select value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
-                  {(Object.keys(sortLabel) as Sort[]).map((value) => (
-                    <option key={value} value={value}>
-                      {sortLabel[value]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            {/* What is switched on, each removable, so the grid never looks filtered for no reason. */}
-            <div className="feed-active">
-              {activeChips.map((chip) => (
-                <button key={chip.label} type="button" onClick={chip.remove} className="feed-chip">
-                  {chip.label}
-                  <XSmall className="size-3.5" aria-hidden="true" />
-                  <span className="sr-only">Remove filter</span>
-                </button>
-              ))}
-              {activeCount > 0 && (
-                <button type="button" onClick={clearFilters} className="h-9 px-2 text-sm font-semibold text-white">
-                  Clear filters
-                </button>
-              )}
-            </div>
-
-            <div className="feed-main">
-              {results.length === 0 ? (
-                <div className="grid place-items-center">
-                  <div className="reel-end">
-                    <h2 className="font-display text-3xl leading-tight">
-                      {filtersOn ? 'Nothing matches those filters' : 'Nothing here right now'}
-                    </h2>
-                    <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">
-                      {filtersOn
-                        ? 'Try fewer words or clear the filters.'
-                        : 'Your agents are still searching. New cards appear here as they are verified.'}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="feed-grid" data-count={Math.min(results.length, 8)}>
-                  {results.map((o) => (
-                    <OpportunityTile
-                      key={o.id}
-                      opportunity={o}
-                      onDismiss={dismiss}
-                      onRoadmap={plan.steps.some((step) => step.opportunityId === o.id && !state.doneSteps.includes(step.id))}
-                      lit={o.id === lit}
-                    />
-                  ))}
-                </div>
-              )}
-              <RoadmapPanel highlight={setLit} />
             </div>
           </div>
         </div>

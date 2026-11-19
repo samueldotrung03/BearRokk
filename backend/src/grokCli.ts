@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { currentSignal, StoppedError } from './agents/stop.ts';
 import { config } from './config.ts';
 import type { GrokResult, GrokTool } from './grok.ts';
 
@@ -17,6 +18,8 @@ function sandboxDir(): string {
 }
 
 function run(args: string[], timeoutMs: number): Promise<string> {
+  const stop = currentSignal();
+  if (stop?.aborted) return Promise.reject(new StoppedError());
   return new Promise((resolve, reject) => {
     const child = spawn(config.grokCli.bin, args, { cwd: sandboxDir(), stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
@@ -25,6 +28,14 @@ function run(args: string[], timeoutMs: number): Promise<string> {
       child.kill('SIGKILL');
       reject(new Error(`grok CLI timed out after ${Math.round(timeoutMs / 1000)}s`));
     }, timeoutMs);
+    // The student stopped the search: end this call now rather than when it finishes.
+    const onStop = () => {
+      clearTimeout(timer);
+      child.kill('SIGKILL');
+      reject(new StoppedError());
+    };
+    stop?.addEventListener('abort', onStop, { once: true });
+    child.on('close', () => stop?.removeEventListener('abort', onStop));
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (err += d));
     child.on('error', (e: NodeJS.ErrnoException) => {
@@ -117,7 +128,7 @@ export async function grokCliJson<S extends z.ZodType>(opts: {
       return { data: opts.schema.parse(extractJson(answerText(stdout))), citations: [] };
     } catch (e) {
       lastError = e;
-      if (e instanceof Error && /not found|timed out/.test(e.message)) break;
+      if (e instanceof StoppedError || (e instanceof Error && /not found|timed out/.test(e.message))) break;
     }
   }
   throw lastError;

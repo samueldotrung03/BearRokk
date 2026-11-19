@@ -111,6 +111,8 @@ function backendEnv() {
     FIREBASE_AUTH_DOMAIN: firebase.authDomain ?? '',
     // Each student's memory goes to the cloud under their own sign-in; nothing secret ships in the app.
     STUDENT_STORE: 'account',
+    // Students connect Google once; the backend on their computer keeps the connection.
+    ...(firebase.googleOAuth ? { GOOGLE_OAUTH_CLIENT_ID: firebase.googleOAuth.clientId, GOOGLE_OAUTH_CLIENT_SECRET: firebase.googleOAuth.clientSecret } : {}),
     LOCAL_DATA_FILE: path.join(app.getPath('userData'), 'store.json'),
   };
   for (const name of ['TMPDIR', 'USER', 'LANG', 'SystemRoot', 'APPDATA', 'LOCALAPPDATA', 'USERPROFILE']) if (process.env[name]) env[name] = process.env[name];

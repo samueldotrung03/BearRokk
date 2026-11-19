@@ -92,7 +92,7 @@ export function WeekView({
               <ul className="grid gap-1.5">
                 {list.map((item) => (
                   <li key={item.id}>
-                    <button type="button" onClick={() => onSelect(day)} className="cx-week-item" data-priority={item.priority} data-done={item.done}>
+                    <button type="button" onClick={() => onSelect(day)} className="cx-week-item" data-kind={item.kind} data-priority={item.priority} data-done={item.done}>
                       <span className="text-[10px] font-semibold tracking-wide uppercase opacity-70">
                         {item.hours ? `Work block · ${hoursLabel(item.hours)}` : cxKindLabel[item.kind]}
                       </span>

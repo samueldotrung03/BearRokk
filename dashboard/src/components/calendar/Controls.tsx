@@ -1,12 +1,13 @@
 // The calendar's toolbar pieces: the view switch and the filter chips.
-import { CalendarDays, Columns3, List } from 'lucide-react';
+import { CalendarDays, Columns3, List, Square } from 'lucide-react';
 import type { Priority } from '../../lib/calendar.ts';
 import { ALL_KINDS, allFilters, cxKindLabel, filtersActive, type CxFilters, type CxKind } from '../../lib/cal/items.ts';
 
-export type CalendarView = 'month' | 'week' | 'agenda';
+export type CalendarView = 'month' | 'week' | 'day' | 'agenda';
 const VIEWS: { id: CalendarView; label: string; icon: typeof List }[] = [
   { id: 'month', label: 'Month', icon: CalendarDays },
   { id: 'week', label: 'Week', icon: Columns3 },
+  { id: 'day', label: 'Day', icon: Square },
   { id: 'agenda', label: 'Agenda', icon: List },
 ];
 

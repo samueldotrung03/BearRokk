@@ -435,3 +435,18 @@ describe('saved state on this device', () => {
     expect([...storage.data.keys()].sort()).toEqual(['bearrok.onboarded.uid-a', 'firebase:authUser:key:[DEFAULT]']);
   });
 });
+
+describe('saves from the account', () => {
+  it("takes the account's saves and likes for the postings it knows, and leaves the rest alone", async () => {
+    const { reducer } = await import('./store.ts');
+    const local = { ...initialState, saved: ['a', 'b', 'sample-1'], liked: ['b'] };
+    // The account knows a, b and c: on another device the student unsaved b and saved c.
+    const next = reducer(local, { type: 'syncReactions', known: ['a', 'b', 'c'], saved: ['a', 'c'], liked: ['c'] });
+    expect(next.saved).toEqual(['sample-1', 'a', 'c']);
+    expect(next.liked).toEqual(['c']);
+    // Always a new list, so the change is noticed even when nothing differs.
+    const same = reducer(next, { type: 'syncReactions', known: ['a', 'c'], saved: ['a', 'c'], liked: ['c'] });
+    expect(same.saved).not.toBe(next.saved);
+    expect(same.saved).toEqual(next.saved);
+  });
+});

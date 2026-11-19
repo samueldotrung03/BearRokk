@@ -2,7 +2,8 @@ import { ArrowUpRight, Bell, Bookmark, BookmarkCheck, CalendarDays, CalendarPlus
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { applicationInfo } from '../data/sample.ts';
-import { googleCalendarUrl, remindersFor } from '../lib/applications.ts';
+import { remindersFor } from '../lib/applications.ts';
+import { CalendarStatus } from './CalendarStatus.tsx';
 import { buildOpportunityRoadmap } from '../lib/roadmap.ts';
 import { daysUntil, dueLabel, relativeTime, shortDate } from '../lib/time.ts';
 import { useStore } from '../state/StoreProvider.tsx';
@@ -30,11 +31,12 @@ function LikeButton({ id }: { id: string }) {
 }
 
 /**
- * Cover photo, with a tinted icon panel when there is no photo or it fails to load. A logo is
- * drawn whole on a light panel instead of cropped, and a stock photo or AI illustration carries
- * its credit.
+ * Cover picture, shown whole: never cropped. The picture sits inside `box` (by default the whole
+ * cover), scaled to fit, and a blurred copy of it fills the rest, so a wide banner in a tall card
+ * has no empty bars. A logo gets room around it on a light panel. Stock photos and AI
+ * illustrations carry their credit. Without a picture, or if it fails to load, a tinted icon panel.
  */
-export function Cover({ opportunity: o, className = '' }: { opportunity: Opportunity; className?: string }) {
+export function Cover({ opportunity: o, className = '', box = 'absolute inset-0' }: { opportunity: Opportunity; className?: string; box?: string }) {
   const [failed, setFailed] = useState(false);
   const meta = typeMeta[o.type];
   if (!o.image || failed) {
@@ -44,31 +46,26 @@ export function Cover({ opportunity: o, className = '' }: { opportunity: Opportu
       </div>
     );
   }
-  // A class list that already places the cover keeps it; otherwise the credit needs a frame to sit in.
+  // A class list that already places the cover keeps it; otherwise the layers need a frame.
   const frame = /\babsolute\b/.test(className) ? '' : 'relative';
-  const credit = o.imageCredit ? (
-    <span className="pointer-events-auto absolute right-2 bottom-2 max-w-[80%] truncate rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-white/90 backdrop-blur">
-      {o.imageCreditUrl ? (
-        <a href={o.imageCreditUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
-          {o.imageCredit}
-        </a>
-      ) : (
-        o.imageCredit
-      )}
-    </span>
-  ) : null;
-  if (o.imageKind === 'logo') {
-    return (
-      <div className={`${frame} grid place-items-center bg-white ${className}`}>
-        <img src={o.image} alt={`${o.organizer} logo`} loading="lazy" onError={() => setFailed(true)} className="max-h-[45%] max-w-[60%] object-contain" />
-      </div>
-    );
-  }
-  if (!credit) return <img src={o.image} alt="" loading="lazy" onError={() => setFailed(true)} className={`bg-slate-100 object-cover ${className}`} />;
+  const logo = o.imageKind === 'logo';
   return (
-    <div className={`${frame} overflow-hidden bg-slate-100 ${className}`}>
-      <img src={o.image} alt="" loading="lazy" onError={() => setFailed(true)} className="size-full object-cover" />
-      {credit}
+    <div className={`${frame} overflow-hidden ${logo ? 'bg-white' : 'bg-slate-800'} ${className}`}>
+      <img src={o.image} alt="" aria-hidden="true" loading="lazy" className={`cover-fill absolute inset-0 size-full object-cover ${logo ? 'opacity-25' : ''}`} />
+      <div className={`${box} ${logo ? 'p-[14%]' : ''}`}>
+        <img src={o.image} alt={logo ? `${o.organizer} logo` : ''} loading="lazy" onError={() => setFailed(true)} className="cover-whole size-full object-contain" />
+      </div>
+      {o.imageCredit && (
+        <span className="absolute right-2 bottom-2 z-10 max-w-[80%] truncate rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-white/90 backdrop-blur">
+          {o.imageCreditUrl ? (
+            <a href={o.imageCreditUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
+              {o.imageCredit}
+            </a>
+          ) : (
+            o.imageCredit
+          )}
+        </span>
+      )}
     </div>
   );
 }
@@ -128,7 +125,6 @@ function KeyDates({ opportunity: o }: { opportunity: Opportunity }) {
   const { state } = useStore();
   const status = state.applications[o.id]?.status;
   const reminders = status ? remindersFor(status, o.deadline).filter((reminder) => !reminder.past) : [];
-  const calendar = googleCalendarUrl(o);
   const rows = [
     { label: 'Found by your agents', value: relativeTime(o.foundAt), urgent: false },
     { label: 'Checked against the official page', value: relativeTime(o.lastCheckedAt), urgent: false },
@@ -148,7 +144,10 @@ function KeyDates({ opportunity: o }: { opportunity: Opportunity }) {
           </div>
         ))}
       </dl>
-      {(reminders.length > 0 || calendar) && (
+      <div className="mt-3">
+        <CalendarStatus id={o.id} deadline={o.deadline} compact />
+      </div>
+      {reminders.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           {reminders.map((reminder) => (
             <span key={reminder.label} className="app-reminder">
@@ -156,12 +155,6 @@ function KeyDates({ opportunity: o }: { opportunity: Opportunity }) {
               {reminder.label} · {shortDate(reminder.at)}
             </span>
           ))}
-          {calendar && (
-            <a href={calendar} target="_blank" rel="noreferrer" className="app-link">
-              <CalendarPlus className="size-4" aria-hidden="true" />
-              Add to Google Calendar
-            </a>
-          )}
         </div>
       )}
     </section>
@@ -446,6 +439,77 @@ export function OpportunityCard({ opportunity: o, onDismiss }: { opportunity: Op
 }
 
 /**
+ * One opportunity as a wide row in the feed list: its picture on the left, shown whole, and on
+ * the right what it is, the title, the organizer and why it fits. The whole row opens the
+ * details; Save, Like and Dislike sit along the bottom.
+ */
+export function OpportunityRow({
+  opportunity: o,
+  onDismiss,
+  onRoadmap = false,
+  actions,
+}: {
+  opportunity: Opportunity;
+  onDismiss: (o: Opportunity) => void;
+  onRoadmap?: boolean;
+  /** More controls at the end of the row's button line, such as the application status on the Saved page. */
+  actions?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const meta = typeMeta[o.type];
+  const urgent = o.deadline !== null && daysUntil(o.deadline) <= 7;
+  const when = o.deadline ? dueLabel(o.deadline) : o.startTime ? `Starts ${shortDate(o.startTime)}` : null;
+  const place = [o.format ? formatLabel[o.format] : null, o.location].filter(Boolean).join(' · ');
+
+  return (
+    <article className="feed-row" aria-labelledby={`${o.id}-row`}>
+      <div className="feed-row-media">
+        <Cover opportunity={o} className="absolute inset-0 size-full" />
+      </div>
+      <div className="feed-row-body">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold">
+          <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 ${meta.tint}`}>
+            <meta.icon className="size-3.5" aria-hidden="true" />
+            {meta.label}
+          </span>
+          {when && (
+            <span className={`flex items-center gap-1 ${urgent ? 'text-orange-700' : 'text-ink-3'}`}>
+              <Clock className="size-3.5" aria-hidden="true" />
+              {when}
+            </span>
+          )}
+          {onRoadmap && <span className="text-brand">On your roadmap</span>}
+        </div>
+        <h2 id={`${o.id}-row`} className="mt-2 line-clamp-2 text-[17px] leading-snug font-semibold text-ink text-balance">
+          <button type="button" onClick={() => setOpen(true)} className="text-left after:absolute after:inset-0">
+            {o.title}
+          </button>
+        </h2>
+        <p className="mt-0.5 truncate text-sm font-medium text-ink-2">
+          {o.organizer}
+          {place && <span className="font-normal text-ink-3"> · {place}</span>}
+        </p>
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-ink-2">{o.fitExplanation}</p>
+        <div className="relative z-10 mt-auto flex flex-wrap items-center gap-1 pt-3">
+          <SaveButton id={o.id} />
+          <LikeButton id={o.id} />
+          <button
+            type="button"
+            onClick={() => onDismiss(o)}
+            className="flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-ink-3 transition hover:bg-slate-100 hover:text-ink"
+          >
+            <ThumbsDown className="size-4" aria-hidden="true" />
+            Dislike
+          </button>
+          {actions}
+        </div>
+      </div>
+      {open && <Details opportunity={o} onClose={() => setOpen(false)} />}
+    </article>
+  );
+}
+
+/**
  * A compact photo tile for the feed board, where every card has to fit in the window. The whole
  * tile opens the details; Save, Like and Dislike sit on top of the photo.
  */
@@ -471,7 +535,7 @@ export function OpportunityTile({
 
   return (
     <article className="feed-tile" data-lit={lit} aria-labelledby={`${o.id}-tile`}>
-      <Cover opportunity={o} className="absolute inset-0 size-full" />
+      <Cover opportunity={o} className="absolute inset-0 size-full" box="absolute inset-x-0 top-0 h-[60%] pt-10" />
       <div className="feed-tile-shade" aria-hidden="true" />
       <div className="absolute inset-x-3 top-3 flex items-center gap-1.5">
         <span className="flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-ink backdrop-blur">

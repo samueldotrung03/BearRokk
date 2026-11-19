@@ -6,11 +6,15 @@ import { resumeInfo, type Resume, type ResumeInfo } from '../resume.ts';
 import { canonicalUrl } from '../validate.ts';
 import type { Brain } from './brain.ts';
 import { Fleet, limiter } from './fleet.ts';
-import type { ImageFinder } from './images.ts';
+import { isStopped, StoppedError, throwIfStopped, withSignal } from './stop.ts';
+import type { FoundImage, ImageFinder } from './images.ts';
+import type { TrackerItem } from '../sheets.ts';
 import { allocateSlots, buildMemory, categoryWeights, noteSignals, rankFeed, summarize } from './scoring.ts';
 import {
+  CATEGORIES,
   CATEGORY_LABEL,
   CATEGORY_OF,
+  type OppType,
   REVIEWERS,
   type Action,
   type AgentNode,
@@ -23,6 +27,8 @@ import {
   type FeedEntry,
   type Interaction,
   type LearnedMemory,
+  type LinkedSheet,
+  type ProfileMemory,
   type LogEvent,
   type MemorySummary,
   type PendingPosting,
@@ -101,6 +107,16 @@ export interface StudentState {
   scheduleSeconds: number;
   /** Cards the feed should hold; the agents keep searching while it has fewer. */
   feedTarget: number;
+  /** What the student has saved and liked now, kept with their account so every device shows the same. */
+  saved: string[];
+  liked: string[];
+  /**
+   * The saved postings themselves, whatever kinds the feed is set to show, so a saved card stays on
+   * the Saved page after the profile changes. Ones disliked since, or ruled out by a note, are left out.
+   */
+  savedItems: FeedEntry[];
+  /** The Google Sheet the saved list is written to, or null for the app's own sheet only. */
+  sheet: LinkedSheet | null;
   runCount: number;
   mode: 'simulated' | 'live';
   /** Which model family the agents are on. "claude" is a temporary test set-up. */
@@ -132,6 +148,30 @@ export function remindersFor(deadline: string, now: Date, days: number[] = [7, 2
     .filter((r, i) => Date.parse(r.at) > now.getTime() || (i === plan.length - 1 && plan[i]![0] === 0 && due > now.getTime()));
 }
 
+/** How a kind of opportunity is named when the student asks for more of it. */
+const MORE_OF: Record<OppType, string> = {
+  internship: 'internships',
+  event: 'events',
+  club: 'clubs',
+  hackathon: 'hackathons',
+  research: 'research positions',
+  scholarship: 'scholarships',
+};
+
+const PICTURE_RETRY_MS = 86_400_000;
+/** True for a posting nobody has looked for a picture for, or one nothing was found for a day ago. */
+const needsPicture = (o: Opportunity, now: Date) =>
+  o.imageKind === undefined || (o.imageKind === null && (!o.imageTriedAt || now.getTime() - Date.parse(o.imageTriedAt) > PICTURE_RETRY_MS));
+
+/** Record what the image finder found on the posting. Looked for once either way. */
+function applyPicture(o: Opportunity, found: FoundImage | null, now: Date) {
+  o.imageTriedAt = now.toISOString();
+  o.imageKind = found?.kind ?? null;
+  o.image = found?.url ?? null;
+  o.imageCredit = found?.credit ?? null;
+  o.imageCreditUrl = found?.creditUrl ?? null;
+}
+
 const idFor = (key: string) => `opp-${createHash('sha1').update(key).digest('hex').slice(0, 10)}`;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -161,9 +201,19 @@ export class AgentSystem {
   /** Searches the scouts have run, newest last, and the outline of each finished run. */
   private searches: SearchRecord[] = [];
   private runs: RunRecord[] = [];
+  /** A kind of opportunity the student asked for more of; the next run searches only for it. */
+  private focus: OppType | null = null;
+  /** The Google Sheet the saved list is kept in, once the student links one. */
+  private sheet: LinkedSheet | null = null;
+  /** The student's lasting Google connection. Kept with their account; never put in student(). */
+  private google: ProfileMemory['google'] = null;
+  /** Postings a picture is being looked for right now, so two passes do not look for the same one. */
+  private picturing = new Set<string>();
   /** Called after anything worth saving changed. */
   private saver: (() => void) | null = null;
   private running: Promise<void> | null = null;
+  /** Stops the run in flight. */
+  private abort: AbortController | null = null;
   private queued: Trigger | null = null;
   private listeners = new Set<Listener>();
   private profileTimer: NodeJS.Timeout | null = null;
@@ -193,6 +243,15 @@ export class AgentSystem {
 
   student(): StudentState {
     const memory = this.memory();
+    const rank = (list: Opportunity[]) =>
+      rankFeed(list, memory, {
+        now: this.opts.now(),
+        reasons: this.reasons,
+        newIds: this.newIds,
+        notes: noteSignals(this.profile.preferences?.notes ?? []),
+      });
+    // A card disliked after it was saved is not shown as saved, as the app does when you dislike it.
+    const saved = [...memory.saved].filter((id) => this.opportunities.has(id) && memory.reaction.get(id) !== 'dislike');
     return {
       profile: this.profile,
       memory: summarize(memory),
@@ -207,6 +266,10 @@ export class AgentSystem {
       feedbackThreshold: this.opts.feedbackThreshold,
       scheduleSeconds: this.scheduleSeconds,
       feedTarget: this.opts.feedTarget,
+      saved,
+      liked: [...memory.reaction].filter(([id, r]) => r === 'like' && this.opportunities.has(id)).map(([id]) => id),
+      savedItems: rank(saved.map((id) => this.opportunities.get(id)!)),
+      sheet: this.sheet,
       runCount: this.runCount,
       mode: this.brain.mode,
       provider: this.brain.mode === 'live' ? (this.opts.provider ?? 'grok') : 'simulated',
@@ -231,8 +294,52 @@ export class AgentSystem {
    * cannot keep the agents running without end.
    */
   private shouldFill() {
-    if (this.opts.feedTarget <= 0 || this.run?.status === 'failed') return false;
+    // A run that failed, or that the student stopped, is not followed by another on its own.
+    if (this.opts.feedTarget <= 0 || this.run?.status === 'failed' || this.run?.status === 'stopped') return false;
     return this.fillRuns < this.opts.maxFillRuns && this.openCards() < this.opts.feedTarget;
+  }
+
+  /**
+   * Look for pictures for stored postings that have none, straight away and without a search.
+   * Called when a student's memory is loaded, so cards found before pictures existed get them.
+   */
+  fillPictures(limit = 30): Promise<void> {
+    const finder = this.opts.images;
+    if (!finder) return Promise.resolve();
+    const now = this.opts.now();
+    const todo = [...this.opportunities.values()].filter((o) => needsPicture(o, now) && !this.picturing.has(o.id)).slice(0, limit);
+    const slot = limiter(4);
+    return Promise.all(
+      todo.map((o) =>
+        slot(async () => {
+          this.picturing.add(o.id);
+          try {
+            const found = await finder.find(o, () => this.brain.illustrate(o));
+            // Still in the feed (not rejected or reset meanwhile): record it.
+            if (this.opportunities.get(o.id) === o) {
+              applyPicture(o, found, this.opts.now());
+              this.emitStudent();
+            }
+          } catch (e) {
+            console.error(`picture finder failed for "${o.title}": ${errorText(e)}`);
+          } finally {
+            this.picturing.delete(o.id);
+          }
+        }),
+      ),
+    ).then(() => {});
+  }
+
+  /**
+   * The student asked for more of one kind of opportunity: the next run puts every search manager
+   * on it. Asking for a kind their profile leaves out adds it, since asking says they want it.
+   */
+  searchFor(type: OppType) {
+    const category = CATEGORY_OF[type];
+    if (!this.profile.categories.includes(category)) this.profile = { ...this.profile, categories: [...this.profile.categories, category] };
+    this.focus = type;
+    this.emitStudent();
+    return this.trigger(this.runCount === 0 ? 'first' : 'manual');
   }
 
   /** Start a search if the feed is short of its target and nothing is running. */
@@ -266,6 +373,8 @@ export class AgentSystem {
         resume: r ? { name: r.name, type: r.type, size: r.size, uploadedAt: r.uploadedAt, text: r.text, bytes: Buffer.from(r.bytes).toString('base64') } : null,
         reminderDays: this.reminderDays,
         scheduleSeconds: this.scheduleSeconds,
+        sheet: this.sheet,
+        google: this.google,
       },
       learned: {
         interactions: this.interactions,
@@ -289,6 +398,8 @@ export class AgentSystem {
     if (p?.profile) this.profile = { ...this.initialProfile, ...structuredClone(p.profile) };
     this.resume = p?.resume ? { ...p.resume, bytes: new Uint8Array(Buffer.from(p.resume.bytes, 'base64')) } : null;
     if (Array.isArray(p?.reminderDays)) this.reminderDays = p.reminderDays;
+    this.sheet = p?.sheet ?? null;
+    this.google = p?.google ?? null;
     this.interactions = structuredClone(l.interactions ?? []);
     this.opportunities = new Map((l.opportunities ?? []).map((o) => [o.id, structuredClone(o)]));
     this.reasons = new Map(Object.entries(l.reasons ?? {}));
@@ -362,6 +473,13 @@ export class AgentSystem {
     if (!this.opportunities.has(opportunityId)) return null;
     this.interactions.push({ opportunityId, action, at: this.opts.now().toISOString() });
     if (action !== 'open') this.feedbackSinceRun++;
+    // Saving starts tracking it as Interested. Unsaving one that never got further stops tracking it.
+    if (action === 'save') {
+      const nowSaved = this.memory().saved.has(opportunityId);
+      const app = this.applications.get(opportunityId);
+      if (nowSaved && !app) this.setApplication(opportunityId, { status: 'interested' });
+      else if (!nowSaved && app?.status === 'interested' && Object.keys(app.drafts).length === 0) this.removeApplication(opportunityId);
+    }
     this.emitStudent();
     if (this.feedbackSinceRun >= this.opts.feedbackThreshold) void this.trigger('feedback');
     // A dislike takes a card out of the feed; if that leaves it short, the agents go and find more.
@@ -469,6 +587,46 @@ export class AgentSystem {
     return app;
   }
 
+  // ---- the saved tracker ------------------------------------------------------------------
+
+  /**
+   * Everything saved, and anything with an application status, one entry each: soonest deadline
+   * first, with no deadline after, as the tracker sheet lists them.
+   */
+  trackerItems(): TrackerItem[] {
+    const memory = this.memory();
+    const savedAt = new Map<string, string>();
+    for (const i of this.interactions) if (i.action === 'save') savedAt.set(i.opportunityId, i.at);
+    const ids = [...new Set([...this.student().saved, ...this.applications.keys()])];
+    return ids
+      .filter((id) => memory.reaction.get(id) !== 'dislike' || this.applications.has(id))
+      .map((id) => ({ opportunity: this.opportunities.get(id) ?? null, application: this.applications.get(id) ?? null, savedAt: memory.saved.has(id) ? (savedAt.get(id) ?? null) : null }))
+      .filter((item) => item.opportunity || item.application)
+      .sort((a, b) => {
+        const due = (x: TrackerItem) => Date.parse(x.application?.deadline ?? x.opportunity?.deadline ?? '') || Infinity;
+        return due(a) - due(b);
+      });
+  }
+
+  getSheet() {
+    return this.sheet;
+  }
+
+  getGoogle() {
+    return this.google;
+  }
+
+  /** Saved straight away: it is what lets the student skip connecting next time. */
+  setGoogle(google: ProfileMemory['google']) {
+    this.google = google;
+    this.saver?.();
+  }
+
+  setSheet(sheet: LinkedSheet | null) {
+    this.sheet = sheet;
+    this.emitStudent();
+  }
+
   /** Change when the student is reminded, and redo the reminders on applications already tracked. */
   setReminderDays(days: number[]) {
     this.reminderDays = [...new Set(days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 60))].slice(0, 6);
@@ -507,16 +665,32 @@ export class AgentSystem {
       this.queued ??= trigger;
       return this.running;
     }
-    this.running = this.runOnce(trigger)
+    const controller = new AbortController();
+    this.abort = controller;
+    this.running = withSignal(controller.signal, () => this.runOnce(trigger))
       .catch((e) => console.error('run crashed:', e))
       .then(() => {
         this.running = null;
+        this.abort = null;
         // Something the student did comes first; otherwise search again while the feed is short.
         const next = this.queued ?? (this.shouldFill() ? 'fill' : null);
         this.queued = null;
         if (next) return this.trigger(next);
       });
     return this.running;
+  }
+
+  /**
+   * Stop the search in flight. Calls still running are ended, queued jobs are skipped, and no
+   * search follows on its own. Postings already checked stay in the feed; ones read but not yet
+   * decided are kept as pending and reviewed first by the next search. False when none is running.
+   */
+  stop(): boolean {
+    if (!this.running || !this.abort || this.abort.signal.aborted) return false;
+    this.queued = null;
+    this.focus = null;
+    this.abort.abort();
+    return true;
   }
 
   // ---- one run -------------------------------------------------------------
@@ -575,7 +749,12 @@ export class AgentSystem {
       const master = node({ id: 'master', level: 'master', name: 'Master agent', role: 'Reads the profile, background and memory', status: 'running', detail: 'Reading the student…' });
       const memory = this.memory();
       const summary = summarize(memory);
-      const split = allocateSlots(this.profile.categories, categoryWeights(memory), this.opts.slots);
+      // A run the student started for one kind of opportunity puts every manager on that kind.
+      const focus = this.focus;
+      this.focus = null;
+      const split = focus
+        ? (Object.fromEntries(CATEGORIES.map((c) => [c, c === CATEGORY_OF[focus] ? this.opts.slots : 0])) as Record<Category, number>)
+        : allocateSlots(this.profile.categories, categoryWeights(memory), this.opts.slots);
       const perManager = Math.floor(this.opts.maxJobs / this.opts.slots);
       const skeleton: Assignment[] = [];
       for (const category of Object.keys(split) as Category[]) {
@@ -599,6 +778,11 @@ export class AgentSystem {
         assignments: skeleton,
         pastSearches: this.searches.map((s) => s.query),
       });
+      if (focus) {
+        for (const a of assignments) a.focus = [MORE_OF[focus], ...a.focus.filter((f) => f !== MORE_OF[focus])].slice(0, 3);
+        brief.preferences.push(`Find more ${MORE_OF[focus]}: the student asked for more of these just now.`);
+        log('Master agent', `The student asked for more ${MORE_OF[focus]}, so every search manager is on them this time`, 'good');
+      }
       run.brief = brief;
       run.assignments = assignments;
       const mix = (Object.keys(split) as Category[]).filter((c) => split[c] > 0).map((c) => `${split[c]} on ${CATEGORY_LABEL[c].toLowerCase()}`);
@@ -733,6 +917,8 @@ export class AgentSystem {
         this.emitRun();
         const reviews = REVIEWERS.map((reviewer) =>
           reviewSlot(async () => {
+            // Reviews still waiting for a free slot when the search is stopped never start.
+            if (isStopped()) return;
             const r = v.reviews.find((x) => x.focus === reviewer.focus)!;
             try {
               const verdict = await this.brain.validate(f.candidate, brief, summary, reviewer.focus);
@@ -748,7 +934,8 @@ export class AgentSystem {
             this.emitRun();
           }),
         );
-        working.push(Promise.all(reviews).then(() => settle(key, f)));
+        // A posting whose reviews a stop cut short is not decided: it stays pending for the next run.
+        working.push(Promise.all(reviews).then(() => (isStopped() ? undefined : settle(key, f))));
       };
 
       // A picture for each posting: its event's own, else the organizer's logo, else a free stock
@@ -757,26 +944,23 @@ export class AgentSystem {
       let pictured = 0;
       const findImage = async (o: Opportunity) => {
         if (!finder) return;
-        const found = await fleet.run({ kind: 'image', managerId: o.foundBy, label: `Picture: ${o.title}`, exempt: true }, async () => {
-          const value = await finder.find(o, () => this.brain.illustrate(o));
-          const label = { event: 'its own picture', logo: "the organizer's logo", stock: 'a free stock photo', generated: 'an AI-generated illustration' };
-          return { value, summary: value ? label[value.kind] : 'no picture found' };
-        });
-        // Looked for once; a posting nothing was found for is tried again after a day.
-        o.imageTriedAt = now().toISOString();
-        o.imageKind = found?.kind ?? null;
-        o.image = found?.url ?? null;
-        o.imageCredit = found?.credit ?? null;
-        o.imageCreditUrl = found?.creditUrl ?? null;
-        if (found) pictured++;
-        this.emitStudent();
+        if (this.picturing.has(o.id)) return;
+        this.picturing.add(o.id);
+        try {
+          const found = await fleet.run({ kind: 'image', managerId: o.foundBy, label: `Picture: ${o.title}`, exempt: true }, async () => {
+            const value = await finder.find(o, () => this.brain.illustrate(o));
+            const label = { event: 'its own picture', logo: "the organizer's logo", stock: 'a free stock photo', generated: 'an AI-generated illustration' };
+            return { value, summary: value ? label[value.kind] : 'no picture found' };
+          });
+          applyPicture(o, found, now());
+          if (found) pictured++;
+          this.emitStudent();
+        } finally {
+          this.picturing.delete(o.id);
+        }
       };
-      // Postings stored before pictures were looked for get one now, a few per run.
-      const DAY = 86_400_000;
-      const needsPicture = (x: Opportunity) => x.imageKind === undefined || (x.imageKind === null && (!x.imageTriedAt || now().getTime() - Date.parse(x.imageTriedAt) > DAY));
-      for (const o of [...this.opportunities.values()].filter(needsPicture).slice(0, this.opts.imageBackfill ?? 30)) {
-        if (finder) working.push(findImage(o).catch((e) => log('Worker fleet', `Picture finder failed for "${o.title}": ${errorText(e)}`, 'bad')));
-      }
+      // Stored postings still without a picture are looked at alongside the search.
+      void this.fillPictures(this.opts.imageBackfill ?? 30);
 
       // Postings an earlier run read but stopped before reviewing go first.
       const carried = [...this.pending.values()].filter((p) => !this.opportunities.has(idFor(p.key)) && !this.rejected.has(p.key));
@@ -852,8 +1036,11 @@ export class AgentSystem {
             if (duplicates) log(a.name, `Skipped ${duplicates} leads another worker already had`);
             set(manager, { status: 'done', detail: `Covered ${a.focus.join(', ')}. Brought back ${mine} postings${duplicates ? `, skipped ${duplicates} duplicates` : ''}.` });
           } catch (e) {
-            set(manager, { status: 'failed', detail: errorText(e) });
-            log(a.name, `Failed: ${errorText(e)}`, 'bad');
+            if (isStopped()) set(manager, { status: 'done', detail: 'Stopped.' });
+            else {
+              set(manager, { status: 'failed', detail: errorText(e) });
+              log(a.name, `Failed: ${errorText(e)}`, 'bad');
+            }
           }
         }),
       );
@@ -865,6 +1052,7 @@ export class AgentSystem {
 
       // 3. Waiting for the reviews and deadline finders still running -------------------
       while (working.length) await Promise.all(working.splice(0));
+      throwIfStopped();
       run.stats.kept = kept.length;
       run.stats.added = this.newIds.size;
       this.emitRun();
@@ -872,6 +1060,7 @@ export class AgentSystem {
       if (finder && pictured) log('Worker fleet', `Found pictures for ${pictured} postings.`, 'good');
       if (undated) log('Worker fleet', `${undated} postings stated no deadline on the organizer's pages. Other listings gave one for ${filled}; the rest stay marked unknown.`, filled ? 'good' : 'info');
 
+      throwIfStopped();
       // 4. Application readers (from the fleet) for the strongest new results ----------
       const toRead = kept.filter((o) => !o.application).sort((a, b) => b.baseScore - a.baseScore).slice(0, 4);
       await Promise.all(
@@ -883,6 +1072,7 @@ export class AgentSystem {
         }),
       );
 
+      throwIfStopped();
       // 5. Presentation manager -------------------------------------------------------
       const presenter = node({ id: 'presentation', level: 'presentation', name: 'Presentation manager', role: 'Orders the feed and writes the reasons', status: 'running', detail: 'Writing why each card fits…' });
       const reasons = await this.brain.present(kept, brief, summary);
@@ -900,10 +1090,18 @@ export class AgentSystem {
         log('System', this.shouldFill() ? `${shown} of ${this.opts.feedTarget} opportunities found so far. Searching again for more.` : `${shown} of ${this.opts.feedTarget} opportunities found after ${this.fillRuns + 1} searches in a row. The agents will look again on the next run.`);
       }
     } catch (e) {
-      run.status = 'failed';
-      run.error = errorText(e);
-      for (const a of run.agents) if (a.status === 'running') a.status = 'failed';
-      log('System', `Run failed: ${run.error}`, 'bad');
+      if (e instanceof StoppedError || isStopped()) {
+        run.status = 'stopped';
+        for (const a of run.agents) if (a.status === 'running') Object.assign(a, { status: 'done', detail: 'Stopped.' });
+        for (const v of run.validations) if (v.status === 'checking') v.reason = 'Stopped before the review finished. Reviewed first next time.';
+        const pending = run.validations.filter((v) => v.status === 'checking').length;
+        log('System', `Stopped by you. ${run.stats.kept} postings already checked stay in your feed${pending ? `; ${pending} still being reviewed are reviewed first next time` : ''}.`);
+      } else {
+        run.status = 'failed';
+        run.error = errorText(e);
+        for (const a of run.agents) if (a.status === 'running') a.status = 'failed';
+        log('System', `Run failed: ${run.error}`, 'bad');
+      }
     }
     run.finishedAt = now().toISOString();
     this.runs.push({ number: run.number, trigger: run.trigger, status: run.status, startedAt: run.startedAt, finishedAt: run.finishedAt, stats: { ...run.stats } });

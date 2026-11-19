@@ -919,3 +919,134 @@ test('storing: a posting read but not yet reviewed is stored as pending, and rev
   assert.equal(next.memorySnapshot().learned.pending?.length ?? 0, 0, 'nothing is left pending after a full run');
   release();
 });
+
+test('saved: what the student saved and liked travels with their state, and saved cards stay when the feed stops showing their kind', async () => {
+  const s = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  await s.trigger('first');
+  const feed = s.student().feed.map((f) => f.opportunity);
+  const internship = feed.find((o) => o.type === 'internship')!;
+  const other = feed.find((o) => o.type !== 'internship')!;
+  s.interact(internship.id, 'save');
+  s.interact(other.id, 'save');
+  s.interact(other.id, 'like');
+  // Saving twice takes it back.
+  s.interact(other.id, 'save');
+  let state = s.student();
+  assert.deepEqual(state.saved, [internship.id]);
+  assert.deepEqual(state.liked, [other.id]);
+  assert.deepEqual(state.savedItems.map((e) => e.opportunity.id), [internship.id]);
+
+  // The student stops asking for internships: gone from the feed, still on the Saved page.
+  s.setProfile({ categories: ['event'] });
+  state = s.student();
+  assert.ok(!state.feed.some((e) => e.opportunity.id === internship.id));
+  assert.deepEqual(state.savedItems.map((e) => e.opportunity.id), [internship.id]);
+
+  // And it comes back with the memory on another device.
+  const other2 = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  other2.restore(JSON.parse(JSON.stringify(s.memorySnapshot())));
+  assert.deepEqual(other2.student().saved, [internship.id]);
+  assert.deepEqual(other2.student().savedItems.map((e) => e.opportunity.id), [internship.id]);
+});
+
+test('search for more: asking for one kind puts every search manager on it, and adds it to what the student looks for', async () => {
+  const s = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 }, { categories: ['internship'] });
+  await s.trigger('first');
+  assert.ok(!s.student().feed.some((f) => f.opportunity.type === 'research'));
+
+  const { app } = createApp(new LocalStore(null), {}, { demo: s });
+  const res = await app.request('/api/students/demo/runs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'research' }) });
+  assert.equal(res.status, 202);
+  await s.idle();
+  const run = s.currentRun()!;
+  assert.equal(run.trigger, 'manual');
+  assert.deepEqual(run.assignments.map((a) => a.category), ['program', 'program', 'program', 'program']);
+  assert.ok(run.assignments.every((a) => a.focus[0] === 'research positions'));
+  assert.ok(run.log.some((l) => l.text.includes('asked for more research positions')));
+  assert.ok(s.student().profile.categories.includes('program'), 'research is now something they look for');
+  assert.ok(s.student().feed.some((f) => f.opportunity.type === 'research'), 'and research reaches the feed');
+
+  // The next ordinary run is split as usual again.
+  await s.trigger('manual');
+  assert.ok(new Set(s.currentRun()!.assignments.map((a) => a.category)).size > 1);
+  // An unknown kind is an ordinary search.
+  await app.request('/api/students/demo/runs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'nonsense' }) });
+  await s.idle();
+  assert.ok(!s.currentRun()!.log.some((l) => l.text.includes('asked for more')));
+});
+
+test('stop: a search stopped part way keeps what it checked, leaves the rest pending, and nothing starts on its own', async () => {
+  const { currentSignal, StoppedError } = await import('../src/agents/stop.ts');
+  let called = 0;
+  // One manager's scouts run until the search is stopped, like a slow page; the rest finish.
+  class Slow extends SimBrain {
+    override async scout(...args: Parameters<SimBrain['scout']>) {
+      if (args[1].managerId === 'manager-4') {
+        await new Promise((_, reject) => {
+          const signal = currentSignal()!;
+          if (signal.aborted) return reject(new StoppedError());
+          signal.addEventListener('abort', () => reject(new StoppedError()), { once: true });
+        });
+      }
+      return super.scout(...args);
+    }
+    override async present(...args: Parameters<SimBrain['present']>) {
+      called++;
+      return super.present(...args);
+    }
+  }
+  // A feed target that is never met, so an unstopped run would be followed by another.
+  const s = new AgentSystem(new Slow({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 500, maxFillRuns: 3 });
+  const { app } = createApp(new LocalStore(null), {}, { demo: s });
+  const stop = async () => ((await (await app.request('/api/students/demo/runs/stop', { method: 'POST' })).json()) as any).stopped;
+
+  assert.equal(await stop(), false, 'nothing to stop');
+  void s.trigger('first');
+  await until(() => s.student().feed.length > 0);
+  const keptBefore = s.student().feed.map((f) => f.opportunity.id);
+  assert.equal(await stop(), true);
+  await s.idle();
+
+  const run = s.currentRun()!;
+  assert.equal(run.status, 'stopped');
+  assert.ok(run.log.some((l) => l.text.startsWith('Stopped by you.')));
+  assert.equal(called, 0, 'the steps after the stop did not run');
+  assert.equal(s.student().runCount, 1, 'no search followed on its own');
+  assert.ok(keptBefore.every((id) => s.student().feed.some((f) => f.opportunity.id === id)), 'what was checked stays');
+  assert.ok(run.jobs.filter((j) => j.kind === 'scout' && j.label.includes(run.assignments[3]!.focus[0]!) ).every((j) => j.status !== 'running'));
+  assert.ok(!run.agents.some((a) => a.status === 'running'));
+  // A second stop has nothing to stop.
+  assert.equal(await stop(), false);
+});
+
+test('stop: postings cut off mid-review are reviewed first by the next search', async () => {
+  const { currentSignal, StoppedError } = await import('../src/agents/stop.ts');
+  let hold = true;
+  class SlowReview extends SimBrain {
+    override async validate(...args: Parameters<SimBrain['validate']>) {
+      if (hold && args[3] === 'status') {
+        await new Promise((_, reject) => {
+          const signal = currentSignal()!;
+          if (signal.aborted) return reject(new StoppedError());
+          signal.addEventListener('abort', () => reject(new StoppedError()), { once: true });
+        });
+      }
+      return super.validate(...args);
+    }
+  }
+  const s = new AgentSystem(new SlowReview({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  void s.trigger('first');
+  await until(() => s.currentRun()!.validations.length >= 3);
+  s.stop();
+  await s.idle();
+  const pending = s.memorySnapshot().learned.pending ?? [];
+  assert.ok(pending.length >= 3, 'the postings under review were kept');
+  assert.ok(s.currentRun()!.validations.every((v) => v.status === 'checking'), 'none was rejected because of the stop');
+  assert.equal(s.memorySnapshot().learned.rejected.length, 0);
+
+  hold = false;
+  await s.trigger('manual');
+  assert.ok(s.currentRun()!.log.some((l) => l.text.includes('were not reviewed before it stopped')));
+  assert.equal(s.currentRun()!.status, 'complete');
+  assert.equal(s.memorySnapshot().learned.pending?.length ?? 0, 0);
+});

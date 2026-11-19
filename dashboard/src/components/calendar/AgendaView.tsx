@@ -96,7 +96,7 @@ export function AgendaView({
 function Row({ item, today, onSelect, showDay = false }: { item: CxItem; today: string; onSelect: (day: string) => void; showDay?: boolean }) {
   return (
     <li>
-      <button type="button" onClick={() => onSelect(item.day)} className="cx-agenda-row" data-priority={item.priority} data-done={item.done}>
+      <button type="button" onClick={() => onSelect(item.day)} className="cx-agenda-row" data-kind={item.kind} data-priority={item.priority} data-done={item.done}>
         <span className="cx-agenda-kind">{item.hours ? `Work · ${hoursLabel(item.hours)}` : cxKindLabel[item.kind]}</span>
         <span className="min-w-0 flex-1">
           <span className={`block truncate font-semibold ${item.done ? 'line-through opacity-60' : ''}`}>{item.title}</span>

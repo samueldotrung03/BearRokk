@@ -4,7 +4,8 @@
 import type { CalendarItem, CalendarKind, Priority } from '../calendar.ts';
 import { dayDate } from './days.ts';
 
-export type CxKind = CalendarKind | 'personal';
+/** google: an event from the student's own Google Calendar. */
+export type CxKind = CalendarKind | 'personal' | 'google';
 
 /** Something the student put on the calendar themselves, or a plan block they accepted. */
 export interface PersonalItem {
@@ -16,6 +17,11 @@ export interface PersonalItem {
   done: boolean;
   /** Set when the item is an accepted work block from "Plan my week". */
   block: { targetId: string; hours: number; why: string } | null;
+  /** Start and end time, "HH:MM", for an item at a set time. Without them it is for the whole day. */
+  time?: string | null;
+  endTime?: string | null;
+  /** The event this item made on the student's Google Calendar, once it has been added there. */
+  google?: { eventId: string; link: string | null } | null;
 }
 
 export interface CxItem extends Omit<CalendarItem, 'kind'> {
@@ -25,6 +31,8 @@ export interface CxItem extends Omit<CalendarItem, 'kind'> {
   note: string;
   /** Planned hours, for accepted work blocks. */
   hours: number | null;
+  /** Where the item lives elsewhere, such as the event on Google Calendar. */
+  link?: string | null;
 }
 
 export const cxKindLabel: Record<CxKind, string> = {
@@ -33,25 +41,30 @@ export const cxKindLabel: Record<CxKind, string> = {
   starts: 'Starts',
   step: 'Roadmap step',
   personal: 'Your own',
+  google: 'Google Calendar',
 };
 
-export const ALL_KINDS: CxKind[] = ['deadline', 'reminder', 'starts', 'step', 'personal'];
+export const ALL_KINDS: CxKind[] = ['deadline', 'reminder', 'starts', 'step', 'personal', 'google'];
+
+const clockOf = (hhmm: string) => new Date(`2000-01-01T${hhmm}:00`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
 export function fromPersonal(p: PersonalItem): CxItem {
+  const when = p.time ? `${clockOf(p.time)}${p.endTime ? ` – ${clockOf(p.endTime)}` : ''}. ` : '';
   return {
     id: `personal-${p.id}`,
-    date: dayDate(p.day).toISOString(),
+    date: p.time ? new Date(`${p.day}T${p.time}:00`).toISOString() : dayDate(p.day).toISOString(),
     day: p.day,
     title: p.title,
     kind: 'personal',
     priority: p.priority,
-    why: p.block ? p.block.why : p.note.trim() ? `You added this yourself. ${p.note.trim()}` : 'You added this yourself.',
+    why: when + (p.block ? p.block.why : p.note.trim() ? `You added this yourself. ${p.note.trim()}` : 'You added this yourself.'),
     opportunityId: null,
     stepId: null,
     done: p.done,
     personalId: p.id,
     note: p.note,
     hours: p.block?.hours ?? null,
+    link: p.google?.link ?? null,
   };
 }
 

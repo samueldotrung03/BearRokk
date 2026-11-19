@@ -3,3 +3,5 @@ node_modules/
 .data/
 *service-account*.json
 *firebase-adminsdk*.json
+google-oauth-client*.json
+client_secret_*.json

@@ -16,6 +16,20 @@ const backend = join(dashboard, '..', 'backend');
 const source = readFileSync(join(dashboard, 'src', 'auth', 'firebase.ts'), 'utf8');
 const value = (name) => new RegExp(`${name}:\\s*'([^']+)'`).exec(source)?.[1];
 const config = { apiKey: value('apiKey'), projectId: value('projectId'), authDomain: value('authDomain') };
+// The "Desktop app" OAuth client, if backend/.env names one, so students connect Google once.
+// Google treats a desktop client's secret as not confidential: it ships inside installed apps.
+try {
+  const env = readFileSync(join(backend, '.env'), 'utf8');
+  const file = /^GOOGLE_OAUTH_CLIENT_FILE=(.+)$/m.exec(env)?.[1]?.trim();
+  if (file) {
+    const json = JSON.parse(readFileSync(file.startsWith('/') ? file : join(backend, file), 'utf8'));
+    const c = json.installed;
+    if (c?.client_id && c?.client_secret) config.googleOAuth = { clientId: c.client_id, clientSecret: c.client_secret };
+    else console.warn('GOOGLE_OAUTH_CLIENT_FILE is not a "Desktop app" client; the app will connect Google one session at a time.');
+  }
+} catch {
+  // No lasting Google connection in this build.
+}
 if (!config.apiKey || !config.projectId) throw new Error('could not read the Firebase settings from src/auth/firebase.ts');
 writeFileSync(join(dashboard, 'electron', 'app-config.json'), JSON.stringify(config, null, 2));
 

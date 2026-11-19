@@ -1,5 +1,6 @@
 // The worker fleet: a shared job queue with a concurrency cap, per-run and per-manager budgets,
 // one retry per job, and link dedupe across every manager.
+import { isStopped } from './stop.ts';
 import type { Job, JobKind } from './types.ts';
 
 export interface FleetOptions {
@@ -77,6 +78,12 @@ export class Fleet {
     await this.slot();
     try {
       for (;;) {
+        if (isStopped()) {
+          job.status = 'skipped';
+          job.result = 'Stopped';
+          this.opts.onUpdate(job);
+          return null;
+        }
         job.attempts++;
         job.status = 'running';
         this.opts.onUpdate(job);
@@ -87,6 +94,7 @@ export class Fleet {
           this.opts.onUpdate(job);
           return value;
         } catch (e) {
+          if (isStopped()) continue;
           if (job.attempts >= 2) {
             job.status = 'failed';
             job.result = e instanceof Error ? e.message : String(e);

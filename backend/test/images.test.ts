@@ -169,14 +169,49 @@ test('pictures: every kept posting is looked at once, stored ones without a pict
     o.image = null;
   }
   looked.length = 0;
-  const next = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0, images: finder, imageBackfill: 50 });
+  const next = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0, images: finder });
   next.restore(memory);
-  await next.trigger('manual');
+  // Filled in straight away, with no search.
+  await next.fillPictures();
+  assert.equal(next.student().runCount, s.student().runCount, 'no search was run');
   const stored = memory.learned.opportunities.map((o: { title: string }) => o.title);
   assert.ok(stored.every((t: string) => looked.includes(t)), 'every stored posting was looked at');
   assert.ok(next.student().feed.every((f) => f.opportunity.image));
-  // Looked at once: a third run does not look again.
+  // Looked at once: neither another pass nor a search looks again.
   looked.length = 0;
+  await next.fillPictures();
   await next.trigger('manual');
   assert.ok(stored.every((t: string) => !looked.includes(t)));
+});
+
+test('pictures: a student whose stored cards have no pictures gets them when their memory loads', async () => {
+  const { createApp } = await import('../src/app.ts');
+  const { LocalStore } = await import('../src/store/local.ts');
+  const looked: string[] = [];
+  const finder = {
+    find: async (o: ImageSubject) => {
+      looked.push(o.title);
+      return { url: 'https://pictures.example.org/x.jpg', kind: 'logo' as const, credit: null, creditUrl: null };
+    },
+  } as unknown as ImageFinder;
+  // A memory saved before pictures existed.
+  const old = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  await old.trigger('first');
+  const store = new LocalStore(null);
+  await store.saveStudent('u1', old.memorySnapshot());
+  const s = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0, images: finder });
+  const { app } = createApp(store, {}, {
+    demo: new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 }),
+    webConfig: { apiKey: 'k', projectId: 'p', authDomain: 'x' },
+    verify: async () => ({ uid: 'u1', name: 'Ana', email: null, picture: null, provider: 'google', emailVerified: true }),
+    forUser: () => s,
+    saveDelayMs: 5,
+  });
+  const before = await app.request('/api/students/me/state', { headers: { authorization: 'Bearer t' } });
+  assert.equal(before.status, 200);
+  await new Promise((r) => setTimeout(r, 60));
+  const feed = s.student().feed;
+  assert.ok(feed.length > 0 && feed.every((f) => f.opportunity.imageKind === 'logo'));
+  assert.equal(s.student().runCount, 1, 'no search was needed');
+  assert.ok((await store.loadStudent('u1'))!.learned.opportunities.every((o) => o.image === 'https://pictures.example.org/x.jpg'), 'and the pictures were saved');
 });

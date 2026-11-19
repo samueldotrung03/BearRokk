@@ -7,6 +7,7 @@ import type { StudentMemory } from './agents/types.ts';
 import { createApp } from './app.ts';
 import { firebaseVerifier, webConfig } from './auth.ts';
 import { config, liveAvailable, provider } from './config.ts';
+import { oauthClientFrom } from './googleOAuth.ts';
 import { openStore } from './store/index.ts';
 import { UserFirestore } from './store/userFirestore.ts';
 
@@ -36,8 +37,12 @@ const memory = account
       deleteStudent: (id: string) => (isGuest(id) ? store : account).deleteStudent(id),
     }
   : store;
+// A lasting Google connection needs a "Desktop app" OAuth client (GOOGLE_OAUTH_CLIENT_FILE, or
+// GOOGLE_OAUTH_CLIENT_ID and _SECRET). Without one, pages connect Google for one session at a time.
+const oauthClient = oauthClientFrom(process.env);
 const { app } = createApp(store, {}, {
   memory,
+  google: oauthClient ? { client: oauthClient, redirectBase: `http://127.0.0.1:${config.port}` } : null,
   onToken: (uid, token) => tokens.set(uid, token),
   demo: newSystem(),
   // A student who signs in gets their own agents, named from their Google name or, for email sign-in, the part before the @.
@@ -61,6 +66,7 @@ serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`  store:  ${store.kind === 'firestore' ? 'Firestore' : account ? `Firestore under each student's own sign-in; guests in a local file (${config.localDataFile})` : `local file (${config.localDataFile})`}`);
   const m = config.xaiModels;
   console.log(`  agents: ${!liveAvailable() ? 'simulated on sample data (no XAI_API_KEY)' : config.grokTransport === 'claude' ? `TEST MODE on Claude (${config.claudeCli.models.normal} and ${config.claudeCli.models.low}) through the Claude CLI. Swap to Grok: see SWAP_TO_GROK.md` : config.grokTransport === 'cli' ? `live Grok through the CLI on this machine's subscription (${config.grokCli.bin})` : `live Grok API: master/managers/validation/presentation ${m.normal}, workers ${m.low}`}`);
+  console.log(`  google: ${oauthClient ? 'lasting connection for Calendar and Sheets (OAuth client set)' : 'one session at a time (no GOOGLE_OAUTH_CLIENT_FILE)'}`);
   console.log(`  sign-in: ${verify ? `Google and email, Firebase project ${config.firebaseWeb.projectId}` : 'off (set FIREBASE_WEB_API_KEY and FIREBASE_PROJECT_ID)'}`);
   console.log(`  watch:  http://localhost:${port}/`);
 });

@@ -3,6 +3,7 @@
 // it) or should do it (it moves them toward the goal), and why it is there.
 import { opportunities, pathProfiles } from '../data/sample.ts';
 import type { AppState } from '../state/store.ts';
+import type { Opportunity } from '../types.ts';
 import { extraStepId } from '../state/store.ts';
 import { remindersFor, statusLabel } from './applications.ts';
 import { evidenceFor } from './pathways.ts';
@@ -42,13 +43,17 @@ export function dayKey(date: Date | string | number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export function calendarItems(state: AppState, now = Date.now()): CalendarItem[] {
+/**
+ * `found` is what the agents found (the feed and the saved list). Without it the sample set is
+ * used, as the pages built on sample data still do.
+ */
+export function calendarItems(state: AppState, now = Date.now(), found: Opportunity[] = opportunities): CalendarItem[] {
   const items: CalendarItem[] = [];
   const add = (item: Omit<CalendarItem, 'day'>) => items.push({ ...item, day: dayKey(item.date) });
   const statusOf = (id: string | null) => (id ? state.applications[id]?.status : undefined);
   const committed = (id: string | null) => statusOf(id) === 'to_apply' || statusOf(id) === 'applying';
 
-  for (const o of opportunities) {
+  for (const o of found) {
     if (state.dismissed.includes(o.id)) continue;
     const status = statusOf(o.id);
     const saved = state.saved.includes(o.id);
@@ -113,11 +118,11 @@ export function calendarItems(state: AppState, now = Date.now()): CalendarItem[]
     }
   }
 
-  const plan = planFor(state);
+  const plan = planFor(state, found);
   const evidence = evidenceFor(plan.roadmap, pathProfiles);
   for (const step of plan.steps) {
     if (!step.due) continue;
-    const own = step.opportunityId ? opportunities.find((o) => o.id === step.opportunityId) : undefined;
+    const own = step.opportunityId ? found.find((o) => o.id === step.opportunityId) : undefined;
     const fromStarted = step.opportunityId !== null && step.id.startsWith(extraStepId(step.opportunityId));
     const seen = evidence.byStep.get(step.id);
     const source = fromStarted
