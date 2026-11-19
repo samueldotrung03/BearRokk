@@ -7,11 +7,14 @@
       BearRok — Find your next thing
     </title>
     <meta name="description" content="From a student request to source-backed opportunities. Meet BearRok’s early agent backend and explore a clearly labeled prepared demo.">
+    <link rel="icon" type="image/svg+xml" href="assets/bearrok-mark.svg">
+    <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#f7f8f2">
     <script>
       const entranceHash=location.hash;
-      const entranceView=['','#home','#main'].includes(entranceHash)?'home':['#demo-preview','#demo-preview-view'].includes(entranceHash)?'preview':['#about-us','#about-view'].includes(entranceHash)?'about':null;
-      if(entranceView){document.documentElement.dataset.entranceView=entranceView;document.documentElement.classList.add('page-intro-pending');window.setTimeout(()=>document.documentElement.classList.remove('page-intro-pending'),3000);}
+      const retiredDemoHash=['#demo','#app-main','#dashboard','#results-grid','#results-title','#search-form'].includes(entranceHash)||(/^#demo-/.test(entranceHash)&&!['#demo-preview','#demo-preview-view'].includes(entranceHash));
+      const entranceView=['','#home','#main'].includes(entranceHash)?'home':retiredDemoHash||['#demo-preview','#demo-preview-view'].includes(entranceHash)?'preview':['#about-us','#about-view'].includes(entranceHash)?'about':null;
+      if(entranceView){document.documentElement.dataset.entranceView=entranceView;if(entranceView!=='home')document.documentElement.dataset.clarityStarted=String(performance.now());document.documentElement.classList.add('page-intro-pending');window.setTimeout(()=>document.documentElement.classList.remove('page-intro-pending'),entranceView==='home'?3000:1250);}
     </script>
     <link rel="stylesheet" href="styles.css">
     <script src="app.js" defer>
@@ -28,9 +31,7 @@
     </div>
     <header class="site-nav wrap" id="public-header">
       <a class="brand" href="#home" aria-label="BearRok home">
-        <span class="brand-mark" aria-hidden="true">
-          b.
-        </span>
+        <img class="brand-logo" src="assets/bearrok-mark.svg" width="48" height="44" alt="">
         BearRok
       </a>
       <nav class="nav-cluster" aria-label="Main navigation">
@@ -58,7 +59,7 @@
             Not available yet
           </small>
         </div>
-        <a class="button button-small nav-get-started header-action" href="#demo">
+        <a class="button button-small nav-get-started header-action" href="#demo-preview">
           <span class="action-label">
             Get Started
           </span>
@@ -68,9 +69,12 @@
         </a>
       </div>
     </header>
+    <div id="home-edge-lenses" aria-hidden="true" hidden>
+      <div class="viewport-edge viewport-edge-top"></div>
+      <div class="viewport-edge viewport-edge-bottom"></div>
+    </div>
     <div id="landing">
-      <div class="viewport-edge viewport-edge-top" aria-hidden="true"></div>
-      <div class="viewport-edge viewport-edge-bottom" aria-hidden="true"></div>
+
       <main id="main">
         <section class="hero hero-showcase wrap" id="home" aria-labelledby="hero-title">
           <div class="hero-copy pitch-glass">
@@ -84,7 +88,7 @@
                 </em>
               </h1>
               <p class="hero-description">
-                Your next community, project, or possibility starts with a question. BearRok is building agents to help you find a way in.
+                Your next community, internship, project, or possibility starts with a question. BearRok is building agents to help you find a way in.
               </p>
               <div class="hero-actions">
                 <a class="text-link" href="#workflow">
@@ -122,68 +126,98 @@
               </em>
             </h2>
             <p>
-              A club announcement. An event page. A deadline in another tab. The idea is simple: bring the useful parts together, around you.
+              A club announcement. An event page. An internship opening. A deadline in another tab. The idea is simple: bring the useful parts together, around you.
             </p>
           </div>
-          <div class="capability-pair" data-active="discover">
+          <div class="capability-pair capability-deck" data-active="discover" role="group" aria-label="Explore communities, events, internships, and scholarships">
             <article class="capability is-active" data-capability="discover">
-              <button class="capability-toggle" aria-expanded="true" aria-controls="discover-detail">
-                <span class="cap-number">
-                  COMMUNITIES
-                </span>
-                <span class="cap-title">
-                  A community
-                  <br>
-                  Your kind of people
-                </span>
-              </button>
-              <div class="capability-detail" id="discover-detail">
-                <p>
-                  Find people who share your interests. Your profile and interests guide the master, search managers, and shared worker fleet toward a way to join.
-                </p>
-                <div class="question-chip">
-                  “I’m new to coding. Where can I start?”
+              <div class="capability-face">
+                <button class="capability-toggle" aria-expanded="true" aria-controls="discover-detail">
+                  <span class="cap-number">
+                    COMMUNITIES
+                  </span>
+                  <span class="cap-title">
+                    A community
+                    <br>
+                    Your kind of people
+                  </span>
+                </button>
+                <div class="capability-detail" id="discover-detail">
+                  <p>
+                    Find people who share your interests. Your profile and interests guide the master, search managers, and shared worker fleet toward a way to join.
+                  </p>
+                  <div class="question-chip">
+                    “I’m new to coding. Where can I start?”
+                  </div>
+                  <span class="cap-foot">
+                    ON DEMAND · IMPLEMENTED IN THE BACKEND
+                  </span>
                 </div>
-                <span class="cap-foot">
-                  ON DEMAND · IMPLEMENTED IN THE BACKEND
-                </span>
               </div>
             </article>
             <article class="capability" data-capability="evidence">
-              <button class="capability-toggle" aria-expanded="false" aria-controls="evidence-detail">
-                <span class="cap-number">
-                  EVENTS
-                </span>
-                <span class="cap-title">
-                  An event
-                  <br>
-                  A reason to create
-                </span>
-              </button>
-              <div class="capability-detail" id="evidence-detail">
-                <p>
-                  Find a project to build and people to build with. In our prepared Cosmo Hacks example, the event date is clear and the registration deadline stays unknown.
-                </p>
-                <div class="evidence-mini">
-                  <a href="#demo-cosmo">
-                    Cosmo Hacks 2026 · source notes
-                  </a>
-                  <span>
-                    Event date
-                    <strong>
-                      Known
-                    </strong>
+              <div class="capability-face">
+                <button class="capability-toggle" aria-expanded="false" aria-controls="evidence-detail">
+                  <span class="cap-number">
+                    EVENTS
                   </span>
-                  <span>
-                    Registration deadline
-                    <strong>
-                      Unknown
-                    </strong>
+                  <span class="cap-title">
+                    An event
+                    <br>
+                    A reason to create
+                  </span>
+                </button>
+                <div class="capability-detail" id="evidence-detail">
+                  <p>
+                    Find a project to build and people to build with. In our prepared Cosmo Hacks example, the event date is clear and the registration deadline stays unknown.
+                  </p>
+                  <div class="evidence-mini">
+                    <button type="button" class="source-notes-trigger" data-source-notes aria-haspopup="dialog">
+                      Cosmo Hacks 2026 · source notes
+                    </button>
+                    <span>
+                      Event date
+                      <strong>
+                        Known
+                      </strong>
+                    </span>
+                    <span>
+                      Registration deadline
+                      <strong>
+                        Unknown
+                      </strong>
+                    </span>
+                  </div>
+                  <span class="cap-foot">
+                    SOURCE NOTES · EXPLORE IN THE PREPARED DEMO
                   </span>
                 </div>
-                <span class="cap-foot">
-                  SOURCE NOTES · EXPLORE IN THE PREPARED DEMO
-                </span>
+              </div>
+            </article>
+            <article class="capability" data-capability="internships">
+              <div class="capability-face">
+                <button type="button" class="capability-toggle" aria-expanded="false" aria-controls="internships-detail">
+                  <span class="cap-number">INTERNSHIPS</span>
+                  <span class="cap-title">An internship<br>A place to grow</span>
+                </button>
+                <div class="capability-detail" id="internships-detail">
+                  <p>Explore roles around your interests, experience, and location. Search managers divide the discovery work while independent checks review fit and current source details.</p>
+                  <div class="question-chip">“Where can I put what I am learning into practice?”</div>
+                  <span class="cap-foot">PERSONAL CRITERIA · SOURCE-BACKED DETAILS</span>
+                </div>
+              </div>
+            </article>
+            <article class="capability" data-capability="scholarships">
+              <div class="capability-face">
+                <button type="button" class="capability-toggle" aria-expanded="false" aria-controls="scholarships-detail">
+                  <span class="cap-number">SCHOLARSHIPS</span>
+                  <span class="cap-title">A scholarship<br>Room to go further</span>
+                </button>
+                <div class="capability-detail" id="scholarships-detail">
+                  <p>Start with your background and goals. Bring eligibility, application requirements, and deadlines into focus, with missing details kept visible for you to check.</p>
+                  <div class="question-chip">“What support could help me take the next step?”</div>
+                  <span class="cap-foot">A DISCOVERY DIRECTION · CHECK EACH SOURCE</span>
+                </div>
               </div>
             </article>
           </div>
@@ -375,7 +409,7 @@
               </div>
               <figcaption id="agent-flow-caption">
                 Illustrated architecture · simulated catalog and in-memory state; live Grok remains unverified.
-                <a href="https://github.com/samueldotrung03/BearRok/blob/c2f5f72cb8aeb7b2d85b015ff1917b1acde425c6/backend/AGENT_SYSTEM.md" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/samueldotrung03/BearRok/blob/1b9d2f965b93b600dc6afa7775732e22bd875ee1/backend/AGENT_SYSTEM.md" target="_blank" rel="noopener noreferrer">
                   View the agent system
                   <span class="sr-only">
                     (opens in a new tab)
@@ -421,9 +455,7 @@
                   “A beginner-friendly coding club and an online hackathon next month.”
                 </div>
                 <div class="chat-answer ask-followup">
-                  <span>
-                    b.
-                  </span>
+                  <img class="assistant-logo" src="assets/bearrok-mark.svg" width="896" height="820" alt="BearRok">
                   <p>
                     Should the club also meet online, or would you prefer one near your campus?
                   </p>
@@ -483,9 +515,9 @@
                     </dd>
                   </div>
                 </dl>
-                <a href="#demo-cosmo" class="text-link">
+                <button type="button" class="text-link source-notes-trigger" data-source-notes aria-haspopup="dialog">
                   Read the source notes
-                </a>
+                </button>
               </div>
             </article>
             <article class="result-panel" data-result="choose">
@@ -515,9 +547,9 @@
                   A reason to create.
                 </h4>
                 <p>
-                  Two examples. Source notes. Clear unknowns.
+                  Project footage. Source notes. Clear unknowns.
                 </p>
-                <a class="button" href="#demo">
+                <a class="button" href="#demo-preview">
                   Try the walkthrough
                 </a>
               </div>
@@ -733,9 +765,7 @@
       </main>
       <footer class="site-footer wrap">
         <a class="brand" href="#">
-          <span class="brand-mark" aria-hidden="true">
-            b.
-          </span>
+          <img class="brand-logo" src="assets/bearrok-mark.svg" width="48" height="44" alt="">
           BearRok
         </a>
         <span>
@@ -747,208 +777,58 @@
       </footer>
     </div>
     <main id="about-view" class="about-view wrap" tabindex="-1" aria-labelledby="about-title" hidden>
-      <div class="about-copy pitch-glass">
-        <div class="about-copy-content entrance-content">
-          <p class="eyebrow">
-            ABOUT US
-          </p>
-          <div>
-            <h1 id="about-title">
-              Built around the student
-            </h1>
+      <div class="about-page-content clarity-content">
+        <div class="about-copy pitch-glass">
+          <div class="about-copy-content entrance-content">
+            <p class="eyebrow">
+              ABOUT US
+            </p>
+            <div>
+              <h1 id="about-title">
+                Built around the student
+              </h1>
+            </div>
+            <p>
+              BearRok is an early student-opportunity project exploring how agents can connect people with communities, events, and useful next steps. This site presents project screenshots, prepared footage, and an illustrated explanation of the agent system.
+            </p>
           </div>
-          <p>
-            BearRok is an early student-opportunity project exploring how agents can connect people with communities, events, and useful next steps. This website offers two prepared examples while the agent system is developed and tested.
-          </p>
         </div>
-      </div>
-      <div class="team-row entrance-followup" aria-label="Project team">
-        <article class="team-person">
-          <svg class="team-portrait" viewBox="0 0 240 260" role="img" aria-label="Anonymous portrait placeholder">
-            <rect width="240" height="260" rx="18" fill="#e2eaf0"/>
-            <circle cx="120" cy="94" r="43" fill="#9dafbc"/>
-            <path d="M35 260v-33c0-54 35-89 85-89s85 35 85 89v33" fill="#7e96a9"/>
-          </svg>
-          <h2>
-            Brian Huang
-          </h2>
-        </article>
-        <article class="team-person">
-          <svg class="team-portrait" viewBox="0 0 240 260" role="img" aria-label="Anonymous portrait placeholder">
-            <rect width="240" height="260" rx="18" fill="#e2eaf0"/>
-            <circle cx="120" cy="94" r="43" fill="#9dafbc"/>
-            <path d="M35 260v-33c0-54 35-89 85-89s85 35 85 89v33" fill="#7e96a9"/>
-          </svg>
-          <h2>
-            Gia Khanh Trieu
-          </h2>
-        </article>
-        <article class="team-person">
-          <svg class="team-portrait" viewBox="0 0 240 260" role="img" aria-label="Anonymous portrait placeholder">
-            <rect width="240" height="260" rx="18" fill="#e2eaf0"/>
-            <circle cx="120" cy="94" r="43" fill="#9dafbc"/>
-            <path d="M35 260v-33c0-54 35-89 85-89s85 35 85 89v33" fill="#7e96a9"/>
-          </svg>
-          <h2>
-            Samuel Do
-          </h2>
-        </article>
+        <div class="team-row entrance-followup" aria-label="Project team">
+          <article class="team-person">
+            <svg class="team-portrait" viewBox="0 0 240 260" role="img" aria-label="Anonymous portrait placeholder">
+              <rect width="240" height="260" rx="18" fill="#e2eaf0"/>
+              <circle cx="120" cy="94" r="43" fill="#9dafbc"/>
+              <path d="M35 260v-33c0-54 35-89 85-89s85 35 85 89v33" fill="#7e96a9"/>
+            </svg>
+            <h2>
+              Brian Huang
+            </h2>
+          </article>
+          <article class="team-person">
+            <svg class="team-portrait" viewBox="0 0 240 260" role="img" aria-label="Anonymous portrait placeholder">
+              <rect width="240" height="260" rx="18" fill="#e2eaf0"/>
+              <circle cx="120" cy="94" r="43" fill="#9dafbc"/>
+              <path d="M35 260v-33c0-54 35-89 85-89s85 35 85 89v33" fill="#7e96a9"/>
+            </svg>
+            <h2>
+              Gia Khanh Trieu
+            </h2>
+          </article>
+          <article class="team-person">
+            <svg class="team-portrait" viewBox="0 0 240 260" role="img" aria-label="Anonymous portrait placeholder">
+              <rect width="240" height="260" rx="18" fill="#e2eaf0"/>
+              <circle cx="120" cy="94" r="43" fill="#9dafbc"/>
+              <path d="M35 260v-33c0-54 35-89 85-89s85 35 85 89v33" fill="#7e96a9"/>
+            </svg>
+            <h2>
+              Samuel Do
+            </h2>
+          </article>
+        </div>
       </div>
     </main>
-    <div id="dashboard" hidden>
-      <header class="app-header">
-        <a class="brand" href="#">
-          <span class="brand-mark" aria-hidden="true">
-            b.
-          </span>
-          BearRok
-        </a>
-        <a class="back-link" href="#">
-          Back to the story
-        </a>
-        <span class="sample-label">
-          Prepared demo
-        </span>
-      </header>
-      <main class="app-main" id="app-main" tabindex="-1">
-        <div class="app-title">
-          <div>
-            <h1>
-              What’s calling your curiosity?
-            </h1>
-            <p>
-              Explore two manually checked examples. Make the scope your own.
-            </p>
-          </div>
-          <span class="app-decoration" aria-hidden="true">
-            ✳
-          </span>
-        </div>
-        <form id="search-form" class="search-panel">
-          <label for="student-ask">
-            What would you like to find?
-          </label>
-          <textarea id="student-ask" rows="2">
-            I want a beginner-friendly coding community and an online hackathon next month.
-          </textarea>
-          <div class="search-options">
-            <div>
-              <label for="community-format">
-                Community format
-              </label>
-              <select id="community-format">
-                <option value="clarify">
-                  Choose a format
-                </option>
-                <option value="online">
-                  Online
-                </option>
-                <option value="campus">
-                  Near my campus
-                </option>
-                <option value="any">
-                  Anywhere
-                </option>
-              </select>
-            </div>
-            <div>
-              <label for="campus">
-                Campus
-                <span>
-                  (optional)
-                </span>
-              </label>
-              <input id="campus" placeholder="Add your campus" autocomplete="organization">
-            </div>
-            <div>
-              <label for="window">
-                Event window
-              </label>
-              <select id="window">
-                <option value="december">
-                  December 2026
-                </option>
-                <option value="any">
-                  Any time
-                </option>
-                <option value="november">
-                  November 2026
-                </option>
-              </select>
-            </div>
-            <button class="button" type="submit">
-              Explore prepared results
-            </button>
-          </div>
-          <p class="search-disclosure">
-            This walkthrough filters a fixed set of two examples. Your text is kept in this tab; it isn’t sent to a search service.
-          </p>
-        </form>
-        <div id="scope-notice" class="scope-notice" role="status" hidden>
-        </div>
-        <section class="results-section" aria-labelledby="results-title">
-          <div class="results-heading">
-            <div>
-              <p class="eyebrow">
-                YOUR POSSIBILITIES
-              </p>
-              <h2 id="results-title">
-                A place to connect. A reason to create.
-              </h2>
-            </div>
-            <span id="result-count" aria-live="polite">
-            </span>
-          </div>
-          <div class="results-toolbar">
-            <div class="filter-tabs" role="group" aria-label="Filter opportunity type">
-              <button type="button" class="filter active" data-filter="all" aria-pressed="true">
-                All opportunities
-              </button>
-              <button type="button" class="filter" data-filter="club" aria-pressed="false">
-                Communities
-              </button>
-              <button type="button" class="filter" data-filter="event" aria-pressed="false">
-                Events
-              </button>
-              <button type="button" class="filter" data-filter="saved" aria-pressed="false">
-                Saved
-                <span id="saved-count">
-                  0
-                </span>
-              </button>
-            </div>
-            <p>
-              Source review · Nov 18, 2026
-            </p>
-          </div>
-          <div id="results-grid" class="results-grid">
-          </div>
-          <div id="empty-state" class="empty-state" hidden>
-            <span aria-hidden="true">
-              ⌕
-            </span>
-            <h3>
-              No prepared examples in this view.
-            </h3>
-            <p id="empty-message">
-            </p>
-            <button type="button" id="reset-filters" class="button">
-              Show all examples
-            </button>
-          </div>
-        </section>
-        <aside class="demo-boundary">
-          <strong>
-            What this demo shows
-          </strong>
-          <p>
-            A scoped request, source-backed cards, honest unknowns, and organizer links. The repository contains an early Grok discovery, validation, and persistence backend. This website is not connected to it, and a real-key Grok run remains unverified.
-          </p>
-        </aside>
-      </main>
-    </div>
     <main id="demo-preview-view" class="demo-page wrap" tabindex="-1" aria-labelledby="demo-page-title" hidden>
-      <section class="screening-room pitch-glass" aria-labelledby="demo-page-title">
+      <section class="screening-room pitch-glass clarity-content" aria-labelledby="demo-page-title">
         <header class="demo-page-heading">
           <div class="entrance-content">
             <p class="eyebrow">
@@ -965,22 +845,105 @@
         <div class="screening-player entrance-followup">
           <video id="demo-preview-video" aria-label="Recorded walkthrough of the prepared demo" controls playsinline preload="metadata" poster="assets/demo-poster.jpg" width="1200" height="750">
             <source src="assets/demo-walkthrough.webm" type="video/webm">
-            Your browser cannot play this video. Use Test the prototype below to explore the interactive version.
+            Your browser cannot play this video. Read the guided walkthrough below.
           </video>
         </div>
         <footer class="screening-footer entrance-followup">
           <div class="demo-page-actions">
-            <a class="button" href="#demo">
-              Test the prototype
-            </a>
-            <button class="button demo-download" type="button" disabled aria-describedby="demo-download-note">
+            <button class="button demo-download" type="button" disabled aria-label="Download now! (not available yet)" title="Download is not available yet">
               Download now!
             </button>
           </div>
-          <p id="demo-download-note">
-            Downloads are not available in this prototype.
-          </p>
         </footer>
+        <section class="grok-walkthrough" id="grok-walkthrough" aria-labelledby="grok-walkthrough-title">
+          <p class="walkthrough-disclosure">
+            The video shows a prepared student feed. The walkthrough below explains the agent code behind BearRok.
+          </p>
+          <h2 id="grok-walkthrough-title">
+            What <strong>Grok</strong> does
+            <em>
+              behind the feed
+            </em>
+          </h2>
+          <aside class="grok-spotlight" aria-labelledby="grok-spotlight-title">
+            <p class="eyebrow">
+              GROK · SEARCH + STRUCTURED REASONING
+            </p>
+            <h3 id="grok-spotlight-title">
+              Grok search, with a team behind each result
+            </h3>
+            <p>
+              A single sequential pass handles each phase in turn. Here, managers explore different slices concurrently, and shared URL deduplication limits repeated reading. Separate reviewers check student fit and current source status.
+            </p>
+            <div class="grok-search-advantages">
+              <p>
+                <strong>
+                  Web search gives the team evidence
+                </strong>
+                Scouts find public postings. Extractors read official pages and collect the words and URLs behind eligibility, dates, and application details.
+              </p>
+              <p>
+                <strong>
+                  Optional X search adds another lead source
+                </strong>
+                When enabled, X search can surface organizer announcements. Workers follow promising leads through the same reading and independent checking steps.
+              </p>
+            </div>
+          </aside>
+          <p class="walkthrough-example">
+            <strong>
+              Example student request
+            </strong>
+            “I’m a first-year student looking for paid software internships in Berkeley or remote. No events.”
+          </p>
+          <ol class="walkthrough-steps">
+            <li>
+              <h3>
+                Turn your needs into a brief
+              </h3>
+              <p>
+                The master reads your profile, background, and feedback. Your notes carry the most weight. If you ask for paid roles and rule out events, those preferences become criteria for every manager.
+              </p>
+            </li>
+            <li>
+              <h3>
+                Divide the search across four managers
+              </h3>
+              <p>
+                Four search managers can look for internships in parallel. They divide the work by field, employer, location, or source and send small jobs to a shared worker queue.
+              </p>
+            </li>
+            <li>
+              <h3>
+                Find leads and read the source
+              </h3>
+              <p>
+                Grok scouts search the web. Extractors open organizer or employer pages and collect details with quotes and URLs. Scouts can also search X for leads when X search is enabled. The default configuration uses web search.
+              </p>
+            </li>
+            <li>
+              <h3>
+                Check fit and check whether it is open
+              </h3>
+              <p>
+                Two reviewers make separate judgments. One checks whether the role meets this student’s criteria. The other checks whether the posting is real and open. A senior-only or closed role is rejected. Dates must have evidence. When no current page states a deadline, it stays unknown.
+              </p>
+            </li>
+            <li>
+              <h3>
+                Give the student a useful next step
+              </h3>
+              <p>
+                The presentation manager explains why a kept role fits. Application readers collect prompts and materials. A suitable paid remote internship can reach the feed with its apply link and supporting details. Saves, likes, and dislikes guide the next run.
+              </p>
+            </li>
+          </ol>
+          <p class="walkthrough-sources">
+            <a href="#workflow">
+              Read the agent design
+            </a>
+          </p>
+        </section>
       </section>
     </main>
     <dialog id="evidence-dialog" aria-labelledby="dialog-title">
@@ -996,7 +959,5 @@
       </div>
     </dialog>
     <button type="button" class="back-to-top" id="back-to-top" aria-label="Back to top" hidden>↑</button>
-    <div id="toast" class="toast" role="status" hidden>
-    </div>
   </body>
 </html>

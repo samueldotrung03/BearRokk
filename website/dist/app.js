@@ -1,135 +1,34 @@
 'use strict';
-const records = [ {
-  id:'hackclub',
-  type:'club',
-  title:'Hack Club Slack',
-  organizer:'Hack Club',
-  format:'Online · asynchronous community',
-  fit:'A place to connect with other young makers and ask coding questions. Free to join, with an age requirement to check first.',
-  eligibility:'For ages 13–18. A college student older than 18 should choose another community; this example is not a universal match.',
-  action:'View joining instructions',
-  url:'https://hackclub.com/slack',
-  facts:[['How to join',
-  'Follow Hack Club’s Slack joining instructions.'],
-  ['Meeting schedule',
-  'Unknown · an asynchronous community, no recurring meeting listed.'],
-  ['Membership intake',
-  'Joining instructions are available; review the organizer’s requirements.']],
-  sources:[ {
-    name:'Hack Club · joining page',
-    url:'https://hackclub.com/slack',
-    note:'Organizer instructions for the free online Slack community, including its 13–18 age scope.'
-  },
-   {
-    name:'Hack Club · Slack overview',
-    url:'https://welcome.hackclub.com/Slack',
-    note:'Organizer overview of the community. A recurring meeting schedule was not established in this source review.'
-  }
-  ],
-  unknown:'Meeting schedule is unlisted. A community joining page does not establish a recurring club meeting or guarantee eligibility.'
-},
- {
-  id:'cosmo',
-  type:'event',
-  title:'Cosmo Hacks 2026',
-  organizer:'Cosmo Hacks',
-  format:'Online · beginner friendly',
-  fit:'An online hackathon starting in December, with a theme of Tech for Student & Community Life. Beginners can participate.',
-  eligibility:'Middle and high school students ages 13–18, plus college and graduate students. Solo or teams up to four, within the same division.',
-  action:'Visit event organizer',
-  url:'https://www.cosmohacks.com/',
-  facts:[['Event starts',
-  'Dec 19, 2026 · 10 AM CST (UTC−6)'],
-  ['Event & submissions end',
-  'Jan 18, 2027 · 4 PM CST (UTC−6)'],
-  ['Registration deadline',
-  'Unknown · the submission deadline is a separate date.']],
-  sources:[ {
-    name:'Cosmo Hacks · official event website',
-    url:'https://www.cosmohacks.com/',
-    note:'Organizer information on online format, beginner participation, theme, eligibility, and the event window.'
-  },
-   {
-    name:'Cosmo Hacks · Devpost listing',
-    url:'https://cosmohacks.devpost.com/',
-    note:'Official event listing for event and submission details. The source review did not establish a separate registration cutoff.'
-  }
-  ],
-  unknown:'Registration deadline unknown. January 18 is the event and project submission end, not a verified registration cutoff.'
-}
-];
 const $ = id => document.getElementById(id);
-const saved = new Set();
-let activeFilter = 'all';
-let appliedFormat = 'online';
-let appliedWindow = 'december';
-let appliedTypes = ['club',
-'event'];
-let toastTimer;
 let lastEvidenceButton;
-function cardHTML(record) {
-  const isSaved = saved.has(record.id);
-  return `<article class="opportunity-card"><div class="card-top"><span class="card-type">${record.type==='club'?'COMMUNITY':'EVENT'} · ONLINE</span><button type="button" class="save-button" data-save="${record.id}" aria-pressed="${isSaved}" aria-label="${isSaved?'Unsave':'Save'} ${record.title}">${isSaved?'Saved':'Save'}</button></div><h3>${record.title}</h3><p class="organizer">${record.organizer} · ${record.format}</p><p class="fit">${record.fit}</p><dl class="card-facts">${record.facts.map(([label,value])=>`<div><dt>${label}
-  </dt><dd${value.startsWith('Unknown')?' class="unknown"':''}
-  >${value}
-  </dd></div>`).join('')}</dl><p class="eligibility-note"><strong>Before you join:</strong> ${record.eligibility}</p><div class="card-actions"><a class="button" href="${record.url}" target="_blank" rel="noopener noreferrer">${record.action}<span class="sr-only"> (opens in a new tab)</span></a><button type="button" class="evidence-button" data-evidence="${record.id}">View source notes</button></div><p class="checked">Prepared example · Sources reviewed Nov 18, 2026</p></article>`;
-}
-function render() {
-  const visible = records.filter(record=> {
-    if (!appliedTypes.includes(record.type)) return false;
-    if(activeFilter==='saved'&&!saved.has(record.id))return false;
-    if(['club',
-    'event'].includes(activeFilter)&&record.type!==activeFilter)return false;
-    if(record.type==='club'&&appliedFormat==='campus')return false;
-    if(record.type==='event'&&appliedWindow==='november')return false;
-    return true;
-  }
-  );
-  $('results-grid').innerHTML=visible.map(cardHTML).join('');
-  $('result-count').textContent=`${visible.length} prepared ${visible.length===1?'example':'examples'}`;
-  $('saved-count').textContent=saved.size;
-  $('empty-state').hidden=visible.length>0;
-  $('empty-message').textContent=activeFilter==='saved'?'Save a result to keep it in view during this visit.':'These examples include an online community and a hackathon starting in December 2026. Try a broader scope.';
-  document.querySelectorAll('[data-filter]').forEach(button=> {
-    const selected=button.dataset.filter===activeFilter;
-    button.classList.toggle('active',
-    selected);
-    button.setAttribute('aria-pressed',
-    String(selected));
-  }
-  );
-}
 let currentView=null;
 const homeEntrance={play(){},cancel(){}};
 const pageEntrances={home:homeEntrance,preview:{play(){},cancel(){}},about:{play(){},cancel(){}}};
 function route() {
+  const legacy=['#demo','#app-main','#dashboard','#results-grid','#results-title','#search-form'];
+  if(legacy.includes(location.hash) || (/^#demo-/.test(location.hash) && !['#demo-preview','#demo-preview-view'].includes(location.hash))) {
+    history.replaceState(null,'','#demo-preview');
+  }
   const hash=location.hash;
-  const isDemo=['#demo','#app-main','#demo-cosmo'].includes(hash);
   const isAbout=['#about-us','#about-view'].includes(hash);
   const isPreview=['#demo-preview','#demo-preview-view'].includes(hash);
   const entersHomeTop=['','#home','#main'].includes(hash);
   Object.values(pageEntrances).forEach(entrance=>entrance.cancel());
-  $('landing').hidden=isDemo || isAbout || isPreview;
-  $('dashboard').hidden=!isDemo;
+  $('landing').hidden=isAbout || isPreview;
   $('about-view').hidden=!isAbout;
   $('demo-preview-view').hidden=!isPreview;
-  $('public-header').hidden=isDemo;
-  $('public-art').hidden=isDemo || isAbout;
+  $('public-header').hidden=false;
+  $('home-edge-lenses').hidden=isAbout || isPreview;
+  $('public-art').hidden=isAbout;
   if(!isPreview)$('demo-preview-video').pause();
-  document.title=isDemo?'Your possibilities — BearRok':isAbout?'About us — BearRok':isPreview?'Demo — BearRok':'BearRok — Find your next thing';
-  document.querySelector('.skip').href=isDemo?'#app-main':isAbout?'#about-view':isPreview?'#demo-preview-view':'#main';
+  document.title=isAbout?'About us — BearRok':isPreview?'Demo — BearRok':'BearRok — Find your next thing';
+  document.querySelector('.skip').href=isAbout?'#about-view':isPreview?'#demo-preview-view':'#main';
   document.querySelectorAll('.nav-cluster>a').forEach(link=>{
     const active=link.getAttribute('href')===(isPreview?'#demo-preview':isAbout?'#about-us':'#home');
     active?link.setAttribute('aria-current','page'):link.removeAttribute('aria-current');
   });
-  const nextView=isDemo?'demo':isAbout?'about':isPreview?'preview':'home';
-  if(isDemo) {
-    render();window.scrollTo(0,0);$('app-main').focus({preventScroll:true});
-    if(hash==='#demo-cosmo') {
-      appliedTypes=['club','event'];appliedWindow='december';activeFilter='event';render();
-      document.querySelector('[data-evidence="cosmo"]').click();
-    }
-  } else if(currentView!==nextView) {
+  const nextView=isAbout?'about':isPreview?'preview':'home';
+  if(currentView!==nextView) {
     window.scrollTo(0,0);
     if(isAbout || isPreview)$(isAbout?'about-view':'demo-preview-view').focus({preventScroll:true});
   } else if(!hash || hash==='#home')window.scrollTo(0,0);
@@ -137,6 +36,14 @@ function route() {
   if(entersHomeTop)homeEntrance.play();
   else if(isAbout)pageEntrances.about.play();
   else if(isPreview)pageEntrances.preview.play();
+  if(hash==='#workflow' && window.requestAnimationFrame){
+    // Wait for the revealed Home layout and stable frame measurements before anchoring.
+    window.requestAnimationFrame(()=>window.requestAnimationFrame(()=>{
+      if(currentView!=='home' || location.hash!==hash)return;
+      const target=$('workflow');target.scrollIntoView({block:'start',behavior:'instant'});
+      target.tabIndex=-1;target.focus({preventScroll:true});
+    }));
+  }
 }
 function initPublicNavigation() {
   if(!document.addEventListener)return;
@@ -152,114 +59,25 @@ function initPublicNavigation() {
   document.addEventListener('visibilitychange',()=>{if(document.hidden)video.pause();});
 }
 initPublicNavigation();
-function toast(message) {
-  clearTimeout(toastTimer);
-  $('toast').textContent=message;
-  $('toast').hidden=false;
-  toastTimer=setTimeout(()=>$('toast').hidden=true,
-  2800);
+// These notes concern the manually reviewed Cosmo example, not the supplied Feed screenshot.
+function openSourceNotes(trigger) {
+  lastEvidenceButton=trigger;
+  $('dialog-body').innerHTML=`<h2 id="dialog-title">Cosmo Hacks 2026</h2><p>Manually reviewed November 18, 2026 for the prepared Cosmo example in this pitch. These sources cover the event window and eligibility.</p><div class="source-entry"><strong>Cosmo Hacks · official event website</strong><p>Organizer information on online format, beginner participation, theme, eligibility, and the event window.</p><a href="https://www.cosmohacks.com/" target="_blank" rel="noopener noreferrer">Official event website<span class="sr-only"> (opens in a new tab)</span></a></div><div class="source-entry"><strong>Cosmo Hacks · Devpost listing</strong><p>Official listing for event and submission details. The review did not establish a separate registration cutoff.</p><a href="https://cosmohacks.devpost.com/" target="_blank" rel="noopener noreferrer">Official Devpost listing<span class="sr-only"> (opens in a new tab)</span></a></div><div class="source-warning"><strong>Registration deadline unknown</strong><br>January 18 is the event and project submission end, not a verified registration cutoff. The May 10 date in the Check panel is explicitly sample UI data.</div>`;
+  $('evidence-dialog').showModal();
 }
-$('search-form').addEventListener('submit',
-event=> {
-  event.preventDefault();
-  if(!$('student-ask').value.trim()) {
-    $('scope-notice').hidden=false;
-    $('scope-notice').textContent='Add what you want to find, then explore the prepared examples.';
-    $('student-ask').focus();
-    return;
-  }
-  const request = $('student-ask').value.trim();
-  const wantsClub = /\b(clubs?|communit(?:y|ies)|people|friends?)\b/i.test(request);
-  const wantsEvent = /\b(events?|hackathons?|competitions?|workshops?)\b/i.test(request);
-  if (wantsClub && $('community-format').value === 'clarify') {
-    $('scope-notice').hidden = false;
-    $('scope-notice').textContent = 'One useful detail: should the community also meet online, or would you prefer one near your campus? Choose a Community format above, then explore the prepared results.';
-    $('community-format').focus();
-    return;
-  }
-  appliedTypes = [wantsClub ? 'club' : null,
-  wantsEvent ? 'event' : null].filter(Boolean);
-  appliedFormat=$('community-format').value;
-  appliedWindow=$('window').value;
-  activeFilter='all';
-  const campus=$('campus').value.trim();
-  const types = appliedTypes.map(type => type === 'club' ? 'communities' : 'events').join(' and ');
-  const notes=[`Your request: “${request}”`,
-  `Prepared scope: ${types || 'no supported opportunity type recognized'}. This is keyword matching against two examples, not a live search.`];
-  if (!appliedTypes.length) notes.push('Try asking for a coding community or an online hackathon. Scholarships and research openings are outside this demo.');
-  if(appliedFormat==='campus')notes.push(campus?`No campus community is available in this example set for ${campus}.`:'Add a campus when you connect live discovery. This example set has no local community.');
-  else notes.push('The community example is online; its age requirement still applies.');
-  if(appliedWindow==='november')notes.push('No example event starts in November.');
-  $('scope-notice').textContent=notes.join(' ');
-  $('scope-notice').hidden=false;
-  render();
+function initSourceNotes() {
+  if(!document.addEventListener)return;
+  document.addEventListener('click',event=>{const trigger=event.target.closest('[data-source-notes]');if(trigger)openSourceNotes(trigger);});
+  const dialog=$('evidence-dialog');
+  $('close-dialog').addEventListener('click',()=>dialog.close());
+  dialog.addEventListener('close',()=>{if(lastEvidenceButton?.isConnected)lastEvidenceButton.focus();});
+  dialog.addEventListener('click',event=>{
+    if(event.target!==dialog)return;
+    const rect=dialog.getBoundingClientRect();
+    if(event.clientX<rect.left || event.clientX>rect.right || event.clientY<rect.top || event.clientY>rect.bottom)dialog.close();
+  });
 }
-);
-document.querySelector('.filter-tabs').addEventListener('click',
-event=> {
-  const button=event.target.closest('[data-filter]');
-  if(button) {
-    activeFilter=button.dataset.filter;
-    render();
-  }
-}
-);
-$('results-grid').addEventListener('click',
-event=> {
-  const saveButton=event.target.closest('[data-save]');
-  if(saveButton) {
-    const id=saveButton.dataset.save;
-    const saving=!saved.has(id);
-    saving?saved.add(id):saved.delete(id);
-    render();
-    toast(saving?'Saved for this visit.':'Removed from saved.');
-    const next=document.querySelector(`[data-save="${id}"]`);
-    if(next)next.focus();
-    else document.querySelector('[data-filter="saved"]').focus();
-    return;
-  }
-  const evidenceButton=event.target.closest('[data-evidence]');
-  if(evidenceButton) {
-    const record=records.find(item=>item.id===evidenceButton.dataset.evidence);
-    lastEvidenceButton=evidenceButton;
-    $('dialog-body').innerHTML=`<h2 id="dialog-title">${record.title}</h2><p>Manually reviewed on November 18, 2026. These notes support a prepared example, not a live verification run.</p>${record.sources.map(source=>`<div class="source-entry"><strong>${source.name}
-    </strong><p>${source.note}
-    </p><a href="${source.url}" target="_blank" rel="noopener noreferrer">${source.url}
-    <span class="sr-only"> (opens in a new tab)</span></a></div>`).join('')}<div class="source-warning"><strong>What remains unknown</strong><br>${record.unknown}</div>`;
-    $('evidence-dialog').showModal();
-  }
-}
-);
-$('close-dialog').addEventListener('click',
-()=>$('evidence-dialog').close());
-$('evidence-dialog').addEventListener('click',
-event=> {
-  if(event.target===$('evidence-dialog')) {
-    const rect=event.target.getBoundingClientRect();
-    if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)event.target.close();
-  }
-}
-);
-$('evidence-dialog').addEventListener('close',
-()=> {
-  if(lastEvidenceButton?.isConnected)lastEvidenceButton.focus();
-}
-);
-$('reset-filters').addEventListener('click',
-()=> {
-  activeFilter='all';
-  appliedTypes=['club',
-  'event'];
-  appliedFormat='online';
-  appliedWindow='december';
-  $('student-ask').value='I want a beginner-friendly coding community and an online hackathon next month.';
-  $('community-format').value='online';
-  $('window').value='december';
-  $('scope-notice').hidden=true;
-  render();
-  document.querySelector('[data-filter="all"]').focus();
-}
-);
+initSourceNotes();
 initHomeEntrance();
 window.addEventListener('hashchange',route);
 route();
@@ -267,6 +85,73 @@ route();
 
 // Native scroll remains in charge. Geometry drives reversible motion only;
 // everything stays visible when JavaScript or motion is unavailable.
+// Horizontal gestures choose a card; vertical touch scrolling stays native.
+function initCapabilityDeck(deck,cards) {
+  if(!deck || !cards.length)return;
+  let active=0,gesture=null,suppressClick=false,lastHover=null,revealVersion=0;
+  function select(index,focus=false) {
+    const version=++revealVersion;
+    active=(index+cards.length)%cards.length;
+    deck.dataset.active=cards[active].dataset.capability;
+    cards.forEach((card,i)=>{
+      const selected=i===active;
+      card.classList.toggle('is-active',selected);
+      card.querySelector('.capability-toggle').setAttribute('aria-expanded',String(selected));
+      card.querySelector('.capability-detail').inert=!selected;
+    });
+    if(focus)cards[active].querySelector('.capability-toggle').focus({preventScroll:true});
+    if(window.matchMedia && deck.scrollTo && window.matchMedia('(max-width:720px)').matches){
+      const selectedIndex=active;
+      // Scroll only the lane after widths settle; never move the document.
+      setTimeout(()=>{
+        if(active!==selectedIndex || version!==revealVersion)return;
+        const last=cards[cards.length-1];
+        const end=Math.max(0,last.offsetLeft+last.offsetWidth+12-deck.clientWidth);
+        deck.scrollTo({left:Math.min(end,Math.max(0,cards[active].offsetLeft-12)),behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+      },780);
+    }
+  }
+  cards.forEach((card,index)=>{
+    const button=card.querySelector('.capability-toggle');
+    button.addEventListener('focus',()=>select(index));
+    button.addEventListener('click',event=>{if(suppressClick){event.preventDefault();return;}select(index);});
+    button.addEventListener('keydown',event=>{
+      const offset={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[event.key];
+      if(offset || event.key==='Home' || event.key==='End'){
+        event.preventDefault();select(event.key==='Home'?0:event.key==='End'?cards.length-1:active+offset,true);
+      }
+    });
+  });
+  deck.addEventListener('pointerdown',event=>{
+    if(event.button!==0 || event.target.closest('[data-source-notes],a'))return;
+    gesture={x:event.clientX,y:event.clientY,id:event.pointerId,index:active};suppressClick=false;
+  });
+  deck.addEventListener('pointermove',event=>{
+    if(!gesture){
+      // Reflow beneath a stationary pointer must not chase another card.
+      const moved=!lastHover || Math.hypot(event.clientX-lastHover.x,event.clientY-lastHover.y)>3;
+      if(event.pointerType!=='touch' && moved && !deck.contains(document.activeElement)){
+        lastHover={x:event.clientX,y:event.clientY};
+        const card=event.target.closest('[data-capability]');
+        const index=cards.indexOf(card);if(index>=0 && index!==active)select(index);
+      }
+      return;
+    }
+    if(event.pointerId!==gesture.id)return;
+    const dx=event.clientX-gesture.x,dy=event.clientY-gesture.y;
+    if(!gesture.drag && Math.abs(dy)>Math.abs(dx)+8){gesture=null;return;}
+    if(Math.abs(dx)>24 && Math.abs(dx)>Math.abs(dy)*1.3){
+      gesture.drag=true;suppressClick=true;deck.classList.add('is-dragging');
+      deck.setPointerCapture?.(event.pointerId);
+      select(gesture.index+(dx<0?1:-1));
+    }
+  });
+  function release(){gesture=null;deck.classList.remove('is-dragging');setTimeout(()=>{suppressClick=false;},0);}
+  deck.addEventListener('pointerup',release);deck.addEventListener('pointercancel',release);
+  deck.addEventListener('pointerleave',()=>{lastHover=null;});
+  select(0);
+}
+
 function initLandingStory() {
   if (!window.matchMedia || !window.requestAnimationFrame) return;
   const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -276,21 +161,7 @@ function initLandingStory() {
   const panels = [...document.querySelectorAll('[data-capability]')];
   let framePending = false;
 
-  function activatePanel(panel) {
-    pair.dataset.active = panel.dataset.capability;
-    panels.forEach(item => {
-      const active = item === panel;
-      item.classList.toggle('is-active', active);
-      item.querySelector('button').setAttribute('aria-expanded', String(active));
-    });
-  }
-  panels.forEach(panel => {
-    panel.addEventListener('pointerenter', event => {
-      if (event.pointerType !== 'touch') activatePanel(panel);
-    });
-    panel.addEventListener('focusin', () => activatePanel(panel));
-    panel.querySelector('button').addEventListener('click', () => activatePanel(panel));
-  });
+  initCapabilityDeck(pair,panels);
 
   function paintScroll() {
     framePending = false;
@@ -330,18 +201,41 @@ function initViewportEdges() {
   if (!window.requestAnimationFrame) return;
   let pending=false;
   const landing=$('landing');
+  const lenses=$('home-edge-lenses');
+  const top=lenses.querySelector('.viewport-edge-top');
+  const bottom=lenses.querySelector('.viewport-edge-bottom');
   function update() {
-    pending=false;
-    const available=Math.max(0,landing.scrollHeight-window.innerHeight);
-    const top=landing.hidden?0:Math.min(1,window.scrollY/100);
-    const bottom=landing.hidden?0:Math.min(1,Math.max(0,available-window.scrollY)/70);
-    landing.style.setProperty('--edge-top',String(Math.max(0,top)*.8));
-    landing.style.setProperty('--edge-bottom',String(Math.max(0,bottom)*.8));
+    pending=false;lenses.hidden=landing.hidden;
+    const scrolling=document.scrollingElement || document.documentElement;
+    const maxScroll=Math.max(0,scrolling.scrollHeight-scrolling.clientHeight);
+    const remaining=Math.max(0,maxScroll-Math.max(0,window.scrollY));
+    const fadeDistance=window.innerWidth<=720?120:160;
+    // A one-pixel tolerance covers fractional maximum offsets and mobile rounding.
+    const progress=landing.hidden || maxScroll<=1?0:Math.max(0,Math.min(1,(remaining-1)/(fadeDistance-1)));
+    const strength=progress*progress*(3-2*progress);
+    // Opacity belongs to each lens, never to their backdrop-root wrapper.
+    lenses.style.setProperty('--home-edge-strength',String(strength));
+    // The lenses are a viewport-level sibling, outside all filtered page surfaces.
+    const target=document.activeElement;
+    const protect=target?.matches?.('#landing :is(a,button,input,select,textarea):focus-visible');
+    const rect=protect?target.getBoundingClientRect():null;
+    for(const lens of [top,bottom]) {
+      const box=lens.getBoundingClientRect();
+      lens.style.setProperty('--focus-x',rect?(rect.left+rect.width/2)+'px':'-10000px');
+      lens.style.setProperty('--focus-y',rect?(rect.top+rect.height/2-box.top)+'px':'-10000px');
+      lens.style.setProperty('--focus-rx',rect?(rect.width/2+22)+'px':'0px');
+      lens.style.setProperty('--focus-ry',rect?(rect.height/2+16)+'px':'0px');
+    }
   }
   function schedule(){if(!pending){pending=true;window.requestAnimationFrame(update);}}
   window.addEventListener('scroll',schedule,{passive:true});
   window.addEventListener('resize',schedule);
   window.addEventListener('hashchange',schedule);
+  window.addEventListener('pageshow',schedule);
+  window.addEventListener('load',schedule);
+  document.addEventListener('focusin',schedule);
+  document.addEventListener('focusout',schedule);
+  if(window.ResizeObserver){const observer=new ResizeObserver(schedule);observer.observe(document.body);observer.observe(landing);}
   schedule();
 }
 initViewportEdges();
@@ -518,7 +412,7 @@ function initBackToTop() {
   function schedule(){if(!pending){pending=true;window.requestAnimationFrame(update);}}
   button.addEventListener('click',()=>{
     window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
-    const target=$({home:'main',about:'about-view',preview:'demo-preview-view',demo:'app-main'}[currentView] || 'main');
+    const target=$({home:'main',about:'about-view',preview:'demo-preview-view'}[currentView] || 'main');
     target.tabIndex=-1;target.focus({preventScroll:true});
     pageEntrances[currentView]?.play();
   });
@@ -532,8 +426,9 @@ initBackToTop();
 // One real content layer; the decorative shards never duplicate text or change layout.
 function initHomeEntrance() {
   createPageEntrance('home','.hero-showcase','.hero-copy');
-  createPageEntrance('preview','.demo-page','.demo-page-heading');
-  createPageEntrance('about','.about-view','.about-copy');
+  createClarityEntrance('preview','.demo-page');
+  createClarityEntrance('about','.about-view');
+  initPortraitBounce();
 }
 function createPageEntrance(view,rootSelector,panelSelector) {
   const hero=document.querySelector(rootSelector);
@@ -558,7 +453,7 @@ function createPageEntrance(view,rootSelector,panelSelector) {
     element.style.clipPath='polygon('+polygon.map(point=>point.join('% ')+'%').join(',')+')';
     const center=polygon.reduce((sum,point)=>[sum[0]+point[0]/polygon.length,sum[1]+point[1]/polygon.length],[0,0]);
     element.style.transformOrigin=center.join('% ')+'%';
-    element.style.background=pieces.length%11===0?'#eee6cfdb':'#edf4f0e8';
+    element.style.background=pieces.length%11===0?'var(--intro-fragment-warm)':'var(--intro-fragment)';
     layer.append(element);pieces.push({element,center});
   }
   for(let row=0;row<rows;row++)for(let col=0;col<columns;col++){
@@ -627,7 +522,7 @@ function createPageEntrance(view,rootSelector,panelSelector) {
 // Flex width changes used to rewrap text and resize the common artwork surface.
 // Reserve the largest legitimate state once per width, never in response to hover.
 function initStablePanelFrames() {
-  const groups=[...document.querySelectorAll('.capability-pair,.result-panels')];
+  const groups=[...document.querySelectorAll('.result-panels')];
   if(!groups.length || !window.requestAnimationFrame)return;
   let pending=false;
   function measure() {
@@ -673,4 +568,58 @@ function initStablePanelFrames() {
     groups.forEach(group=>observer.observe(group));
   }
   schedule();
+}
+
+// Short public pages use one continuous reveal; header and About artwork remain stationary.
+function createClarityEntrance(view,rootSelector) {
+  const root=document.querySelector(rootSelector);
+  if(!root || typeof root.animate!=='function')return;
+  const content=root.querySelector('.clarity-content');
+  if(!content)return;
+  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
+  let generation=0,animation=null,firstPlay=true;
+  function reset(){
+    generation++;
+    animation?.cancel();animation=null;
+    root.classList.remove('page-clarity-entering');
+    document.documentElement.classList.remove('page-intro-pending');
+  }
+  pageEntrances[view].cancel=reset;
+  pageEntrances[view].play=()=>{
+    reset();
+    if(currentView!==view)return;
+    if(view==='preview')$('demo-preview-video').pause();
+    const id=generation;
+    const initialStart=firstPlay && document.documentElement.dataset.entranceView===view?Number(document.documentElement.dataset.clarityStarted):NaN;
+    firstPlay=false;
+    const duration=Number.isFinite(initialStart)?Math.max(0,1250-(performance.now()-initialStart)):1250;
+    root.classList.add('page-clarity-entering');
+    animation=content.animate([
+      {filter:'blur('+(reduced.matches?6:12)+'px)',opacity:.45},
+      {filter:'blur(0px)',opacity:1}
+    ],{duration,easing:'cubic-bezier(.2,.55,.3,1)',fill:'both'});
+    animation.finished.then(()=>{if(id===generation)reset();}).catch(()=>{});
+  };
+  window.addEventListener('pagehide',reset);
+}
+function initPortraitBounce(){
+  const portraits=[...document.querySelectorAll('.team-portrait')];
+  if(!portraits.length || typeof portraits[0].animate!=='function' || !window.matchMedia)return;
+  const animations=new Map();
+  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
+  function bounce(portrait){
+    animations.get(portrait)?.cancel();
+    const animation=portrait.animate(reduced.matches
+      ?[{opacity:1},{opacity:.82,offset:.4},{opacity:1}]
+      :[{transform:'translateY(0)'},{transform:'translateY(-7px)',offset:.4},{transform:'translateY(1px)',offset:.75},{transform:'translateY(0)'}],
+      {duration:reduced.matches?280:430,easing:'ease-out'});
+    animations.set(portrait,animation);
+    animation.finished.then(()=>{if(animations.get(portrait)===animation)animations.delete(portrait);}).catch(()=>{});
+  }
+  portraits.forEach(portrait=>{
+    portrait.addEventListener('pointerenter',event=>{if(event.pointerType!=='touch')bounce(portrait);});
+    portrait.addEventListener('pointerdown',event=>{if(event.pointerType==='touch')bounce(portrait);});
+  });
+  function reset(){animations.forEach(animation=>animation.cancel());animations.clear();}
+  window.addEventListener('hashchange',reset);window.addEventListener('pagehide',reset);
 }
