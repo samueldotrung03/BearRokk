@@ -88,10 +88,11 @@ export interface Plan {
   next: RoadmapStep | undefined;
 }
 
-export function planFor(state: AppState): Plan {
+/** `found` is what the agents found; steps the student added from the feed are built from it. */
+export function planFor(state: AppState, found: Opportunity[] = opportunities): Plan {
   const roadmap = currentRoadmap(state.goalId);
   const planned = roadmap.phases.flatMap((phase) => phase.steps);
-  const extras = opportunities
+  const extras = found
     .filter((o) => state.extraSteps.includes(o.id) && !state.dismissed.includes(o.id))
     .flatMap((o) => buildOpportunityRoadmap(o, applicationInfo[o.id], state.profile.skills));
   const steps = [...planned, ...extras];

@@ -4,6 +4,7 @@ import { ArrowRight, Check } from 'lucide-react';
 import { Link } from 'react-router';
 import { planFor } from '../lib/roadmap.ts';
 import { daysUntil, dueLabel } from '../lib/time.ts';
+import { useOpportunities } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import { stepMeta } from './meta.ts';
 
@@ -12,7 +13,7 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function RoadmapPanel({ highlight }: { highlight?: (opportunityId: string | null) => void }) {
   const { state, dispatch } = useStore();
-  const { roadmap, steps, doneCount, percent, next } = planFor(state);
+  const { roadmap, steps, doneCount, percent, next } = planFor(state, useOpportunities());
   const after = steps.filter((step) => !state.doneSteps.includes(step.id) && step.id !== next?.id).slice(0, 3);
 
   return (

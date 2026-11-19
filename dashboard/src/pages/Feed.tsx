@@ -24,7 +24,7 @@ import { toggleDock } from '../components/Dock.tsx';
 import { formatLabel, typeMeta } from '../components/meta.ts';
 import { Cover, Details, OpportunityTile } from '../components/OpportunityCard.tsx';
 import { RoadmapPanel } from '../components/RoadmapPanel.tsx';
-import { DataBadge, useOpportunities } from '../state/live.tsx';
+import { DataBadge, useLive, useOpportunities } from '../state/live.tsx';
 import { planFor } from '../lib/roadmap.ts';
 import { daysUntil, dueLabel, shortDate } from '../lib/time.ts';
 import { rankFeedDetailed, signalLabel, type RankedOpportunity } from '../state/ranking.ts';
@@ -248,13 +248,14 @@ export function Feed() {
   const [lastDismissed, setLastDismissed] = useState<Opportunity | null>(null);
   // The card to light up while its step is hovered in the roadmap panel.
   const [lit, setLit] = useState<string | null>(null);
-  const plan = planFor(state);
+  const opportunities = useOpportunities();
+  const agentsLive = useLive();
+  const plan = planFor(state, opportunities);
   const scroller = useRef<HTMLDivElement>(null);
 
   // The ranking runs again on every save, like and dislike, but only for cards the student has
   // not reached yet: cards already scrolled past keep their place, so nothing moves under the thumb.
   const [seen, setSeen] = useState<string[]>([]);
-  const opportunities = useOpportunities();
   const live = useMemo(() => rankFeedDetailed(opportunities, state), [opportunities, state]);
   const slides = useMemo(() => {
     const byId = new Map(live.map((r) => [r.opportunity.id, r]));
@@ -410,10 +411,14 @@ export function Feed() {
               <div className="reel-end">
                 <span className="live-dot mx-auto block size-2.5 rounded-full bg-[#34c759]" aria-hidden="true" />
                 <h2 className="mt-5 font-display text-4xl leading-tight">
-                  {slides.length === 0 ? 'Nothing here right now' : 'You are all caught up'}
+                  {slides.length > 0 ? 'You are all caught up' : agentsLive.searching ? 'Your agents are searching' : 'Nothing here yet'}
                 </h2>
                 <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">
-                  Your agents are still searching. Refresh to re-rank the feed with what you saved and skipped.
+                  {agentsLive.status === 'offline'
+                    ? 'The agents cannot be reached right now, so there is nothing new to show. This page fills in on its own once they are back.'
+                    : slides.length < agentsLive.feedTarget
+                      ? `Your agents have found ${slides.length} of the ${agentsLive.feedTarget} opportunities they aim for${agentsLive.searching ? ' and are searching for more' : '. They search again on their own'}.`
+                      : 'Refresh to re-rank the feed with what you saved and skipped.'}
                 </p>
                 <div className="mt-6 flex flex-wrap justify-center gap-2">
                   <button type="button" onClick={refresh} className="btn-primary h-11 px-5 text-sm text-white">

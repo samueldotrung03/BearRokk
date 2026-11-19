@@ -1,8 +1,12 @@
 // Firestore layout:
 //   searches/{searchId}                         one Search document
 //   searches/{searchId}/opportunities/{oppId}   one Opportunity document per validated result
+//   students/{accountId}                        when the student's memory was last saved
+//   students/{accountId}/memory/profile         section 1: what the student told the app
+//   students/{accountId}/memory/learned         section 2: what the app learned (reactions, searches, results)
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { firebaseApp } from '../firebase.ts';
+import type { StudentMemory } from '../agents/types.ts';
 import type { Opportunity, Search } from '../types.ts';
 import type { Store } from './index.ts';
 
@@ -56,5 +60,36 @@ export class FirestoreStore implements Store {
   async getOpportunities(searchId: string) {
     const snap = await this.searchRef(searchId).collection('opportunities').get();
     return snap.docs.map((d) => d.data() as Opportunity);
+  }
+
+  private studentRef(id: string) {
+    return this.db.collection('students').doc(id);
+  }
+
+  async loadStudent(id: string) {
+    const ref = this.studentRef(id);
+    const [head, profile, learned] = await Promise.all([ref.get(), ref.collection('memory').doc('profile').get(), ref.collection('memory').doc('learned').get()]);
+    if (!head.exists || !profile.exists || !learned.exists) return null;
+    return { version: 1, updatedAt: String(head.data()!.updatedAt), profile: profile.data(), learned: learned.data() } as StudentMemory;
+  }
+
+  async saveStudent(id: string, memory: StudentMemory) {
+    const ref = this.studentRef(id);
+    // Firestore refuses undefined values; a JSON round trip drops them.
+    const plain = JSON.parse(JSON.stringify(memory)) as StudentMemory;
+    const batch = this.db.batch();
+    batch.set(ref, { version: plain.version, updatedAt: plain.updatedAt });
+    batch.set(ref.collection('memory').doc('profile'), plain.profile);
+    batch.set(ref.collection('memory').doc('learned'), plain.learned);
+    await batch.commit();
+  }
+
+  async deleteStudent(id: string) {
+    const ref = this.studentRef(id);
+    const batch = this.db.batch();
+    batch.delete(ref.collection('memory').doc('profile'));
+    batch.delete(ref.collection('memory').doc('learned'));
+    batch.delete(ref);
+    await batch.commit();
   }
 }

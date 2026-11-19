@@ -31,6 +31,8 @@ export const config = {
   },
   /** With a CLI each call is a whole program, so a live run is kept small enough to finish in a few minutes. */
   liveCli: { maxJobs: Number(env.LIVE_MAX_JOBS ?? 12) },
+  /** The feed should hold at least `target` cards; the agents search again, up to `maxFillRuns` times in a row, until it does. */
+  feed: { target: Number(env.FEED_MIN ?? 12), maxFillRuns: Number(env.FEED_FILL_MAX_RUNS ?? 4) },
   grokCli: {
     bin: env.GROK_CLI_BIN ?? 'grok',
     /** Model names for the CLI, if it should not use its default. */
@@ -43,6 +45,11 @@ export const config = {
   },
   /** Also give workers the X search tool. Off unless the account supports it. */
   xSearch: env.XAI_X_SEARCH === '1',
+  /**
+   * "account": keep each student's memory in Firestore using that student's own sign-in, with no
+   * service account. This is how a copy of the app on a student's laptop stores it.
+   */
+  studentStore: env.STUDENT_STORE === 'account' ? ('account' as const) : null,
   /** Path to a Firebase service account JSON file. Without it, results stay in a local file. */
   firebaseServiceAccount: env.FIREBASE_SERVICE_ACCOUNT?.trim() || null,
   /**

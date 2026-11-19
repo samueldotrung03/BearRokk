@@ -1,14 +1,15 @@
 // Fallback store used until Firebase credentials are configured. Keeps everything in one JSON file.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import type { StudentMemory } from '../agents/types.ts';
 import type { Opportunity, Search } from '../types.ts';
 import type { Store } from './index.ts';
 
-type Data = { searches: Record<string, Search>; opportunities: Record<string, Opportunity[]> };
+type Data = { searches: Record<string, Search>; opportunities: Record<string, Opportunity[]>; students: Record<string, StudentMemory> };
 
 export class LocalStore implements Store {
   kind = 'local' as const;
-  private data: Data = { searches: {}, opportunities: {} };
+  private data: Data = { searches: {}, opportunities: {}, students: {} };
   private file: string | null;
 
   /** Pass null to keep data in memory only (tests). */
@@ -16,7 +17,7 @@ export class LocalStore implements Store {
     this.file = file;
     if (!file) return;
     try {
-      this.data = JSON.parse(readFileSync(file, 'utf8'));
+      this.data = { ...this.data, ...JSON.parse(readFileSync(file, 'utf8')) };
     } catch {
       // first run, or unreadable file: start empty
     }
@@ -25,7 +26,9 @@ export class LocalStore implements Store {
   private flush() {
     if (!this.file) return;
     mkdirSync(dirname(this.file), { recursive: true });
-    writeFileSync(this.file, JSON.stringify(this.data, null, 2));
+    // Written beside the file and moved into place, so a crash mid-write cannot leave half a file.
+    writeFileSync(`${this.file}.tmp`, JSON.stringify(this.data, null, 2));
+    renameSync(`${this.file}.tmp`, this.file);
   }
 
   async createSearch(search: Search) {
@@ -59,5 +62,21 @@ export class LocalStore implements Store {
 
   async getOpportunities(searchId: string) {
     return this.data.opportunities[searchId] ?? [];
+  }
+
+  async loadStudent(id: string) {
+    const memory = this.data.students[id];
+    // A copy, so nothing the caller does reaches the stored record without a save.
+    return memory ? structuredClone(memory) : null;
+  }
+
+  async saveStudent(id: string, memory: StudentMemory) {
+    this.data.students[id] = structuredClone(memory);
+    this.flush();
+  }
+
+  async deleteStudent(id: string) {
+    delete this.data.students[id];
+    this.flush();
   }
 }

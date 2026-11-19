@@ -163,9 +163,20 @@ Rejected candidates are kept with their reason so the log can show the judgment,
 | Schedule | Every few hours per active student; for the demo, a button or a short timer so it happens on stage |
 | Student request | A typed request becomes extra input to the master agent |
 
+**Deadlines.** Extractors and the status reviewer follow one set of deadline rules (`DEADLINE_RULE` in `grokBrain.ts`): look across the organizer's site, keep the deadline apart from the start date, take only the current cycle, never work a date out. A kept posting that still has no deadline goes to a deadline finder worker (job kind `deadline`), which searches other public listings of the same opportunity. A date from there is stored with `deadlineSource: 'listing'` and the page and words it was read from; a passed date is not used, and with nothing found the deadline stays unknown. The dashboard does not yet show which source a deadline came from.
+
+**Filling the feed.** The feed aims for at least 12 cards the student can still act on (`FEED_MIN`). When a run ends with fewer, the agents start another on their own (trigger `fill`), up to `FEED_FILL_MAX_RUNS` (default 4) in a row; each one skips what earlier runs already found. A failed run is not repeated, and a dislike that leaves the feed short starts one. This is built and tested on the simulated agents.
+
 One run per student at a time; a trigger that arrives mid-run is queued once. A run has a hard budget (maximum worker jobs, maximum validations, timeout) so scheduled runs cannot drain the Grok allowance.
 
 ## 4. Memory and data
+
+**Built (2026-11-19): one memory per student, in two sections, keyed by the account id.**
+
+- *Profile section*: what the student told the app (profile answers, restrictions, custom notes, résumé, reminder and schedule settings). Only the student changes it.
+- *Learned section*: what the app wrote on its own: every save, like, dislike, open and apply; every posting found and kept; every posting turned down; every search a scout ran and the leads it gave; the outline of each run; applications.
+
+The agents read both before each search. The master and the search managers are given the searches already run so new ones go elsewhere, known and rejected pages are not read again, and where the two sections disagree the student's wins (notes first). The memory is saved after every change and put back when the student connects, so it survives a restart. `GET /api/students/:id/memory` shows it. The table below is the original Firestore sketch; what is built stores the two sections as two documents under `students/{id}/memory/`, and runs on Firestore in the real project since 2026-11-19 (the local file is the fallback when no service account is set).
 
 Firestore, one document tree per student.
 

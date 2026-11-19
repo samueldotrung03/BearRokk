@@ -94,7 +94,8 @@ test('run: master, four search managers, fleet, validators and presentation mana
 });
 
 test('run: a student who wants only internships gets four internship managers with different lenses', async () => {
-  const s = system();
+  // One run is what is being looked at here, so the agents are not asked to fill the feed.
+  const s = system({ feedTarget: 0 });
   s.setProfile({ categories: ['internship'] });
   await new Promise((r) => setTimeout(r, 800));
   await s.idle();
@@ -106,6 +107,50 @@ test('run: a student who wants only internships gets four internship managers wi
   assert.ok(s.student().feed.every((f) => f.opportunity.type === 'internship'));
   const urls = s.student().feed.map((f) => f.opportunity.sourceUrl);
   assert.equal(new Set(urls).size, urls.length);
+});
+
+test('feed target: the agents search again on their own until the feed holds twelve', async () => {
+  // Eight worker jobs a run is too few to find twelve postings in one search.
+  const s = system({ maxJobs: 8, maxFillRuns: 20 });
+  assert.equal(s.student().feedTarget, 12);
+  await s.trigger('first');
+  await s.idle();
+  assert.ok(s.student().runCount > 1, 'one small run was not enough, so more followed');
+  assert.equal(s.currentRun()!.trigger, 'fill');
+  assert.ok(s.student().feed.length >= 12, `feed holds ${s.student().feed.length}`);
+  // Once the feed is full the agents stop.
+  const runs = s.student().runCount;
+  await new Promise((r) => setTimeout(r, 50));
+  await s.idle();
+  assert.equal(s.student().runCount, runs);
+});
+
+test('feed target: the agents stop after the allowed searches in a row when the field is too thin', async () => {
+  const s = system({ maxJobs: 8, feedTarget: 500, maxFillRuns: 2 });
+  await s.trigger('first');
+  await s.idle();
+  // The first run, then two more to fill, then they wait for the student.
+  assert.equal(s.student().runCount, 3);
+  assert.ok(s.currentRun()!.log.some((l) => l.text.includes('The agents will look again on the next run')));
+});
+
+test('feed target: a dislike that leaves the feed short starts a new search', async () => {
+  const s = system({ feedTarget: 0 });
+  await s.trigger('first');
+  await s.idle();
+  const feed = s.student().feed;
+  // Ask for exactly what the feed holds now, so one dislike leaves it one short.
+  const short = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: feed.length, maxFillRuns: 1 });
+  await short.trigger('first');
+  await short.idle();
+  const before = short.student().runCount;
+  const full = short.student().feed;
+  assert.equal(full.length, feed.length);
+  assert.equal(before, 1, 'a full feed needs no second search');
+  short.interact(full[0]!.opportunity.id, 'dislike');
+  await short.idle();
+  assert.equal(short.student().runCount, before + 1);
+  assert.equal(short.currentRun()!.trigger, 'fill');
 });
 
 test('automation: enough reactions start a run on their own, and the next run brings new postings', async () => {
@@ -375,7 +420,7 @@ test('preferences: reminder timing, a floor on how often agents run, and deletin
 });
 
 test('profile page answers: ticked fields steer the search and restrictions become rules', async () => {
-  const s = system();
+  const s = system({ feedTarget: 0 });
   const { app } = createApp(new LocalStore(null), {}, { demo: s });
   const res = await app.request('/api/students/demo/profile', {
     method: 'PUT',
@@ -574,4 +619,210 @@ test('validation: a review that cannot be done counts against the posting, and i
   brain.fail = false;
   await s.trigger('manual');
   assert.ok(s.student().feed.some((f) => f.opportunity.title === 'Software Engineering Intern'));
+});
+
+test('deadlines: a posting with none on its own pages gets one from another listing, with its source, and never a passed date', async () => {
+  const FUTURE = new Date(NOW.getTime() + 20 * 86_400_000).toISOString();
+  const PAST = new Date(NOW.getTime() - 20 * 86_400_000).toISOString();
+  class NoDates extends SimBrain {
+    asked: string[] = [];
+    // No organizer page states a deadline.
+    override async extract(...args: Parameters<SimBrain['extract']>) {
+      const c = await super.extract(...args);
+      return c ? { ...c, deadline: null } : null;
+    }
+    // Other listings give a usable date for some, last cycle's for others, and nothing for the rest.
+    override async findDeadline(c: Parameters<SimBrain['findDeadline']>[0]) {
+      this.asked.push(c.title);
+      const n = this.asked.length % 3;
+      if (n === 0) return null;
+      return { deadline: n === 1 ? FUTURE : PAST, url: 'https://listings.example/post', quote: 'Apply by the date shown' };
+    }
+  }
+  const brain = new NoDates({ speed: 0, now: () => NOW });
+  const s = new AgentSystem(brain, { now: () => NOW, feedTarget: 0 });
+  await s.trigger('first');
+  const feed = s.student().feed.map((f) => f.opportunity);
+  assert.ok(feed.length >= 3);
+  // Every kept posting without a deadline was looked up.
+  assert.equal(brain.asked.length, s.currentRun()!.stats.kept);
+  const dated = feed.filter((o) => o.deadline);
+  assert.ok(dated.length > 0 && dated.length < feed.length);
+  for (const o of dated) {
+    assert.equal(o.deadline, FUTURE);
+    assert.equal(o.deadlineSource, 'listing');
+    assert.deepEqual(o.evidence.filter((e) => e.field === 'deadline'), [{ field: 'deadline', quote: 'Apply by the date shown', url: 'https://listings.example/post' }]);
+    assert.ok(!o.unknowns.some((u) => u.field === 'deadline'));
+  }
+  // A passed date or no date at all leaves the deadline marked unknown, not guessed.
+  for (const o of feed.filter((x) => !x.deadline)) assert.ok(o.unknowns.some((u) => u.field === 'deadline'));
+  assert.ok(s.currentRun()!.jobs.some((j) => j.kind === 'deadline'));
+});
+
+test('deadlines: a deadline read from the organizer is marked official and is not looked up again', async () => {
+  class Counting extends SimBrain {
+    asked = 0;
+    override async findDeadline() {
+      this.asked++;
+      return null;
+    }
+  }
+  const brain = new Counting({ speed: 0, now: () => NOW });
+  const s = new AgentSystem(brain, { now: () => NOW, feedTarget: 0 });
+  await s.trigger('first');
+  const feed = s.student().feed.map((f) => f.opportunity);
+  const dated = feed.filter((o) => o.deadline);
+  assert.ok(dated.length > 0);
+  assert.ok(dated.every((o) => o.deadlineSource === 'official'));
+  // Only the postings without a deadline were sent to a deadline finder.
+  assert.equal(brain.asked, s.currentRun()!.jobs.filter((j) => j.kind === 'deadline').length);
+  assert.ok(brain.asked < s.currentRun()!.stats.kept);
+});
+
+// ---- the student's memory --------------------------------------------------------------------
+
+/** A backend over one data file, with two accounts that can sign in. Opening it again is a restart. */
+function backendOn(file: string | null, brains: SimBrain[] = []) {
+  const users: Record<string, AuthUser> = {
+    'token-ana': { uid: 'u1', name: 'Ana Lima', email: null, picture: null, provider: 'google', emailVerified: true },
+    'token-ben': { uid: 'u2', name: 'Ben Ode', email: null, picture: null, provider: 'google', emailVerified: true },
+  };
+  const made = new Map<string, AgentSystem>();
+  const store = new LocalStore(file);
+  const { app } = createApp(store, {}, {
+    demo: new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 }),
+    webConfig: { apiKey: 'k', projectId: 'p', authDomain: 'p.firebaseapp.com' },
+    verify: async (token) => users[token] ?? Promise.reject(new Error('bad token')),
+    saveDelayMs: 5,
+    forUser: (user) => {
+      const s = new AgentSystem(brains.shift() ?? new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0, typingPauseMs: 30 }, { name: user.name!.split(' ')[0]! });
+      made.set(user.uid, s);
+      return s;
+    },
+  });
+  const call = async (method: string, path: string, token?: string, body?: unknown) => {
+    const res = await app.request(path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    return { status: res.status, body: (await res.json()) as any };
+  };
+  const settle = async (uid: string) => {
+    await made.get(uid)?.idle();
+    await new Promise((r) => setTimeout(r, 40));
+  };
+  return { call, made, store, settle };
+}
+
+const tmpFile = async () => {
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  return join(mkdtempSync(join(tmpdir(), 'bearok-memory-')), 'store.json');
+};
+
+test('memory: the profile, reactions, results and searches are stored under the account and come back after a restart', async () => {
+  const file = await tmpFile();
+  const first = backendOn(file);
+  await first.call('PUT', '/api/students/me/profile', 'token-ana', { categories: ['internship', 'event'], preferences: { notes: [{ title: 'Wanted', body: 'Paid work with data' }] } });
+  await first.call('POST', '/api/students/me/runs', 'token-ana');
+  await new Promise((r) => setTimeout(r, 900));
+  await first.settle('u1');
+  const before = (await first.call('GET', '/api/students/me/state', 'token-ana')).body.student;
+  assert.ok(before.feed.length >= 3);
+  const [liked, saved, disliked] = before.feed.map((f: any) => f.opportunity.id);
+  await first.call('POST', '/api/students/me/interactions', 'token-ana', { opportunityId: liked, action: 'like' });
+  await first.call('POST', '/api/students/me/interactions', 'token-ana', { opportunityId: saved, action: 'save' });
+  await first.call('POST', '/api/students/me/interactions', 'token-ana', { opportunityId: disliked, action: 'dislike' });
+  await first.call('PUT', `/api/students/me/applications/${saved}`, 'token-ana', { status: 'to_apply' });
+  await first.settle('u1');
+  const mid = (await first.call('GET', '/api/students/me/state', 'token-ana')).body.student;
+
+  // The backend stops and starts again: a new process reading the same data.
+  const second = backendOn(file);
+  const after = (await second.call('GET', '/api/students/me/state', 'token-ana')).body.student;
+  assert.deepEqual(after.profile, mid.profile);
+  assert.equal(after.profile.preferences.notes[0].body, 'Paid work with data');
+  assert.deepEqual(after.feed.map((f: any) => f.opportunity.id), mid.feed.map((f: any) => f.opportunity.id));
+  assert.ok(!after.feed.some((f: any) => f.opportunity.id === disliked), 'the dislike is remembered');
+  assert.deepEqual(after.memory.counts, mid.memory.counts);
+  assert.equal(after.runCount, mid.runCount);
+  assert.deepEqual(after.applications.map((a: any) => [a.opportunityId, a.status]), [[saved, 'to_apply']]);
+
+  // Both sections are there, and they are different things.
+  const memory = (await second.call('GET', '/api/students/me/memory', 'token-ana')).body;
+  assert.equal(memory.stored, true);
+  assert.equal(memory.profile.profile.name, 'Ana');
+  assert.deepEqual(memory.learned.interactions.map((i: any) => i.action), ['like', 'save', 'dislike']);
+  assert.ok(memory.learned.counts.searches > 0 && memory.learned.searches.every((s: any) => s.query && s.at && Array.isArray(s.leads)));
+  assert.equal(memory.learned.counts.found, memory.learned.found.length);
+  assert.ok(memory.learned.runs.length >= 1 && memory.learned.runs.every((r: any) => r.status === 'complete'));
+
+  // It belongs to Ana's account alone.
+  const ben = (await second.call('GET', '/api/students/me/memory', 'token-ben')).body;
+  assert.equal(ben.profile.profile.name, 'Ben');
+  assert.equal(ben.learned.counts.found, 0);
+  assert.equal(ben.learned.counts.searches, 0);
+});
+
+test('memory: later searches are told what was already searched, and do not check a rejected posting again', async () => {
+  const told: string[][] = [];
+  class Listening extends SimBrain {
+    override async planJobs(...args: Parameters<SimBrain['planJobs']>) {
+      told.push([...(args[2] ?? [])]);
+      return super.planJobs(...args);
+    }
+  }
+  const file = await tmpFile();
+  const first = backendOn(file, [new Listening({ speed: 0, now: () => NOW })]);
+  await first.call('POST', '/api/students/me/runs', 'token-ana');
+  await new Promise((r) => setTimeout(r, 50));
+  await first.settle('u1');
+  assert.ok(told.length > 0 && told.every((t) => t.length === 0), 'nothing had been searched before the first run');
+  const ran = (await first.call('GET', '/api/students/me/memory', 'token-ana')).body.learned;
+  const rejectedBefore = ran.counts.rejected;
+  assert.ok(rejectedBefore > 0);
+
+  // After a restart the next run starts from the remembered searches.
+  told.length = 0;
+  const second = backendOn(file, [new Listening({ speed: 0, now: () => NOW })]);
+  await second.call('POST', '/api/students/me/runs', 'token-ana');
+  await new Promise((r) => setTimeout(r, 50));
+  await second.settle('u1');
+  const queries = new Set(ran.searches.map((s: any) => s.query));
+  assert.ok(told.some((t) => t.length > 0));
+  assert.ok(told.flat().every((q) => queries.has(q)));
+  const run = (await second.call('GET', '/api/students/me/state', 'token-ana')).body.run;
+  assert.equal(run.trigger, 'manual', 'a remembered student is not treated as new');
+  assert.ok(run.log.some((l: any) => l.text.includes('turned down in an earlier run')));
+});
+
+test('memory: the student\'s own section wins over what the app learned', async () => {
+  const file = await tmpFile();
+  const first = backendOn(file);
+  await first.call('POST', '/api/students/me/runs', 'token-ana');
+  await new Promise((r) => setTimeout(r, 50));
+  await first.settle('u1');
+  const feed = (await first.call('GET', '/api/students/me/state', 'token-ana')).body.student.feed;
+  // The history says they like this organizer; then a note rules it out.
+  const target = feed[0].opportunity;
+  await first.call('POST', '/api/students/me/interactions', 'token-ana', { opportunityId: target.id, action: 'like' });
+  await first.call('PUT', '/api/students/me/profile', 'token-ana', { preferences: { notes: [{ title: 'Skip', body: `Do not show ${target.organizer}` }] } });
+  await new Promise((r) => setTimeout(r, 120));
+  await first.settle('u1');
+  const second = backendOn(file);
+  const after = (await second.call('GET', '/api/students/me/state', 'token-ana')).body.student;
+  assert.equal(after.memory.counts.like, 1);
+  assert.ok(!after.feed.some((f: any) => f.opportunity.organizer === target.organizer));
+});
+
+test('memory: deleting the account removes what was stored', async () => {
+  const file = await tmpFile();
+  const first = backendOn(file);
+  await first.call('POST', '/api/students/me/runs', 'token-ana');
+  await new Promise((r) => setTimeout(r, 50));
+  await first.settle('u1');
+  assert.ok(await first.store.loadStudent('u1'));
+  assert.equal((await first.call('DELETE', '/api/students/me', 'token-ana')).status, 200);
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(await first.store.loadStudent('u1'), null);
+  const second = backendOn(file);
+  assert.equal((await second.call('GET', '/api/students/me/state', 'token-ana')).body.student.runCount, 0);
 });

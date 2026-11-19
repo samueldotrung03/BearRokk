@@ -8,7 +8,7 @@ import { authMessage } from '../auth/errors.ts';
 import { API_URL } from '../auth/firebase.ts';
 import type { GoogleService } from '../auth/google.ts';
 import { Card, Page } from '../components/Page.tsx';
-import { desktopBridge, loadAllowed, saveAllowed, type PermissionKind, type PermissionState } from '../lib/desktopBridge.ts';
+import { desktopBridge, loadAllowed, saveAllowed, type GrokConnection, type PermissionKind, type PermissionState } from '../lib/desktopBridge.ts';
 
 interface GrokInfo {
   connected: boolean;
@@ -44,6 +44,26 @@ export function Settings() {
     }
   }, []);
   useEffect(() => void checkGrok(), [checkGrok]);
+
+  // In the desktop app the student connects their own Grok here; the app keeps the choice on this computer.
+  const [connection, setConnection] = useState<GrokConnection | null>(null);
+  const [grokKey, setGrokKey] = useState('');
+  const [grokBusy, setGrokBusy] = useState(false);
+  useEffect(() => {
+    void desktopBridge?.grok?.status().then(setConnection, () => {});
+  }, []);
+  const changeGrok = async (act: () => Promise<GrokConnection>) => {
+    setGrokBusy(true);
+    try {
+      const next = await act();
+      setConnection(next);
+      if (!next.error) setGrokKey('');
+    } finally {
+      setGrokBusy(false);
+      await checkGrok();
+    }
+  };
+  const ownGrok = connection?.managed ? connection : null;
 
   // ---- Google -------------------------------------------------------------
   const [pending, setPending] = useState<GoogleService | null>(null);
@@ -138,11 +158,83 @@ export function Settings() {
                   <Status tone="off">Not connected</Status>
                 )
               }
-              action={<ActionButton onClick={() => void checkGrok()}>Check again</ActionButton>}
+              action={
+                <ActionButton
+                  onClick={() => {
+                    void desktopBridge?.grok?.status().then(setConnection, () => {});
+                    void checkGrok();
+                  }}
+                >
+                  Check again
+                </ActionButton>
+              }
             >
               {grok !== 'loading' && grok !== 'offline' && <p className="text-sm text-ink-2">{grok.detail}</p>}
               {grok === 'offline' && <p className="text-sm text-ink-2">Start the agent backend, then check again.</p>}
-              {grok !== 'loading' && grok !== 'offline' && !grok.connected && (
+              {ownGrok && (
+                <div className="mt-3 space-y-3">
+                  {ownGrok.mode ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm text-ink-2">
+                        {ownGrok.mode === 'cli'
+                          ? 'Using the Grok app on this computer, on your Grok subscription.'
+                          : ownGrok.mode === 'claude'
+                            ? 'Test set-up: using the Claude app on this computer, on its Claude subscription. Disconnect to choose Grok.'
+                            : 'Using your xAI API key. It is stored encrypted on this computer and nowhere else.'}
+                      </p>
+                      <ActionButton disabled={grokBusy} onClick={() => void changeGrok(() => desktopBridge!.grok!.disconnect())}>
+                        Disconnect
+                      </ActionButton>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-ink-2">Connect your own Grok. Until you do, the agents are simulated and nothing they show is real.</p>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <ActionButton primary disabled={grokBusy || !ownGrok.cliFound} onClick={() => void changeGrok(() => desktopBridge!.grok!.connect({ mode: 'cli' }))}>
+                          Use my Grok subscription
+                        </ActionButton>
+                        <p className="min-w-0 flex-1 text-sm text-ink-3">
+                          {ownGrok.cliFound
+                            ? 'The Grok app for the command line was found on this computer.'
+                            : 'Needs the Grok app for the command line: install it, sign in with your Grok subscription, then press Check again.'}
+                        </p>
+                      </div>
+                      {ownGrok.canStoreKey && (
+                        <form
+                          className="flex flex-wrap items-center gap-3"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void changeGrok(() => desktopBridge!.grok!.connect({ mode: 'api', key: grokKey }));
+                          }}
+                        >
+                          <input
+                            type="password"
+                            value={grokKey}
+                            onChange={(event) => setGrokKey(event.target.value)}
+                            placeholder="Or paste an xAI API key"
+                            aria-label="xAI API key"
+                            autoComplete="off"
+                            className="h-10 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-[15px] outline-none focus:border-brand focus:ring-3 focus:ring-brand/15"
+                          />
+                          <ActionButton type="submit" disabled={grokBusy || grokKey.trim().length < 20}>
+                            Connect
+                          </ActionButton>
+                        </form>
+                      )}
+                      {ownGrok.claudeFound && (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <ActionButton disabled={grokBusy} onClick={() => void changeGrok(() => desktopBridge!.grok!.connect({ mode: 'claude' }))}>
+                            Use Claude for testing
+                          </ActionButton>
+                          <p className="min-w-0 flex-1 text-sm text-ink-3">For testing before Grok is connected. Runs the agents on the Claude app found on this computer; results are labelled as a Claude test.</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {ownGrok.error && <p className="text-sm text-amber-800">{ownGrok.error}</p>}
+                </div>
+              )}
+              {!ownGrok && grok !== 'loading' && grok !== 'offline' && !grok.connected && (
                 <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink-2">
                   <li>Install the Grok app for the command line and sign in to it with your Grok subscription.</li>
                   <li>

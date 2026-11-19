@@ -1,5 +1,4 @@
 import { Card, Page } from '../components/Page.tsx';
-import { agentEvents as sampleEvents, agents as sampleAgents } from '../data/sample.ts';
 import { useLive } from '../state/live.tsx';
 import { relativeTime } from '../lib/time.ts';
 import type { AgentNode, AgentStatus } from '../types.ts';
@@ -49,10 +48,10 @@ function Level({ label, hideLabel = false, children }: { label: string; hideLabe
 
 export function Agents() {
   const live = useLive();
-  // A real run from the backend when there is one; the example otherwise.
+  // The latest real run from the backend. Before the first one there is nothing to show.
   const real = live.agents;
-  const agents = real ? { master: real.master, managers: real.managers, workers: real.workers } : sampleAgents;
-  const agentEvents = real ? real.events : sampleEvents;
+  const agents = { master: real?.master ?? null, managers: real?.managers ?? [], workers: real?.workers ?? [] };
+  const agentEvents = real?.events ?? [];
   const on = live.provider === 'claude' ? 'Claude (test)' : live.provider === 'grok' ? 'Grok' : 'simulated agents';
   return (
     <Page
@@ -60,7 +59,9 @@ export function Agents() {
       subtitle={
         real
           ? `What your agents did on their latest search, running on ${on}. They search again on their own when your profile or your reactions change.`
-          : 'How your agents are organised. The activity below is an example until the agent backend is connected.'
+          : live.status === 'offline'
+            ? 'Your agents cannot be reached right now. What they do shows here once they are back.'
+            : 'Your agents have not searched yet. What they do shows here as soon as they start.'
       }
       aside={
         real ? (
@@ -74,7 +75,7 @@ export function Agents() {
             </button>
           </div>
         ) : (
-          <span className="w-fit rounded-full bg-white/85 px-4 py-2 text-sm font-medium text-ink shadow-card backdrop-blur">Example activity</span>
+          <span className="w-fit rounded-full bg-white/85 px-4 py-2 text-sm font-medium text-ink shadow-card backdrop-blur">{live.status === 'offline' ? 'Agents offline' : 'No search yet'}</span>
         )
       }
     >
@@ -129,6 +130,7 @@ export function Agents() {
           <Card className="p-6">
             <h2 className="font-semibold tracking-tight">Activity</h2>
             <ol className="mt-4 space-y-4 border-l border-line pl-5">
+              {agentEvents.length === 0 && <li className="text-sm text-ink-3">Nothing yet.</li>}
               {agentEvents.map((event) => (
                 <li key={event.id} className="relative">
                   <span className="absolute top-1.5 -left-[25px] size-2 rounded-full bg-brand ring-4 ring-white" aria-hidden="true" />

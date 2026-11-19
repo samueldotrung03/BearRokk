@@ -113,9 +113,21 @@ export interface Candidate {
   eligibility: string | null;
   eligibleYears: ClassYear[] | null;
   deadline: string | null;
+  /**
+   * Where the deadline was read: "official" is the organizer's own pages, "listing" is another
+   * public posting of the same opportunity (a job board, a directory, a school's page). Null with no deadline.
+   */
+  deadlineSource?: 'official' | 'listing' | null;
   startTime: string | null;
   image: string | null;
   evidence: Evidence[];
+}
+
+/** A deadline found on a page other than the organizer's, with the words it was read from. */
+export interface FoundDeadline {
+  deadline: string;
+  url: string;
+  quote: string;
 }
 
 export interface ApplicationInfo {
@@ -186,7 +198,7 @@ export interface AgentNode {
   detail: string;
 }
 
-export type JobKind = 'scout' | 'extract' | 'application';
+export type JobKind = 'scout' | 'extract' | 'application' | 'deadline';
 
 export interface Job {
   id: string;
@@ -238,7 +250,8 @@ export interface LogEvent {
   tone: 'info' | 'good' | 'bad';
 }
 
-export type Trigger = 'manual' | 'profile' | 'feedback' | 'schedule' | 'first';
+/** fill: the agents started again on their own because the feed was short of its target. */
+export type Trigger = 'manual' | 'profile' | 'feedback' | 'schedule' | 'first' | 'fill';
 
 export interface RunSnapshot {
   id: string;
@@ -344,4 +357,63 @@ export interface Verdict {
   reason: string;
   fit: number;
   record: Candidate;
+}
+
+// ---- the student's memory, as stored in the database ---------------------------------------
+// Two sections make up one memory. The student writes the first and is the only one who changes
+// it. The app writes the second from what the student does and what the agents find. The agents
+// read both before every search, and where they disagree the student's section wins.
+
+/** One search a scout ran, and what it led to. */
+export interface SearchRecord {
+  query: string;
+  label: string;
+  category: Category;
+  manager: string;
+  at: string;
+  run: number;
+  leads: Lead[];
+}
+
+/** The outline of one finished run. */
+export interface RunRecord {
+  number: number;
+  trigger: Trigger;
+  status: RunSnapshot['status'];
+  startedAt: string;
+  finishedAt: string | null;
+  stats: RunSnapshot['stats'];
+}
+
+/** Section 1: what the student told the app. They can edit all of it. */
+export interface ProfileMemory {
+  profile: Profile;
+  /** The uploaded résumé; the file itself is kept as base64 text. */
+  resume: { name: string; type: string; size: number; uploadedAt: string; text: string | null; bytes: string } | null;
+  reminderDays: number[];
+  scheduleSeconds: number;
+}
+
+/** Section 2: what the app learned. The student does not edit it. */
+export interface LearnedMemory {
+  /** Every save, like, dislike, open and apply, in order. */
+  interactions: Interaction[];
+  /** Every posting the agents found and kept, with the reason shown on its card. */
+  opportunities: Opportunity[];
+  reasons: Record<string, string>;
+  /** Postings the validation agents turned down, so they are not checked again. */
+  rejected: { url: string; reason: string }[];
+  rejectedUrls: string[];
+  /** Searches already run, newest last. */
+  searches: SearchRecord[];
+  runs: RunRecord[];
+  applications: Application[];
+  runCount: number;
+}
+
+export interface StudentMemory {
+  version: 1;
+  updatedAt: string;
+  profile: ProfileMemory;
+  learned: LearnedMemory;
 }

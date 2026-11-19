@@ -21,11 +21,15 @@ import {
   type Category,
   type FeedEntry,
   type Interaction,
+  type LearnedMemory,
   type LogEvent,
   type MemorySummary,
   type Opportunity,
   type Profile,
+  type RunRecord,
   type RunSnapshot,
+  type SearchRecord,
+  type StudentMemory,
   type ReviewFocus,
   type Trigger,
   type Unknown,
@@ -45,6 +49,10 @@ export interface SystemOptions {
   managerStaggerMs: number;
   /** How long to wait after the last profile-page edit before running, since that page saves while typing. */
   typingPauseMs: number;
+  /** Cards the feed should hold. While it has fewer, the agents search again on their own. */
+  feedTarget: number;
+  /** Searches in a row the agents may start to fill the feed before they stop and wait for the student. */
+  maxFillRuns: number;
   /** Which model family a live brain talks to, for labelling. */
   provider?: 'grok' | 'claude';
   now: () => Date;
@@ -57,6 +65,8 @@ export const DEFAULT_OPTIONS: SystemOptions = {
   feedbackThreshold: 5,
   managerStaggerMs: 0,
   typingPauseMs: 4000,
+  feedTarget: 12,
+  maxFillRuns: 4,
   now: () => new Date(),
 };
 
@@ -83,6 +93,8 @@ export interface StudentState {
   feedbackSinceRun: number;
   feedbackThreshold: number;
   scheduleSeconds: number;
+  /** Cards the feed should hold; the agents keep searching while it has fewer. */
+  feedTarget: number;
   runCount: number;
   mode: 'simulated' | 'live';
   /** Which model family the agents are on. "claude" is a temporary test set-up. */
@@ -136,6 +148,13 @@ export class AgentSystem {
   private run: RunSnapshot | null = null;
   private runCount = 0;
   private feedbackSinceRun = 0;
+  /** Searches in a row started only to fill the feed. */
+  private fillRuns = 0;
+  /** Searches the scouts have run, newest last, and the outline of each finished run. */
+  private searches: SearchRecord[] = [];
+  private runs: RunRecord[] = [];
+  /** Called after anything worth saving changed. */
+  private saver: (() => void) | null = null;
   private running: Promise<void> | null = null;
   private queued: Trigger | null = null;
   private listeners = new Set<Listener>();
@@ -179,6 +198,7 @@ export class AgentSystem {
       feedbackSinceRun: this.feedbackSinceRun,
       feedbackThreshold: this.opts.feedbackThreshold,
       scheduleSeconds: this.scheduleSeconds,
+      feedTarget: this.opts.feedTarget,
       runCount: this.runCount,
       mode: this.brain.mode,
       provider: this.brain.mode === 'live' ? (this.opts.provider ?? 'grok') : 'simulated',
@@ -191,12 +211,99 @@ export class AgentSystem {
     return this.run;
   }
 
+  /** Cards in the feed the student can still act on: a passed deadline does not count. */
+  private openCards() {
+    const now = this.opts.now().getTime();
+    return this.student().feed.filter((e) => !e.opportunity.deadline || Date.parse(e.opportunity.deadline) >= now).length;
+  }
+
+  /**
+   * True while the feed is short of its target and the agents may still search again on their own.
+   * A failed run is not repeated, and the count of searches in a row is capped, so a thin field
+   * cannot keep the agents running without end.
+   */
+  private shouldFill() {
+    if (this.opts.feedTarget <= 0 || this.run?.status === 'failed') return false;
+    return this.fillRuns < this.opts.maxFillRuns && this.openCards() < this.opts.feedTarget;
+  }
+
+  /** Start a search if the feed is short of its target and nothing is running. */
+  fillIfShort() {
+    if (!this.running && this.shouldFill()) void this.trigger('fill');
+  }
+
   /** Resolves when no run is in flight or queued. */
   async idle() {
     while (this.running) await this.running;
   }
 
+  // ---- the memory that is saved ------------------------------------------------
+
+  /** Have `save` called whenever the student's memory changed. */
+  onChange(save: () => void) {
+    this.saver = save;
+  }
+
+  /**
+   * Everything worth keeping, in its two sections: what the student told the app, and what the
+   * app learned from their reactions and from the agents' searches.
+   */
+  memorySnapshot(): StudentMemory {
+    const r = this.resume;
+    return {
+      version: 1,
+      updatedAt: this.opts.now().toISOString(),
+      profile: {
+        profile: this.profile,
+        resume: r ? { name: r.name, type: r.type, size: r.size, uploadedAt: r.uploadedAt, text: r.text, bytes: Buffer.from(r.bytes).toString('base64') } : null,
+        reminderDays: this.reminderDays,
+        scheduleSeconds: this.scheduleSeconds,
+      },
+      learned: {
+        interactions: this.interactions,
+        opportunities: [...this.opportunities.values()],
+        reasons: Object.fromEntries(this.reasons),
+        rejected: [...this.rejected].map(([url, reason]) => ({ url, reason })),
+        rejectedUrls: [...this.rejectedUrls],
+        searches: this.searches,
+        runs: this.runs,
+        applications: [...this.applications.values()],
+        runCount: this.runCount,
+      },
+    };
+  }
+
+  /** Put a saved memory back, as when the backend starts again or the student signs in on a new day. */
+  restore(memory: StudentMemory) {
+    const p = memory.profile;
+    const l: Partial<LearnedMemory> = memory.learned ?? {};
+    if (p?.profile) this.profile = { ...this.initialProfile, ...structuredClone(p.profile) };
+    this.resume = p?.resume ? { ...p.resume, bytes: new Uint8Array(Buffer.from(p.resume.bytes, 'base64')) } : null;
+    if (Array.isArray(p?.reminderDays)) this.reminderDays = p.reminderDays;
+    this.interactions = structuredClone(l.interactions ?? []);
+    this.opportunities = new Map((l.opportunities ?? []).map((o) => [o.id, structuredClone(o)]));
+    this.reasons = new Map(Object.entries(l.reasons ?? {}));
+    this.rejected = new Map((l.rejected ?? []).map((r) => [r.url, r.reason]));
+    this.rejectedUrls = new Set(l.rejectedUrls ?? []);
+    this.searches = structuredClone(l.searches ?? []);
+    this.runs = structuredClone(l.runs ?? []);
+    this.applications = new Map((l.applications ?? []).map((a) => [a.opportunityId, structuredClone(a)]));
+    this.runCount = l.runCount ?? this.runs.length;
+    this.newIds = new Set();
+    // setSchedule announces the restored state; it must not be saved straight back.
+    const saver = this.saver;
+    this.saver = null;
+    this.setSchedule(p?.scheduleSeconds ?? 0);
+    this.saver = saver;
+  }
+
+  /** What the app has learned, in numbers and recent entries, for a page that shows it. */
+  searchHistory() {
+    return { searches: this.searches, runs: this.runs };
+  }
+
   private emitStudent() {
+    this.saver?.();
     const state = this.student();
     for (const l of this.listeners) l('student', state);
   }
@@ -247,6 +354,8 @@ export class AgentSystem {
     if (action !== 'open') this.feedbackSinceRun++;
     this.emitStudent();
     if (this.feedbackSinceRun >= this.opts.feedbackThreshold) void this.trigger('feedback');
+    // A dislike takes a card out of the feed; if that leaves it short, the agents go and find more.
+    else if (action === 'dislike' && !this.running && this.runCount > 0 && this.shouldFill()) void this.trigger('fill');
     return this.student();
   }
 
@@ -274,6 +383,9 @@ export class AgentSystem {
     this.newIds.clear();
     this.profile = structuredClone(this.initialProfile);
     this.feedbackSinceRun = 0;
+    this.fillRuns = 0;
+    this.searches = [];
+    this.runs = [];
     this.runCount = 0;
     this.run = null;
     this.emitRun();
@@ -388,7 +500,8 @@ export class AgentSystem {
       .catch((e) => console.error('run crashed:', e))
       .then(() => {
         this.running = null;
-        const next = this.queued;
+        // Something the student did comes first; otherwise search again while the feed is short.
+        const next = this.queued ?? (this.shouldFill() ? 'fill' : null);
         this.queued = null;
         if (next) return this.trigger(next);
       });
@@ -417,6 +530,7 @@ export class AgentSystem {
       error: null,
     };
     this.run = run;
+    this.fillRuns = trigger === 'fill' ? this.fillRuns + 1 : 0;
     this.feedbackSinceRun = 0;
     this.newIds = new Set();
 
@@ -440,6 +554,7 @@ export class AgentSystem {
       profile: 'The profile changed, so the agents started on their own',
       feedback: `${this.opts.feedbackThreshold} new reactions, so the agents started on their own`,
       schedule: 'Scheduled run',
+      fill: `The feed has fewer than ${this.opts.feedTarget} opportunities, so the agents are searching again`,
     };
     log('System', TRIGGER_TEXT[trigger]);
     this.emitStudent();
@@ -466,7 +581,13 @@ export class AgentSystem {
           });
         }
       }
-      const { brief, assignments } = await this.brain.master({ profile: this.profile, memory: summary, resumeText: this.resume?.text ?? null, assignments: skeleton });
+      const { brief, assignments } = await this.brain.master({
+        profile: this.profile,
+        memory: summary,
+        resumeText: this.resume?.text ?? null,
+        assignments: skeleton,
+        pastSearches: this.searches.map((s) => s.query),
+      });
       run.brief = brief;
       run.assignments = assignments;
       const mix = (Object.keys(split) as Category[]).filter((c) => split[c] > 0).map((c) => `${split[c]} on ${CATEGORY_LABEL[c].toLowerCase()}`);
@@ -498,7 +619,7 @@ export class AgentSystem {
           try {
             // A scout only finds leads; reading them is what produces results. Keep most of the
             // manager's budget for readers, or a small run spends everything on searching.
-            const planned = await this.brain.planJobs(a, brief);
+            const planned = await this.brain.planJobs(a, brief, this.searches.filter((s) => s.category === a.category).map((s) => s.query));
             const specs = planned.slice(0, Math.max(1, Math.floor(a.budget / 3)));
             set(manager, { detail: `Covering: ${a.focus.join(', ')}` });
             log(a.name, `Sent ${specs.length} scouts: ${specs.map((s) => s.label).join(' / ')}`);
@@ -510,6 +631,11 @@ export class AgentSystem {
                   const value = await this.brain.scout(spec, a, brief, known);
                   return { value, summary: `${value.length} leads` };
                 });
+                // Remembered, so later runs search somewhere else. The newest 400 are kept.
+                if (leads) {
+                  this.searches.push({ query: spec.query, label: spec.label, category: a.category, manager: a.name, at: now().toISOString(), run: run.number, leads });
+                  if (this.searches.length > 400) this.searches.splice(0, this.searches.length - 400);
+                }
                 await Promise.all(
                   (leads ?? []).map(async (lead) => {
                     const key = canonicalUrl(lead.url) ?? lead.url;
@@ -637,7 +763,33 @@ export class AgentSystem {
       run.stats.added = this.newIds.size;
       log('Validation agents', `Reviewed all ${queue.length} postings, ${REVIEWERS.length} reviews each (${tasks.length} in total): kept ${kept.length}, rejected ${run.stats.rejected}`, 'good');
 
-      // 4. Application readers (from the fleet) for the strongest new results ----------
+      // 4. Deadline finders (from the fleet) ------------------------------------------
+      // A posting whose own pages state no deadline is looked up on other public listings.
+      // A date is only taken with the page and the words it was read from, and never one that has passed.
+      for (const o of kept) if (o.deadline && !o.deadlineSource) o.deadlineSource = 'official';
+      const undated = kept.filter((o) => !o.deadline);
+      if (undated.length) {
+        let filled = 0;
+        await Promise.all(
+          undated.map(async (o) => {
+            const hit = await fleet.run({ kind: 'deadline', managerId: o.foundBy, label: `Deadline: ${o.title}`, exempt: true }, async () => {
+              const value = await this.brain.findDeadline(o);
+              const due = value ? Date.parse(value.deadline) : NaN;
+              const usable = value !== null && !Number.isNaN(due) && due >= now().getTime();
+              return { value: usable ? value : null, summary: usable ? `${value.deadline.slice(0, 10)} on another listing` : value ? 'only a date that cannot be used' : 'no listing states one' };
+            });
+            if (!hit) return;
+            o.deadline = new Date(hit.deadline).toISOString();
+            o.deadlineSource = 'listing';
+            o.unknowns = o.unknowns.filter((u) => u.field !== 'deadline');
+            o.evidence = [...o.evidence.filter((e) => e.field !== 'deadline'), { field: 'deadline', quote: hit.quote, url: hit.url }];
+            filled++;
+          }),
+        );
+        log('Worker fleet', `${undated.length} postings stated no deadline on the organizer's pages. Other listings gave one for ${filled}; the rest stay marked unknown.`, filled ? 'good' : 'info');
+      }
+
+      // 5. Application readers (from the fleet) for the strongest new results ----------
       const toRead = kept.filter((o) => !o.application).sort((a, b) => b.baseScore - a.baseScore).slice(0, 4);
       await Promise.all(
         toRead.map(async (o) => {
@@ -648,7 +800,7 @@ export class AgentSystem {
         }),
       );
 
-      // 5. Presentation manager -------------------------------------------------------
+      // 6. Presentation manager -------------------------------------------------------
       const presenter = node({ id: 'presentation', level: 'presentation', name: 'Presentation manager', role: 'Orders the feed and writes the reasons', status: 'running', detail: 'Writing why each card fits…' });
       const reasons = await this.brain.present(kept, brief, summary);
       for (const o of kept) {
@@ -661,6 +813,9 @@ export class AgentSystem {
       log('Presentation manager', `Feed updated: ${this.newIds.size} new opportunities, ${shown} in the feed`, 'good');
 
       run.status = 'complete';
+      if (shown < this.opts.feedTarget) {
+        log('System', this.shouldFill() ? `${shown} of ${this.opts.feedTarget} opportunities found so far. Searching again for more.` : `${shown} of ${this.opts.feedTarget} opportunities found after ${this.fillRuns + 1} searches in a row. The agents will look again on the next run.`);
+      }
     } catch (e) {
       run.status = 'failed';
       run.error = errorText(e);
@@ -668,6 +823,8 @@ export class AgentSystem {
       log('System', `Run failed: ${run.error}`, 'bad');
     }
     run.finishedAt = now().toISOString();
+    this.runs.push({ number: run.number, trigger: run.trigger, status: run.status, startedAt: run.startedAt, finishedAt: run.finishedAt, stats: { ...run.stats } });
+    if (this.runs.length > 100) this.runs.splice(0, this.runs.length - 100);
     this.emitRun();
     this.emitStudent();
   }

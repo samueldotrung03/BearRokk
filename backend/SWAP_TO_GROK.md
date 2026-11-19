@@ -33,4 +33,6 @@ The Grok paths have never run against a real account, so the first call may need
 
 ## After the swap
 
+In the desktop app, also remove the Claude test connection: `findClaudeCli` and the `claude` mode in `dashboard/electron/backend.cjs`, the `claude` mode in `dashboard/src/lib/desktopBridge.ts`, and the "Use Claude for testing" button in `dashboard/src/pages/Settings.tsx`. On the development laptop the packaged app was pre-set to it in `~/Library/Application Support/BearRok/connections.json`.
+
 Delete `src/claudeCli.ts`, the `claudeCli` block in `src/config.ts`, the `claude` branch in `src/grok.ts`, `src/agents/grokBrain.ts` and `src/server.ts`, the "on Claude" wording in `public/index.html`, `public/console.html` and the dashboard's Settings page, and this file.

@@ -38,7 +38,8 @@ export function createApp(store: Store, deps: Partial<Deps> = {}, agents?: Agent
 
   app.get('/api/searches', async (c) => c.json({ searches: await store.listSearches(20) }));
 
-  if (agents) mountAgents(app, agents);
+  // Each student's memory is kept in the same store, under their account.
+  if (agents) mountAgents(app, { memory: store, ...agents });
   mountDesktopAuth(app);
 
   app.onError((err, c) => {

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { config } from '../config.ts';
 import { grokJson, type GrokTool } from '../grok.ts';
 import type { Brain, MasterInput } from './brain.ts';
-import { CATEGORY_LABEL, type ReviewFocus, type Assignment, type Brief, type Candidate, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
+import { CATEGORY_LABEL, type ReviewFocus, type Assignment, type Brief, type Candidate, type FoundDeadline, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
 
 /**
  * Which model each level runs on. The master, managers, validators and presentation manager
@@ -44,12 +44,25 @@ const CandidateSchema = z.object({
   eligibility: z.string().nullable(),
   eligibleYears: z.array(Year).nullable(),
   deadline: z.string().nullable(),
+  deadlineSource: z.enum(['official', 'listing']).nullable(),
   startTime: z.string().nullable(),
   image: z.string().nullable(),
   evidence: z.array(z.object({ field: z.string(), quote: z.string(), url: z.string() })),
 });
 
 const EVIDENCE = `Rules: every fact needs an evidence entry with a short quote copied from the page and that page's URL. If the page does not state something, return null. Never guess a deadline or date. Dates are ISO 8601. sourceUrl is the organizer's own page; actionUrl is where the student applies or registers. field is one lowercase word for the area (software, data, ai, design, security, hardware, bio, finance, product). tags are at most four short labels.`;
+
+/** Said to every agent that reads a posting: how to get the deadline right. */
+const DEADLINE_RULE = `Getting the deadline right matters most, because the student plans around it.
+- deadline is the last moment to apply, register or sign up. It is not the date the event or program starts (that is startTime), not the date the posting was published, and not a decision date.
+- Look for it everywhere on the organizer's own site before giving up: the posting itself, the apply or register page it links to, the application form, an FAQ, a timeline or "important dates" section, and the program's main page. Words to look for: "apply by", "applications close", "due", "deadline", "closes", "register by", "priority deadline", "last day".
+- It must be for the current cycle. A date from a past year, or one that has already passed while the page still says applications are open, is last cycle's: do not use it.
+- With several dates (priority, regular, final), use the final one the student can still meet.
+- "Rolling", "until filled" and "open until further notice" are not dates: return null.
+- If the organizer's site states no deadline, search for other public postings of the same opportunity: job boards, internship and scholarship directories, hackathon and event listing sites, university career and department pages, and the organizer's own announcements. Use a deadline from one of them only when it is clearly the same opportunity and the same cycle, and prefer what two listings agree on. If listings disagree and the organizer's site does not settle it, use the earliest date that has not passed.
+- Set deadlineSource to "official" when the organizer's own site states the deadline, "listing" when it came from another posting, and null when there is no deadline. The deadline's evidence entry must quote the words giving the date and carry the URL of the page they are on.
+- A date without a time means the end of that day. Keep the time and the time zone exactly as the page states them, and write the offset that zone has on that date: Eastern is -05:00 in winter and -04:00 in summer, Central -06:00 and -05:00, Mountain -07:00 and -06:00, Pacific -08:00 and -07:00. With no zone on the page, use the organizer's local time. Check the finished date against the quote before answering.
+- If no page states it, return null. Never work a deadline out from a start date or from last year's.`;
 
 export class GrokBrain implements Brain {
   mode = 'live' as const;
@@ -77,7 +90,7 @@ Base everything on the notes, profile and memory. Do not invent constraints.
 
 ${NOTES_RULE}
 Read the notes before the rest of the profile. Put what they ask for at the top of preferences, turn anything they rule out into avoid or hardCriteria, and give the managers lenses and focus values that go after what the notes describe.`,
-      user: `Today is ${today()}.\n${notesBlock(notes)}\n${input.resumeText ? `Résumé text (background, not a wish list):\n"""${input.resumeText.slice(0, 6000)}"""\n` : ''}Profile (preferences.experience is what they have done so far; preferences.fields are ticked fields; preferences.checks, preferences.answers and preferences.lists hold the restrictions and the other answers, lists being entries with several values such as cities or companies to skip): ${JSON.stringify(input.profile)}\nMemory: ${JSON.stringify(input.memory)}\nManager slots: ${JSON.stringify(input.assignments.map((a) => ({ managerId: a.managerId, category: a.category })))}`,
+      user: `Today is ${today()}.\n${notesBlock(notes)}\n${input.resumeText ? `Résumé text (background, not a wish list):\n"""${input.resumeText.slice(0, 6000)}"""\n` : ''}Profile (preferences.experience is what they have done so far; preferences.fields are ticked fields; preferences.checks, preferences.answers and preferences.lists hold the restrictions and the other answers, lists being entries with several values such as cities or companies to skip): ${JSON.stringify(input.profile)}\nMemory: ${JSON.stringify(input.memory)}\nSearches already run for this student (send the managers somewhere new, do not repeat these): ${input.pastSearches?.length ? input.pastSearches.slice(-30).join(' | ') : 'none yet'}\nManager slots: ${JSON.stringify(input.assignments.map((a) => ({ managerId: a.managerId, category: a.category })))}`,
     });
     // The notes travel in the brief word for word, so no later agent works from a summary of them.
     const brief: Brief = { ...data.brief, year: input.profile.year, location: input.profile.location, remoteOk: input.profile.remoteOk, notes };
@@ -91,14 +104,14 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     return { brief, assignments };
   }
 
-  async planJobs(assignment: Assignment, brief: Brief): Promise<ScoutSpec[]> {
+  async planJobs(assignment: Assignment, brief: Brief, pastSearches: string[] = []): Promise<ScoutSpec[]> {
     const Out = z.object({ jobs: z.array(z.object({ label: z.string(), query: z.string(), lensValue: z.string() })) });
     const { data } = await grokJson({
       name: 'search_manager',
       model: TIER.normal,
       schema: Out,
       system: `You are a search manager for ${CATEGORY_LABEL[assignment.category].toLowerCase()}. Turn your assignment into at most 3 search jobs for scout workers. Each job has a short label, a web search query a scout should run, and the focus value it covers. Favor employer and organizer pages and public listings; avoid sites that need a login. Do not cover what the other managers cover.\n\n${NOTES_RULE}`,
-      user: `Today is ${today()}.\n${notesBlock(brief.notes)}\nStudent brief: ${JSON.stringify(brief)}\nYour assignment: lens ${assignment.lens}, focus ${assignment.focus.join(', ')}\nOther managers: ${assignment.others.join('; ') || 'none'}`,
+      user: `Today is ${today()}.\n${notesBlock(brief.notes)}\nStudent brief: ${JSON.stringify(brief)}\nYour assignment: lens ${assignment.lens}, focus ${assignment.focus.join(', ')}\nOther managers: ${assignment.others.join('; ') || 'none'}\nSearches already run for this student in this category (write queries that differ from every one of these, with new organizations, wording or sources): ${pastSearches.length ? pastSearches.slice(-25).join(' | ') : 'none yet'}`,
     });
     return data.jobs.slice(0, 3);
   }
@@ -123,10 +136,24 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
       model: TIER.low,
       schema: Out,
       tools: tools(),
-      system: `You are an extractor worker. Open the lead. If it is a repost, follow it to the organizer's own page. Read the details off that page. Set found to false if the page cannot be opened or is not a real posting.\n${EVIDENCE}`,
+      system: `You are an extractor worker. Open the lead. If it is a repost, follow it to the organizer's own page. Read the details off that page. Set found to false if the page cannot be opened or is not a real posting.\n${EVIDENCE}\n${DEADLINE_RULE}`,
       user: `Today is ${today()}.\nCategory: ${assignment.category}\nLead: ${lead.title}\nURL: ${lead.url}`,
     });
     return data.found ? data.record : null;
+  }
+
+  async findDeadline(candidate: Candidate): Promise<FoundDeadline | null> {
+    const Out = z.object({ found: z.boolean(), deadline: z.string().nullable(), url: z.string().nullable(), quote: z.string().nullable() });
+    const { data } = await grokJson({
+      name: 'deadline_finder',
+      model: TIER.low,
+      schema: Out,
+      tools: tools(),
+      system: `You are a deadline finder. The organizer's own pages gave no application or registration deadline for this posting. Search the web for other public postings of the same opportunity and read the deadline off one of them: job boards, internship and scholarship directories, hackathon and event listing sites, university career and department pages, and the organizer's announcements or social posts. Run several searches with different wording (the title with "deadline", "apply by", the year) and open the pages; do not answer from search snippets alone. Check the organizer's apply page and FAQ once more as well.\nSet found to true only when a page states the deadline for this same opportunity in its current cycle. Then return the date in ISO 8601, the URL of the page that states it, and the words giving the date, copied from that page.\n${DEADLINE_RULE}`,
+      user: `Today is ${today()}.\nPosting: ${candidate.title}\nOrganizer: ${candidate.organizer}\nType: ${candidate.type}\nOrganizer's page: ${candidate.sourceUrl}\nApply at: ${candidate.actionUrl ?? 'not known'}\nStarts: ${candidate.startTime ?? 'not known'}\nLocation: ${candidate.location ?? 'not known'}`,
+    });
+    if (!data.found || !data.deadline || !data.url || !data.quote) return null;
+    return { deadline: data.deadline, url: data.url, quote: data.quote };
   }
 
   async readApplication(candidate: Candidate) {
@@ -147,14 +174,14 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     // Two different agents review every posting. Each has one job, so neither can wave a posting through on the other's ground.
     const job =
       focus === 'status'
-        ? `You are the STATUS reviewer. Another agent checks the student's criteria; your only question is whether this is real and open right now. Open the organizer's own page and confirm: the posting exists there, applications or registration are open today, and every date and deadline in the record is what the page says. Correct any field the page contradicts. Set keep to false if it is closed, past, cannot be found on an official page, or if you cannot tell whether it is still open; say which in one sentence.`
+        ? `You are the STATUS reviewer. Another agent checks the student's criteria; your only question is whether this is real and open right now. Open the organizer's own page and confirm: the posting exists there, applications or registration are open today, and every date and deadline in the record is what the page says. Correct any field the page contradicts. Check the deadline yourself against the page it was read from; if the record has none, look for it as the deadline rules below describe and fill it in. Set keep to false if it is closed, past, cannot be found on an official page, or if you cannot tell whether it is still open; say which in one sentence.`
         : `You are the CRITERIA reviewer. Another agent checks whether the posting is real and open; your only question is whether it is right for this student. Check, in this order: the student's custom notes, then every hard criterion in the brief, then whether it is the kind of thing this student is looking for and not just a keyword match. Set keep to false if a note rules it out, if any hard criterion fails, or if the page does not let you confirm a hard criterion such as who may apply; say which in one sentence.`;
     const { data } = await grokJson({
       name: focus === 'status' ? 'status_reviewer' : 'criteria_reviewer',
       model: TIER.normal,
       schema: Out,
       tools: tools(),
-      system: `${job}\nfit is 0 to 1: how well it matches the student's interests and preferences.\n\n${NOTES_RULE}\n${EVIDENCE}`,
+      system: `${job}\nfit is 0 to 1: how well it matches the student's interests and preferences.\n\n${NOTES_RULE}\n${EVIDENCE}${focus === 'status' ? `\n${DEADLINE_RULE}` : '\nLeave deadline and deadlineSource as they are in the record; the other reviewer checks them.'}`,
       user: `Today is ${today()}.\n${notesBlock(brief.notes)}\nStudent brief: ${JSON.stringify(brief)}\nThe student keeps disliking: ${memory.avoidFields.join(', ') || 'nothing yet'}\nPosting: ${JSON.stringify(candidate)}`,
     });
     return { ...data, fit: Math.max(0, Math.min(1, data.fit)) };

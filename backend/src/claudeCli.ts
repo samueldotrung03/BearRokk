@@ -19,10 +19,18 @@ function sandboxDir(): string {
   return dir;
 }
 
-/** The backend may itself have been started from a Claude Code session; do not pass that session's settings on. */
+/** Settings that would make the CLI bill a paid API account or another provider instead of the signed-in subscription. */
+const PAID_API_KEYS = /^(ANTHROPIC_|AWS_BEARER_TOKEN_BEDROCK$)/;
+
+/**
+ * The backend may itself have been started from a Claude Code session; do not pass that session's settings on.
+ * API keys are dropped too, so the CLI can only use the Claude subscription signed in on this machine.
+ */
 function cleanEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
-  for (const key of Object.keys(env)) if (key === 'CLAUDECODE' || key.startsWith('CLAUDE_CODE_')) delete env[key];
+  for (const key of Object.keys(env)) {
+    if (key === 'CLAUDECODE' || key.startsWith('CLAUDE_CODE_') || PAID_API_KEYS.test(key)) delete env[key];
+  }
   return env;
 }
 
