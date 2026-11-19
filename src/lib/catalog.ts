@@ -55,6 +55,12 @@ export function formatLabel(format: Format) {
   return 'Hybrid';
 }
 
+export function placeLine(opportunity: Opportunity) {
+  const format = formatLabel(opportunity.format);
+  if (opportunity.location.toLowerCase() === format.toLowerCase()) return format;
+  return `${format} · ${opportunity.location}`;
+}
+
 /** One line for a card. Event starts and deadlines stay in separate clauses. */
 export function dateLine(opportunity: Opportunity) {
   const parts: { text: string; unknown: boolean }[] = [];

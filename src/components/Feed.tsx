@@ -10,6 +10,7 @@ import {
   formatLabel,
   matchesFilters,
   matchesQuery,
+  placeLine,
   sortLabel,
   sortOpportunities,
   type FeedFilters,
@@ -233,7 +234,7 @@ function FeedRow({ opportunity, onOpen }: { opportunity: Opportunity; onOpen: ()
           </button>
         </h2>
         <p className="byline">
-          {opportunity.organizer} · {formatLabel(opportunity.format)} · {opportunity.location}
+          {opportunity.organizer} · {placeLine(opportunity)}
         </p>
         <p className="fit">{opportunity.fitExplanation}</p>
         <RowActions opportunity={opportunity} />

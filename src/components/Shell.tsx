@@ -144,16 +144,15 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <div className="content">{children}</div>
+        {askOpen ? (
+          <AskPanel onClose={() => setAskOpen(false)} />
+        ) : (
+          <button type="button" className="ask-launch" onClick={() => setAskOpen(true)}>
+            <Sparkles aria-hidden="true" />
+            <span>Ask BearRok</span>
+          </button>
+        )}
       </div>
-
-      {askOpen ? (
-        <AskPanel onClose={() => setAskOpen(false)} />
-      ) : (
-        <button type="button" className="ask-launch" onClick={() => setAskOpen(true)}>
-          <Sparkles aria-hidden="true" />
-          <span>Ask BearRok</span>
-        </button>
-      )}
     </div>
   );
 }
