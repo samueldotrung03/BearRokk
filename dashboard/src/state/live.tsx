@@ -6,7 +6,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthProvider.tsx';
 import { API_URL } from '../auth/firebase.ts';
-import { applicationInfo } from '../data/sample.ts';
+import { applicationInfo, coverFor } from '../data/sample.ts';
 import type { AgentEvent, AgentNode, Opportunity, OpportunityType } from '../types.ts';
 import { useStore } from './StoreProvider.tsx';
 
@@ -99,6 +99,8 @@ const hash = (text: string) => {
 /** A backend result as the card the pages draw. */
 function toCard(entry: BackendFeedEntry, simulated: boolean): Opportunity {
   const o = entry.opportunity;
+  // The agents do not collect pictures yet, so a card without one gets a stock clip for its kind.
+  const cover = coverFor(o.type, hash(o.id));
   return {
     id: o.id,
     type: o.type,
@@ -112,9 +114,8 @@ function toCard(entry: BackendFeedEntry, simulated: boolean): Opportunity {
     fitExplanation: entry.reason,
     deadline: o.deadline,
     startTime: o.startTime,
-    // The agents do not collect pictures yet; the card shows its icon panel instead.
-    image: o.image,
-    video: null,
+    image: o.image ?? cover.image,
+    video: o.image ? null : cover.video,
     imageAspect: 0.8 + 0.5 * hash(o.id),
     tags: o.tags,
     unknowns: o.unknowns,
@@ -268,6 +269,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       usingLive,
       provider: student?.provider ?? 'simulated',
       feedTarget: student?.feedTarget ?? FEED_TARGET,
+      // Only what the agents found. The sample set is not mixed in: pages show real results or say why they are empty.
       opportunities: liveCards,
       agents: status === 'connected' && run ? toAgents(run) : null,
       searching: status === 'connected' && run?.status === 'running',

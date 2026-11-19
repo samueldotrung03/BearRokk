@@ -7,6 +7,8 @@ import { isDesktop } from '../auth/desktop.ts';
 import { authMessage } from '../auth/errors.ts';
 import { API_URL } from '../auth/firebase.ts';
 import type { GoogleService } from '../auth/google.ts';
+import { NotifySettings } from '../components/NotifySettings.tsx';
+import { ShortcutSettings } from '../components/ShortcutSettings.tsx';
 import { Card, Page } from '../components/Page.tsx';
 import { desktopBridge, loadAllowed, saveAllowed, type GrokConnection, type PermissionKind, type PermissionState } from '../lib/desktopBridge.ts';
 
@@ -345,6 +347,8 @@ export function Settings() {
           </ul>
         </Card>
 
+        <NotifySettings />
+        <ShortcutSettings />
         <MoreSettings />
       </div>
     </Page>

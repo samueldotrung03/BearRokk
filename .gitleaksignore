@@ -1,0 +1,3 @@
+# Findings the secret scan may ignore. One fingerprint per line.
+# The Firebase web API key identifies the project to Google and ships in the page; it is not a secret.
+dashboard/src/auth/firebase.ts:gcp-api-key:7

@@ -1,7 +1,6 @@
 // Two views of the same ranked list. "For you" is a full-screen reel, one opportunity per
 // screen, scrolled like TikTok. "Feed" is everything in an ordinary scrolling grid, with search,
 // filters and sorting, for when the student wants to scan and compare.
-import { ProfileMenu } from '../components/ProfileMenu.tsx';
 import {
   ArrowUpRight,
   BookmarkSimple,
@@ -25,14 +24,31 @@ import { formatLabel, typeMeta } from '../components/meta.ts';
 import { Cover, Details, OpportunityTile } from '../components/OpportunityCard.tsx';
 import { RoadmapPanel } from '../components/RoadmapPanel.tsx';
 import { DataBadge, useLive, useOpportunities } from '../state/live.tsx';
+import { WhyThis } from '../components/WhyThis.tsx';
+import { ProfileMenu } from '../components/ProfileMenu.tsx';
+import {
+  countActive,
+  deadlineLabel,
+  emptyFilters,
+  fieldOfGoal,
+  fieldOptions,
+  fieldsOf,
+  fitOptions,
+  matches,
+  onlyLabel,
+  toggled,
+  type DeadlineFilter,
+  type FilterContext,
+  type Filters,
+  type OnlyFilter,
+} from '../lib/filters.ts';
 import { planFor } from '../lib/roadmap.ts';
 import { daysUntil, dueLabel, shortDate } from '../lib/time.ts';
-import { rankFeedDetailed, signalLabel, type RankedOpportunity } from '../state/ranking.ts';
+import { explain, rankFeedDetailed, signalLabel, type RankedOpportunity } from '../state/ranking.ts';
 import { useStore } from '../state/StoreProvider.tsx';
 import type { Format, Opportunity, OpportunityType } from '../types.ts';
 
 type Tab = 'foryou' | 'feed';
-type FormatFilter = 'any' | Format;
 type Sort = 'best' | 'deadline' | 'newest';
 
 const sortLabel: Record<Sort, string> = {
@@ -72,7 +88,7 @@ function RailButton({
  * The moving picture behind a reel card. It plays, muted and looping, only while its card is
  * the one on screen, and falls back to the photo when there is no clip or it cannot load.
  */
-function ReelVideo({ opportunity: o, active }: { opportunity: Opportunity; active: boolean }) {
+function ReelVideo({ opportunity: o, active, near }: { opportunity: Opportunity; active: boolean; near: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
   const bar = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -91,7 +107,8 @@ function ReelVideo({ opportunity: o, active }: { opportunity: Opportunity; activ
     }
   }, [active, paused]);
 
-  if (!o.video || failed) return <Cover opportunity={o} className="absolute inset-0 size-full" />;
+  // Only the card on screen and its neighbours load a video; the rest show their still.
+  if (!o.video || failed || !near) return <Cover opportunity={o} className="absolute inset-0 size-full" />;
   return (
     <>
       <video
@@ -131,17 +148,27 @@ function ReelVideo({ opportunity: o, active }: { opportunity: Opportunity; activ
 function Slide({
   ranked,
   active,
+  near,
   onDismiss,
   onDetails,
+  opportunities,
+  onWhyDismiss,
 }: {
   ranked: RankedOpportunity;
   /** This card is the one on screen. */
   active: boolean;
+  /** On screen or right next to it, so its video is worth loading. */
+  near: boolean;
   onDismiss: (o: Opportunity) => void;
   onDetails: (o: Opportunity) => void;
+  /** Everything that was ranked, which the reasons are worked out from. */
+  opportunities: Opportunity[];
+  /** Dismisses from the "Why this?" window, which closes with the card. */
+  onWhyDismiss: (o: Opportunity) => void;
 }) {
   const { state, dispatch } = useStore();
   const o = ranked.opportunity;
+  const reasons = useMemo(() => explain(ranked, state, opportunities), [ranked, state, opportunities]);
   const meta = typeMeta[o.type];
   const saved = state.saved.includes(o.id);
   const liked = state.liked.includes(o.id);
@@ -152,7 +179,7 @@ function Slide({
     <section className="reel-slide" aria-labelledby={`${o.id}-title`}>
       <div className="reel-stage">
         <article className="reel-card">
-          <ReelVideo opportunity={o} active={active} />
+          <ReelVideo opportunity={o} active={active} near={near} />
           <div className="reel-shade" aria-hidden="true" />
 
           <div className="reel-body">
@@ -166,6 +193,9 @@ function Slide({
                   {signalLabel[signal]}
                 </li>
               ))}
+              <li className="flex">
+                <WhyThis reasons={reasons} active={active} onLess={() => onWhyDismiss(o)} onNotMyField={() => onWhyDismiss(o)} />
+              </li>
             </ul>
 
             <h2 id={`${o.id}-title`} className="mt-3 font-display text-[34px] leading-[1.05] text-balance">
@@ -237,11 +267,9 @@ export function Feed() {
   const { state, dispatch } = useStore();
   const [tab, setTab] = useState<Tab>('foryou');
   const [query, setQuery] = useState('');
-  const [types, setTypes] = useState<OpportunityType[]>([]); // empty means every type
-  const [closingSoon, setClosingSoon] = useState(false);
+  const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterMenu = useRef<HTMLDivElement>(null);
-  const [format, setFormat] = useState<FormatFilter>('any');
   const [sort, setSort] = useState<Sort>('best');
   const [index, setIndex] = useState(0);
   const [details, setDetails] = useState<Opportunity | null>(null);
@@ -269,25 +297,39 @@ export function Feed() {
 
   const present = new Set(slides.map((r) => r.opportunity.type));
   const typeOptions = (Object.keys(typeMeta) as OpportunityType[]).filter((t) => present.has(t));
-  const activeCount = types.length + (format !== 'any' ? 1 : 0) + (closingSoon ? 1 : 0);
+  // Fields some card actually leads into, plus the goal's own field for the "My field" shortcut.
+  const goalField = fieldOfGoal(state.goalId);
+  const presentFields = new Set(slides.flatMap((r) => fieldsOf(r.opportunity)));
+  const fieldChoices = fieldOptions.filter((field) => presentFields.has(field) || field === goalField);
+  const chosenFields = filters.fields ?? [];
+  const myFieldOn = goalField !== null && chosenFields.length === 1 && chosenFields[0] === goalField;
+  const activeCount = countActive(filters);
   const filtersOn = query.trim() !== '' || activeCount > 0;
-  const toggleType = (t: OpportunityType) =>
-    setTypes((current) => (current.includes(t) ? current.filter((value) => value !== t) : [...current, t]));
+  const patch = (change: Partial<Filters>) => setFilters((current) => ({ ...current, ...change }));
   const clearFilters = () => {
     setQuery('');
-    setTypes([]);
-    setFormat('any');
-    setClosingSoon(false);
+    setFilters(emptyFilters);
   };
-  const results = live
-    .map((r) => r.opportunity)
-    .filter(
-      (o) =>
-        (types.length === 0 || types.includes(o.type)) &&
-        (format === 'any' || o.format === format) &&
-        (!closingSoon || (o.deadline !== null && daysUntil(o.deadline) <= 14)) &&
-        matchesQuery(o, query),
-    );
+  const context: FilterContext = {
+    saved: state.saved,
+    liked: state.liked,
+    roadmap: new Set(
+      plan.steps.filter((step) => step.opportunityId && !state.doneSteps.includes(step.id)).map((step) => step.opportunityId!),
+    ),
+    now: Date.now(),
+  };
+  const searched = live.map((r) => r.opportunity).filter((o) => matchesQuery(o, query));
+  const results = searched.filter((o) => matches(o, filters, context));
+  // How many cards a choice would leave, with the search and the other filters as they are.
+  const countWith = (change: Partial<Filters>) => searched.filter((o) => matches(o, { ...filters, ...change }, context)).length;
+  const activeChips: { label: string; remove: () => void }[] = [
+    ...filters.types.map((value) => ({ label: typeMeta[value].plural, remove: () => patch({ types: toggled(filters.types, value) }) })),
+    ...(filters.format !== 'any' ? [{ label: formatLabel[filters.format], remove: () => patch({ format: 'any' }) }] : []),
+    ...(filters.deadline !== 'any' ? [{ label: deadlineLabel[filters.deadline], remove: () => patch({ deadline: 'any' }) }] : []),
+    ...(filters.minFit > 0 ? [{ label: `Fit ${filters.minFit}+`, remove: () => patch({ minFit: 0 }) }] : []),
+    ...filters.only.map((value) => ({ label: onlyLabel[value], remove: () => patch({ only: toggled(filters.only, value) }) })),
+    ...chosenFields.map((value) => ({ label: value, remove: () => patch({ fields: toggled(chosenFields, value) }) })),
+  ];
   // "Best match" keeps the ranker's order; the other two sort on one field, with blanks last.
   if (sort === 'deadline') {
     const time = (o: Opportunity) => (o.deadline ? new Date(o.deadline).getTime() : Infinity);
@@ -346,6 +388,11 @@ export function Feed() {
     dispatch({ type: 'dismiss', id: o.id });
     setLastDismissed(o);
   };
+  // The card and its "Why this?" window go away together, so focus moves back to the reel.
+  const dismissFromWhy = (o: Opportunity) => {
+    dismiss(o);
+    scroller.current?.focus({ preventScroll: true });
+  };
   const refresh = () => {
     setSeen([]);
     setLastDismissed(null);
@@ -359,13 +406,13 @@ export function Feed() {
           <button
             type="button"
             onClick={toggleDock}
-            className="hidden size-9 place-items-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-white sm:grid"
+            className="hidden size-9 place-items-center rounded-xl bg-white/15 text-white transition hover:bg-white/25 sm:grid"
             aria-label="Pin or unpin the navigation dock"
             title="Pin the dock open, or move your pointer to the left edge"
           >
             <PanelLeft className="size-[18px]" aria-hidden="true" />
           </button>
-          <Link to="/" className="flex items-center gap-2.5 text-white focus-visible:outline-white">
+          <Link to="/" className="flex items-center gap-2.5 text-white">
             <BrandMark />
             <span className="hidden text-[19px] font-bold tracking-tight sm:block">BearRok</span>
           </Link>
@@ -404,7 +451,7 @@ export function Feed() {
             aria-label="Recommended opportunities. Scroll or use the arrow keys to move between them."
           >
             {slides.map((r, position) => (
-              <Slide key={r.opportunity.id} ranked={r} active={tab === 'foryou' && position === index && !details} onDismiss={dismiss} onDetails={setDetails} />
+              <Slide key={r.opportunity.id} ranked={r} active={tab === 'foryou' && position === index && !details} near={Math.abs(position - index) <= 1} onDismiss={dismiss} onDetails={setDetails} opportunities={opportunities} onWhyDismiss={dismissFromWhy} />
             ))}
 
             <section className="reel-slide" aria-label="End of feed">
@@ -483,40 +530,166 @@ export function Feed() {
 
                 {filtersOpen && (
                   <div id="feed-filters" className="feed-filter-panel" role="group" aria-label="Filters">
+                    <div className="flex items-baseline justify-between">
+                      <h2 className="text-base font-semibold">Filters</h2>
+                      <span className="text-sm text-ink-3">
+                        {results.length} of {searched.length} match
+                      </span>
+                    </div>
+
                     <fieldset>
                       <legend>Type</legend>
-                      <div className="grid grid-cols-2 gap-x-4">
-                        {typeOptions.map((value) => (
-                          <label key={value} className="feed-option">
-                            <input type="checkbox" checked={types.includes(value)} onChange={() => toggleType(value)} />
-                            {typeMeta[value].plural}
-                          </label>
-                        ))}
+                      <div className="filter-pills">
+                        {typeOptions.map((value) => {
+                          const Icon = typeMeta[value].icon;
+                          const on = filters.types.includes(value);
+                          const count = countWith({ types: [value] });
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              className="filter-pill"
+                              aria-pressed={on}
+                              disabled={count === 0 && !on}
+                              onClick={() => patch({ types: toggled(filters.types, value) })}
+                            >
+                              <Icon className="size-4" aria-hidden="true" />
+                              {typeMeta[value].plural}
+                              <span className="filter-pill-count">{count}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </fieldset>
 
                     <fieldset>
-                      <legend>Format</legend>
-                      <div className="grid grid-cols-2 gap-x-4">
-                        {(['any', ...Object.keys(formatLabel)] as FormatFilter[]).map((value) => (
-                          <label key={value} className="feed-option">
-                            <input type="radio" name="feed-format" checked={format === value} onChange={() => setFormat(value)} />
-                            {value === 'any' ? 'Any format' : formatLabel[value]}
-                          </label>
-                        ))}
+                      <legend>Field</legend>
+                      <div className="filter-pills">
+                        {goalField && (
+                          <button
+                            type="button"
+                            className="filter-pill"
+                            aria-pressed={myFieldOn}
+                            disabled={countWith({ fields: [goalField] }) === 0 && !myFieldOn}
+                            onClick={() => patch({ fields: myFieldOn ? [] : [goalField] })}
+                            title={`Only ${goalField}, the field of your goal`}
+                          >
+                            My field
+                            <span className="filter-pill-count">{countWith({ fields: [goalField] })}</span>
+                          </button>
+                        )}
+                        {fieldChoices.map((value) => {
+                          const on = chosenFields.includes(value);
+                          const count = countWith({ fields: [value] });
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              className="filter-pill"
+                              aria-pressed={on}
+                              disabled={count === 0 && !on}
+                              onClick={() => patch({ fields: toggled(chosenFields, value) })}
+                            >
+                              {value}
+                              <span className="filter-pill-count">{count}</span>
+                            </button>
+                          );
+                        })}
                       </div>
+                      <p className="mt-1.5 text-xs text-ink-3">Cards open to any field stay in every choice.</p>
                     </fieldset>
 
                     <fieldset>
-                      <legend>Deadline</legend>
-                      <label className="feed-option">
-                        <input type="checkbox" checked={closingSoon} onChange={(event) => setClosingSoon(event.target.checked)} />
-                        Closing within two weeks
-                      </label>
+                      <legend>Only show</legend>
+                      <div className="filter-pills">
+                        {(Object.keys(onlyLabel) as OnlyFilter[]).map((value) => {
+                          const on = filters.only.includes(value);
+                          const count = countWith({ only: on ? filters.only : [...filters.only, value] });
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              className="filter-pill"
+                              aria-pressed={on}
+                              disabled={count === 0 && !on}
+                              onClick={() => patch({ only: toggled(filters.only, value) })}
+                            >
+                              {onlyLabel[value]}
+                              <span className="filter-pill-count">{count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </fieldset>
 
-                    <div className="mt-1 flex items-center justify-between border-t border-line pt-3">
-                      <button type="button" onClick={clearFilters} className="h-9 text-sm font-semibold text-ink-2">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <fieldset>
+                        <legend>Deadline</legend>
+                        <div className="filter-list">
+                          {(Object.keys(deadlineLabel) as DeadlineFilter[]).map((value) => {
+                            const count = countWith({ deadline: value });
+                            return (
+                              <button
+                                key={value}
+                                type="button"
+                                role="radio"
+                                aria-checked={filters.deadline === value}
+                                disabled={count === 0 && filters.deadline !== value}
+                                onClick={() => patch({ deadline: value })}
+                              >
+                                {deadlineLabel[value]}
+                                <span>{count}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </fieldset>
+
+                      <div className="grid content-start gap-4">
+                        <fieldset>
+                          <legend>Format</legend>
+                          <div className="filter-list">
+                            {(['any', ...Object.keys(formatLabel)] as Filters['format'][]).map((value) => {
+                              const count = countWith({ format: value });
+                              return (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={filters.format === value}
+                                  disabled={count === 0 && filters.format !== value}
+                                  onClick={() => patch({ format: value })}
+                                >
+                                  {value === 'any' ? 'Any format' : formatLabel[value]}
+                                  <span>{count}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </fieldset>
+
+                        <fieldset>
+                          <legend>Fit score</legend>
+                          <div className="filter-segment">
+                            {fitOptions.map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                role="radio"
+                                aria-checked={filters.minFit === value}
+                                disabled={countWith({ minFit: value }) === 0 && filters.minFit !== value}
+                                onClick={() => patch({ minFit: value })}
+                              >
+                                {value === 0 ? 'Any' : `${value}+`}
+                              </button>
+                            ))}
+                          </div>
+                        </fieldset>
+                      </div>
+                    </div>
+
+                    <div className="filter-footer">
+                      <button type="button" onClick={clearFilters} disabled={!filtersOn} className="h-9 text-sm font-semibold text-ink-2 disabled:opacity-40">
                         Clear all
                       </button>
                       <button type="button" onClick={() => setFiltersOpen(false)} className="btn-primary h-9 px-4 text-sm text-white">
@@ -541,27 +714,13 @@ export function Feed() {
 
             {/* What is switched on, each removable, so the grid never looks filtered for no reason. */}
             <div className="feed-active">
-              {types.map((value) => (
-                <button key={value} type="button" onClick={() => toggleType(value)} className="feed-chip">
-                  {typeMeta[value].plural}
+              {activeChips.map((chip) => (
+                <button key={chip.label} type="button" onClick={chip.remove} className="feed-chip">
+                  {chip.label}
                   <XSmall className="size-3.5" aria-hidden="true" />
                   <span className="sr-only">Remove filter</span>
                 </button>
               ))}
-              {format !== 'any' && (
-                <button type="button" onClick={() => setFormat('any')} className="feed-chip">
-                  {formatLabel[format]}
-                  <XSmall className="size-3.5" aria-hidden="true" />
-                  <span className="sr-only">Remove filter</span>
-                </button>
-              )}
-              {closingSoon && (
-                <button type="button" onClick={() => setClosingSoon(false)} className="feed-chip">
-                  Closing within two weeks
-                  <XSmall className="size-3.5" aria-hidden="true" />
-                  <span className="sr-only">Remove filter</span>
-                </button>
-              )}
               {activeCount > 0 && (
                 <button type="button" onClick={clearFilters} className="h-9 px-2 text-sm font-semibold text-white">
                   Clear filters

@@ -1,5 +1,5 @@
 // The rest of the Settings page: how the agents run, reminders, and the account and its data.
-import { ArrowsClockwise, Bell, ClockCounterClockwise, DownloadSimple, SignIn, SignOut, Trash, UserCircle } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, ArrowsClockwise, Bell, ClockCounterClockwise, DownloadSimple, SignIn, SignOut, Trash, UserCircle } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../auth/AuthProvider.tsx';
@@ -9,6 +9,7 @@ import { Card } from '../components/Page.tsx';
 import { ActionButton, Note, Row, Status } from '../components/settingsParts.tsx';
 import { SCHEDULE_SECONDS, updateSettings, useSettings, type AppSettings } from '../state/settings.ts';
 import { useStore } from '../state/StoreProvider.tsx';
+import { clearDemoStorage } from '../state/store.ts';
 
 const schedules: { value: AppSettings['schedule']; label: string }[] = [
   { value: 'off', label: 'Only when something changes' },
@@ -54,6 +55,7 @@ export function MoreSettings() {
   const [accountNote, setAccountNote] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingDemo, setConfirmingDemo] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
 
@@ -239,6 +241,43 @@ export function MoreSettings() {
                   Clear
                 </ActionButton>
                 <ActionButton onClick={() => setConfirmingClear(false)}>Keep</ActionButton>
+              </div>
+            )}
+          </Row>
+          <Row
+            icon={<ArrowCounterClockwise />}
+            title="Start a clean demo"
+            text="Clears everything this app remembers on this device, such as saved posts, roadmap progress, applications and these settings, then reloads. You stay signed in."
+            status={null}
+            action={
+              !confirmingDemo ? (
+                <ActionButton
+                  onClick={() => {
+                    setAccountNote(null);
+                    setConfirmingDemo(true);
+                  }}
+                >
+                  Start over
+                </ActionButton>
+              ) : null
+            }
+          >
+            {confirmingDemo && (
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm font-semibold text-ink">Clear everything on this device and reload?</p>
+                <ActionButton
+                  onClick={() => {
+                    try {
+                      clearDemoStorage(localStorage);
+                    } catch {
+                      // Storage unavailable: the reload still starts a fresh session.
+                    }
+                    window.location.reload();
+                  }}
+                >
+                  Clear and reload
+                </ActionButton>
+                <ActionButton onClick={() => setConfirmingDemo(false)}>Keep</ActionButton>
               </div>
             )}
           </Row>

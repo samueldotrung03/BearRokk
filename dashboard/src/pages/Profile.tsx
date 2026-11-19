@@ -3,7 +3,9 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider.tsx';
 import { Card, Page } from '../components/Page.tsx';
 import { careerSections, fieldGroups, opportunityKinds, restrictionSections, withDefaults, type Item, type Note, type Preferences, type Section } from '../data/preferences.ts';
+import { goalForProfile } from '../lib/personalize.ts';
 import { useStore } from '../state/StoreProvider.tsx';
+import type { ClassYear } from '../types.ts';
 import { Experience } from './ProfileExperience.tsx';
 
 const tabs = [
@@ -436,6 +438,13 @@ export function Profile() {
   // Everything saves by itself: in the app at once, and to the agents a moment after the last change.
   const change: Change = (next) => {
     dispatch({ type: 'setPreferences', preferences: next });
+    // The roadmap follows the fields the student cares about, unless they picked a goal themselves.
+    if (next.topField !== prefs.topField || next.fields.join('\n') !== prefs.fields.join('\n')) {
+      const { major, careerInterests } = state.profile;
+      dispatch({ type: 'suggestGoal', id: goalForProfile({ major, careerInterests, topField: next.topField, fields: next.fields }) });
+    }
+    const nextYear = next.answers.classYear;
+    if (nextYear && nextYear !== prefs.answers.classYear && nextYear !== 'Graduate student') dispatch({ type: 'setYear', year: nextYear as ClassYear });
     setSaved('saving');
     if (timer.current) clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {

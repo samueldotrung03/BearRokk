@@ -120,6 +120,14 @@ export interface Application {
 
 export type MatchLevel = 'strong' | 'good' | 'explore';
 
+/** The broad field a career path belongs to, so pickers can show paths a field at a time. */
+export type PathGroup =
+  | 'Technology'
+  | 'Finance and business'
+  | 'Science, engineering and health'
+  | 'Policy, law and society'
+  | 'Media and creative';
+
 export interface CareerPath {
   id: string;
   title: string;
@@ -128,6 +136,7 @@ export interface CareerPath {
   whyItFits: string;
   expects: string[];
   firstSteps: string[];
+  group?: PathGroup;
 }
 
 export type AgentStatus = 'running' | 'done' | 'idle';
