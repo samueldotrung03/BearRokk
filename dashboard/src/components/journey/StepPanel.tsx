@@ -77,7 +77,7 @@ export function StepPanel({
           <span>
             <Check aria-hidden="true" /> {journey.open ? `${journey.doneCount} of ${count} options done` : `${journey.doneCount} of ${count} steps done`}
           </span>
-          {!reached && !journey.open && (
+          {!reached && !journey.open && journey.hoursLeft > 0 && (
             <span>
               <Clock aria-hidden="true" /> About {formatHours(journey.hoursLeft)} left
             </span>
@@ -121,9 +121,11 @@ export function StepPanel({
       <p className="rm3-detail">{step.detail}</p>
 
       <div className="rm3-facts">
-        <span>
-          <Clock aria-hidden="true" /> About {formatHours(step.hours)}
-        </span>
+        {step.hours > 0 && (
+          <span>
+            <Clock aria-hidden="true" /> About {formatHours(step.hours)}
+          </span>
+        )}
         {step.due && !step.done && !journey.open && (
           <span>
             <Flag aria-hidden="true" /> {dueWords(step.due, now).replace(/^./, (c) => c.toUpperCase())}

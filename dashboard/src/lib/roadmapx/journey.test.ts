@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { careerPaths, initialState, opportunities } from '../../data/sample.ts';
 import { startingState } from '../../state/store.ts';
-import { careerJourney, careerSearch, curveThrough, customCareer, destinations, jobChoices, jobJourney, layoutPath, planJourney, pathMatch, relatedPaths } from './journey.ts';
+import { careerJourney, careerSearch, curveThrough, customCareer, destinations, jobChoices, jobJourney, guideJourney, layoutPath, planJourney, pathMatch, relatedPaths } from './journey.ts';
 
 const now = Date.parse('2026-11-19T12:00:00');
 
@@ -220,6 +220,31 @@ describe('exploring careers', () => {
     // Categories with no pick are offered, not forced onto the roadmap.
     expect(plan.left!.length).toBe(board.phases.length - plan.phases.length);
     expect(plan.steps.map((s) => s.index)).toEqual(plan.steps.map((_, i) => i));
+  });
+
+  it('draws a career guide\'s How to start as a road, in the guide\'s order, with no invented hours', () => {
+    const guide = {
+      provider: 'simulated' as const,
+      sample: true,
+      steps: [
+        { title: 'Learn SQL', detail: 'Joins and aggregates.', when: 'First month', resource: { title: 'SQLBolt', url: 'https://sqlbolt.com' }, prepares: ['Technical screen'] },
+        { title: 'Build one dashboard', detail: 'From a public data set.', when: 'First month', resource: { title: 'bad', url: 'javascript:alert(1)' } },
+        { title: 'Apply to ten roles', detail: 'Smaller firms first.', when: 'Then', resource: null },
+        { title: 'Learn SQL', detail: 'a repeat is dropped', resource: null },
+      ],
+    };
+    const road = guideJourney('Data analyst', guide, []);
+    expect(road.guide).toBe(true);
+    expect(road.open).toBe(false);
+    expect(road.steps.map((s) => s.title)).toEqual(['Learn SQL', 'Build one dashboard', 'Apply to ten roles']);
+    expect(road.phases.map((p) => [p.title, p.count])).toEqual([['First month', 2], ['Then', 1]]);
+    expect(road.steps[0]!.resources).toEqual([{ label: 'SQLBolt', url: 'https://sqlbolt.com' }]);
+    expect(road.steps[1]!.resources).toEqual([]);
+    expect(road.steps[0]!.why.join(' ')).toContain('Technical screen');
+    expect(road.steps.every((s) => s.hours === 0)).toBe(true);
+    // Sample steps are said to be sample, and ticking one is remembered.
+    expect(road.analysis.basis).toContain('sample steps');
+    expect(guideJourney('Data analyst', guide, [road.steps[0]!.id]).doneCount).toBe(1);
   });
 
   it('shows that people got in with different mixes, including without a club', () => {

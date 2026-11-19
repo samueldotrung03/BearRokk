@@ -497,6 +497,9 @@ export function Feed() {
       {tab === 'foryou' ? (
         <>
           <div
+            // A fresh reel when the first cards arrive: otherwise the browser stays snapped to the
+            // closing card that was alone on screen, and the student lands at the end.
+            key={slides.length > 0 ? 'cards' : 'empty'}
             ref={scroller}
             className="reel-scroller"
             onScroll={(event) => setIndex(Math.round(event.currentTarget.scrollTop / event.currentTarget.clientHeight))}

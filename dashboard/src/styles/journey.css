@@ -899,10 +899,12 @@
   flex-basis: 0;
   min-width: 96px;
 }
+.rm3-rail-phase {
+  min-width: 0;
+}
 .rm3-rail-phase p {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-bottom: 8px;
   font-size: 13px;
   font-weight: 650;
@@ -1923,9 +1925,7 @@
   border-color: transparent;
 }
 .rm3-mine li button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  display: block;
   max-width: 230px;
   padding: 5px 4px 5px 11px;
   font-size: 12.5px;
@@ -2472,7 +2472,8 @@
 .rm3-planbar strong {
   color: var(--color-ink);
 }
-.rm3-planbar button {
+.rm3-planbar button,
+.rm3-planbar a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2485,7 +2486,8 @@
   font-weight: 600;
   color: var(--color-ink);
 }
-.rm3-planbar button svg {
+.rm3-planbar button svg,
+.rm3-planbar a svg {
   width: 13px;
   height: 13px;
 }
@@ -2631,4 +2633,21 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Chips in the My path tray: a long title ends in an ellipsis, and a full tray scrolls visibly. */
+.rm3-mine li button svg {
+  display: inline;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.rm3-mine li button:last-child svg {
+  margin-right: 0;
+}
+.rm3-mine ul {
+  max-height: 148px;
+  scrollbar-width: thin;
+}
+.rm3-rail-phase p span {
+  margin-left: 8px;
 }

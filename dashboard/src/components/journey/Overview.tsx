@@ -33,7 +33,8 @@ export function Overview({ journey, focus, onFocus }: { journey: Journey; focus:
                       <i aria-hidden="true">{step.done && <Check />}</i>
                       <span>{step.title}</span>
                       <small>
-                        {step.strength ?? sourceLabel[step.source]} · {formatHours(step.hours)}
+                        {step.strength ?? sourceLabel[step.source]}
+                        {step.hours > 0 && ` · ${formatHours(step.hours)}`}
                       </small>
                     </button>
                   </li>
