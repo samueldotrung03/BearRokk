@@ -1,6 +1,7 @@
 // The agent system for one student: holds profile, history and results, starts runs on its own,
 // and runs the master -> search managers -> worker fleet -> validators -> presentation manager chain.
 import { createHash } from 'node:crypto';
+import { addToCalendarUrl, type DeadlineEvent } from '../calendar.ts';
 import { canonicalUrl } from '../validate.ts';
 import type { Brain } from './brain.ts';
 import { Fleet, pooled } from './fleet.ts';
@@ -10,6 +11,9 @@ import {
   CATEGORY_OF,
   type Action,
   type AgentNode,
+  type Application,
+  type ApplicationStatus,
+  type Reminder,
   type Assignment,
   type Candidate,
   type Category,
@@ -71,6 +75,7 @@ export interface StudentState {
   scheduleSeconds: number;
   runCount: number;
   mode: 'simulated' | 'live';
+  applications: Application[];
 }
 
 type Listener = (event: 'run' | 'student', data: unknown) => void;
@@ -82,19 +87,32 @@ const UNKNOWN_DEADLINE: Record<Category, string> = {
   program: 'Deadline unknown',
 };
 
+const DAY_MS = 86_400_000;
+
+/** A week before, two days before, and the day of the deadline. Ones already in the past are left out. */
+export function remindersFor(deadline: string, now: Date): Reminder[] {
+  const due = Date.parse(deadline);
+  const plan: [number, string][] = [[7, 'Due in one week'], [2, 'Due in two days'], [0, 'Due today']];
+  return plan
+    .map(([days, label]) => ({ at: new Date(due - days * DAY_MS).toISOString(), label }))
+    .filter((r, i) => Date.parse(r.at) > now.getTime() || (i === plan.length - 1 && due > now.getTime()));
+}
+
 const idFor = (key: string) => `opp-${createHash('sha1').update(key).digest('hex').slice(0, 10)}`;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export class AgentSystem {
   private brain: Brain;
   private opts: SystemOptions;
-  private profile: Profile = structuredClone(DEMO_PROFILE);
+  private initialProfile: Profile;
+  private profile: Profile;
   private interactions: Interaction[] = [];
   private opportunities = new Map<string, Opportunity>();
   private reasons = new Map<string, string>();
   /** Postings a validator already turned down, so they are not checked again every run. */
   private rejected = new Map<string, string>();
   private rejectedUrls = new Set<string>();
+  private applications = new Map<string, Application>();
   private newIds = new Set<string>();
   private run: RunSnapshot | null = null;
   private runCount = 0;
@@ -108,9 +126,12 @@ export class AgentSystem {
   private runDirty = false;
   private seq = 0;
 
-  constructor(brain: Brain, opts: Partial<SystemOptions> = {}) {
+  /** `profile` overrides the demo profile, for a student who signed in. */
+  constructor(brain: Brain, opts: Partial<SystemOptions> = {}, profile: Partial<Profile> = {}) {
     this.brain = brain;
     this.opts = { ...DEFAULT_OPTIONS, ...opts };
+    this.initialProfile = { ...structuredClone(DEMO_PROFILE), ...profile };
+    this.profile = structuredClone(this.initialProfile);
   }
 
   // ---- reading ------------------------------------------------------------
@@ -136,6 +157,7 @@ export class AgentSystem {
       scheduleSeconds: this.scheduleSeconds,
       runCount: this.runCount,
       mode: this.brain.mode,
+      applications: this.listApplications(),
     };
   }
 
@@ -201,13 +223,96 @@ export class AgentSystem {
     this.reasons.clear();
     this.rejected.clear();
     this.rejectedUrls.clear();
+    this.applications.clear();
     this.newIds.clear();
-    this.profile = structuredClone(DEMO_PROFILE);
+    this.profile = structuredClone(this.initialProfile);
     this.feedbackSinceRun = 0;
     this.runCount = 0;
     this.run = null;
     this.emitRun();
     this.emitStudent();
+  }
+
+  // ---- application manager ---------------------------------------------------
+
+  listApplications(): Application[] {
+    // Soonest deadline first; unknown deadlines last.
+    return [...this.applications.values()].sort((a, b) => (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999'));
+  }
+
+  getApplication(opportunityId: string) {
+    return this.applications.get(opportunityId) ?? null;
+  }
+
+  /** What would go on the student's calendar for this application, or null without a deadline. */
+  calendarEvent(app: Application): DeadlineEvent | null {
+    if (!app.deadline) return null;
+    const lines = [`Deadline for ${app.title} at ${app.organizer}.`];
+    if (app.actionUrl) lines.push(`Apply: ${app.actionUrl}`);
+    if (app.materials.length) lines.push(`Needs: ${app.materials.join(', ')}`);
+    return { title: `Due: ${app.title} (${app.organizer})`, deadline: app.deadline, description: lines.join('\n') };
+  }
+
+  /**
+   * Set or change the status of an application. Marking it to_apply or applying sets the
+   * reminders automatically; any other status clears them.
+   */
+  setApplication(opportunityId: string, patch: { status?: ApplicationStatus; drafts?: Record<string, string>; deadline?: string }): Application | null {
+    const opp = this.opportunities.get(opportunityId);
+    const existing = this.applications.get(opportunityId);
+    if (!opp && !existing) return null;
+    const now = this.opts.now();
+    const app: Application = existing ?? {
+      opportunityId,
+      title: opp!.title,
+      organizer: opp!.organizer,
+      status: 'interested',
+      updatedAt: now.toISOString(),
+      deadline: opp!.deadline,
+      actionUrl: opp!.actionUrl ?? opp!.sourceUrl,
+      prompts: opp!.application?.prompts ?? [],
+      materials: opp!.application?.materials ?? [],
+      drafts: {},
+      reminders: [],
+      needsDeadline: false,
+      calendar: { state: 'none', eventId: null, htmlLink: null, addUrl: null, error: null },
+    };
+    if (opp?.application && app.prompts.length === 0) Object.assign(app, { prompts: opp.application.prompts, materials: opp.application.materials });
+    const before = app.status;
+    if (patch.status) app.status = patch.status;
+    if (patch.drafts) app.drafts = { ...app.drafts, ...patch.drafts };
+    // The student can supply a deadline the posting did not state.
+    if (patch.deadline && !Number.isNaN(Date.parse(patch.deadline))) app.deadline = new Date(patch.deadline).toISOString();
+    app.updatedAt = now.toISOString();
+
+    const active = app.status === 'to_apply' || app.status === 'applying';
+    app.reminders = active && app.deadline ? remindersFor(app.deadline, now) : [];
+    app.needsDeadline = active && !app.deadline;
+    const event = active ? this.calendarEvent(app) : null;
+    app.calendar.addUrl = event ? addToCalendarUrl(event) : null;
+    if (app.calendar.state !== 'synced') app.calendar.state = event ? 'link' : 'none';
+
+    this.applications.set(opportunityId, app);
+    // Applying is the strongest signal the ranking gets.
+    if (app.status === 'applied' && before !== 'applied') this.interactions.push({ opportunityId, action: 'apply', at: now.toISOString() });
+    this.emitStudent();
+    return app;
+  }
+
+  /** Record what happened on the student's Google Calendar. */
+  setCalendar(opportunityId: string, patch: Partial<Application['calendar']>) {
+    const app = this.applications.get(opportunityId);
+    if (!app) return null;
+    app.calendar = { ...app.calendar, ...patch };
+    this.emitStudent();
+    return app;
+  }
+
+  removeApplication(opportunityId: string) {
+    const app = this.applications.get(opportunityId) ?? null;
+    this.applications.delete(opportunityId);
+    this.emitStudent();
+    return app;
   }
 
   /** Start a run, or queue one if a run is already going. */

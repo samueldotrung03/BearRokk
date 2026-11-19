@@ -12,7 +12,7 @@ import { CATEGORY_LABEL, type Assignment, type Brief, type Candidate, type Memor
  * run on the normal tier. Workers are many and each does one small job, so they get the cheapest.
  * The high tier (XAI_MODEL_HIGH) is configured but not assigned to any level at the moment.
  */
-const TIER = config.xaiModels;
+const TIER: { high?: string; normal?: string; low?: string } = config.grokTransport === 'cli' ? config.grokCli.models : config.xaiModels;
 export const AGENT_TIERS = {
   master: 'normal',
   searchManager: 'normal',

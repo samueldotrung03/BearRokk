@@ -4,10 +4,11 @@ import { z } from 'zod';
 import { config } from '../src/config.ts';
 import { grokJson } from '../src/grok.ts';
 
-if (!config.xaiApiKey) {
-  console.error('XAI_API_KEY is not set. Put it in backend/.env first.');
+if (config.grokTransport !== 'cli' && !config.xaiApiKey) {
+  console.error('Set XAI_API_KEY, or GROK_TRANSPORT=cli to use the subscription CLI, in backend/.env first.');
   process.exit(1);
 }
+console.log(`transport: ${config.grokTransport}`);
 const started = Date.now();
 const { data, citations } = await grokJson({
   name: 'check',
@@ -16,6 +17,6 @@ const { data, citations } = await grokJson({
   schema: z.object({ title: z.string(), url: z.string(), quote: z.string() }),
   tools: [{ type: 'web_search' }],
 });
-console.log(`model ${config.xaiModel} answered in ${Date.now() - started} ms`);
+console.log(`answered in ${Date.now() - started} ms`);
 console.log(data);
 console.log(`${citations.length} citation(s)`, citations.slice(0, 5));

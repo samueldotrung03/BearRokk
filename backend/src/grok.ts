@@ -16,6 +16,10 @@ export async function grokJson<S extends z.ZodType>(opts: {
   model?: string;
   timeoutMs?: number;
 }): Promise<GrokResult<z.infer<S>>> {
+  if (config.grokTransport === 'cli') {
+    const { grokCliJson } = await import('./grokCli.ts');
+    return grokCliJson(opts);
+  }
   if (!config.xaiApiKey) throw new Error('XAI_API_KEY is not set');
 
   const jsonSchema = z.toJSONSchema(opts.schema) as Record<string, unknown>;

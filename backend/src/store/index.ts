@@ -16,7 +16,7 @@ export interface Store {
 export async function openStore(): Promise<Store> {
   if (config.firebaseServiceAccount) {
     const { FirestoreStore } = await import('./firestore.ts');
-    return FirestoreStore.open(config.firebaseServiceAccount);
+    return FirestoreStore.open();
   }
   return new LocalStore(config.localDataFile);
 }

@@ -6,6 +6,7 @@ import { AgentSystem } from '../src/agents/system.ts';
 import { Fleet } from '../src/agents/fleet.ts';
 import type { Category, Interaction, Opportunity } from '../src/agents/types.ts';
 import { createApp } from '../src/app.ts';
+import type { AuthUser } from '../src/auth.ts';
 import { LocalStore } from '../src/store/local.ts';
 
 const NOW = new Date('2026-11-18T20:00:00Z');
@@ -126,7 +127,7 @@ test('automation: enough reactions start a run on their own, and the next run br
 
 test('API: state, reactions, profile and manual runs', async () => {
   const s = system();
-  const { app } = createApp(new LocalStore(null), {}, s);
+  const { app } = createApp(new LocalStore(null), {}, { demo: s });
   const json = async (method: string, path: string, body?: unknown) => {
     const res = await app.request(path, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     return { status: res.status, body: (await res.json()) as any };
@@ -143,4 +144,147 @@ test('API: state, reactions, profile and manual runs', async () => {
   assert.equal((await json('PUT', '/api/students/demo/profile', { year: 'Wizard' })).status, 400);
   const page = await app.request('/');
   assert.equal(page.status, 200);
+});
+
+test('sign-in with Google or email: each signed-in student gets their own agents, separate from the demo', async () => {
+  const demo = system();
+  const users: Record<string, AuthUser> = {
+    'token-ana': { uid: 'u1', name: 'Ana Lima', email: null, picture: null, provider: 'google', emailVerified: true },
+    // Ben signed up with email and password, so Firebase has no display name for him.
+    'token-ben': { uid: 'u2', name: null, email: 'ben@example.org', picture: null, provider: 'password', emailVerified: false },
+  };
+  const made: AgentSystem[] = [];
+  const { app } = createApp(new LocalStore(null), {}, {
+    demo,
+    webConfig: { apiKey: 'k', projectId: 'p', authDomain: 'p.firebaseapp.com' },
+    verify: async (token) => users[token] ?? Promise.reject(new Error('bad token')),
+    forUser: (user) => {
+      const s = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW }, { name: user.name?.split(' ')[0] ?? user.email!.split('@')[0]! });
+      made.push(s);
+      return s;
+    },
+  });
+  const call = async (method: string, path: string, token?: string, body?: unknown) => {
+    const res = await app.request(path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    return { status: res.status, body: (await res.json()) as any };
+  };
+
+  assert.deepEqual((await call('GET', '/api/auth/config')).body, { enabled: true, providers: ['google', 'password'], firebase: { apiKey: 'k', projectId: 'p', authDomain: 'p.firebaseapp.com' } });
+  assert.equal((await call('GET', '/api/students/me/state')).status, 401);
+  assert.equal((await call('GET', '/api/students/me/state', 'forged')).status, 401);
+  assert.equal((await call('GET', '/api/students/someone-else/state', 'token-ana')).status, 404);
+  assert.equal((await call('GET', '/api/auth/me', 'token-ana')).body.user.uid, 'u1');
+
+  const ana = await call('GET', '/api/students/me/state', 'token-ana');
+  assert.equal(ana.body.student.profile.name, 'Ana');
+  // The token in the query string works too (the live stream needs it).
+  assert.equal((await app.request('/api/students/me/state?token=token-ben')).status, 200);
+  assert.equal(made.length, 2);
+
+  // Ana's run and profile do not touch Ben or the demo student.
+  await call('PUT', '/api/students/me/profile', 'token-ana', { categories: ['internship'] });
+  await new Promise((r) => setTimeout(r, 800));
+  await made[0]!.idle();
+  assert.ok((await call('GET', '/api/students/me/state', 'token-ana')).body.student.feed.length > 0);
+  const ben = await call('GET', '/api/students/me/state', 'token-ben');
+  assert.equal(ben.body.student.profile.name, 'ben');
+  assert.equal((await call('GET', '/api/auth/me', 'token-ben')).body.user.provider, 'password');
+  assert.equal(ben.body.student.feed.length, 0);
+  assert.equal(ben.body.student.profile.categories.length, 4);
+  assert.equal((await call('GET', '/api/students/demo/state')).body.student.runCount, 0);
+});
+
+test('sign-in off: the demo student still works and /me says why it does not', async () => {
+  const { app } = createApp(new LocalStore(null), {}, { demo: system() });
+  assert.deepEqual(await (await app.request('/api/auth/config')).json(), { enabled: false });
+  assert.equal((await app.request('/api/students/me/state')).status, 503);
+  assert.equal((await app.request('/api/students/demo/state')).status, 200);
+});
+
+test('applications: to_apply sets reminders and a calendar link on its own; applied clears them', async () => {
+  const s = system();
+  await s.trigger('first');
+  const withDeadline = s.student().feed.find((f) => f.opportunity.deadline && Date.parse(f.opportunity.deadline) - NOW.getTime() > 8 * 86_400_000)!.opportunity;
+
+  const interested = s.setApplication(withDeadline.id, { status: 'interested' })!;
+  assert.deepEqual(interested.reminders, []);
+  assert.equal(interested.calendar.state, 'none');
+
+  const toApply = s.setApplication(withDeadline.id, { status: 'to_apply' })!;
+  assert.deepEqual(toApply.reminders.map((r) => r.label), ['Due in one week', 'Due in two days', 'Due today']);
+  assert.equal(toApply.reminders.at(-1)!.at, withDeadline.deadline);
+  assert.equal(toApply.calendar.state, 'link');
+  assert.match(toApply.calendar.addUrl!, /^https:\/\/calendar\.google\.com\/calendar\/render\?action=TEMPLATE/);
+
+  const applied = s.setApplication(withDeadline.id, { status: 'applied' })!;
+  assert.deepEqual(applied.reminders, []);
+  assert.equal(applied.calendar.addUrl, null);
+  assert.equal(s.student().memory.counts.apply, 1);
+  assert.equal(s.setApplication('nope', { status: 'to_apply' }), null);
+});
+
+test('applications: no deadline means no invented reminder, until the student supplies one', async () => {
+  const s = system();
+  await s.trigger('first');
+  const open = s.student().feed.find((f) => !f.opportunity.deadline)!.opportunity;
+  const app = s.setApplication(open.id, { status: 'applying' })!;
+  assert.deepEqual(app.reminders, []);
+  assert.equal(app.needsDeadline, true);
+  assert.equal(app.calendar.state, 'none');
+  const fixed = s.setApplication(open.id, { deadline: '2026-12-20' })!;
+  assert.equal(fixed.needsDeadline, false);
+  assert.equal(fixed.reminders.length, 3);
+});
+
+test('applications API: with a Google token the deadline goes on the calendar, and comes off when applied', async () => {
+  const s = system();
+  await s.trigger('first');
+  const calls: string[] = [];
+  const { app } = createApp(new LocalStore(null), {}, {
+    demo: s,
+    calendar: {
+      create: async (token, event) => { calls.push(`create ${token} ${event.title}`); return { eventId: 'evt-1', htmlLink: 'https://calendar.google.com/event?eid=1' }; },
+      remove: async (token, id) => { calls.push(`remove ${token} ${id}`); },
+    },
+  });
+  const o = s.student().feed.find((f) => f.opportunity.deadline)!.opportunity;
+  const put = async (body: unknown, google?: string) => {
+    const res = await app.request(`/api/students/demo/applications/${o.id}`, { method: 'PUT', headers: { 'content-type': 'application/json', ...(google ? { 'x-google-access-token': google } : {}) }, body: JSON.stringify(body) });
+    return { status: res.status, body: (await res.json()) as any };
+  };
+
+  // Without a token: reminders and the link only.
+  const link = await put({ status: 'to_apply' });
+  assert.equal(link.body.application.calendar.state, 'link');
+  assert.equal(calls.length, 0);
+
+  const synced = await put({ status: 'applying', drafts: { 'Why do you want to join?': 'Because.' } }, 'g-token');
+  assert.equal(synced.body.application.calendar.state, 'synced');
+  assert.equal(synced.body.application.calendar.eventId, 'evt-1');
+  assert.equal(synced.body.application.drafts['Why do you want to join?'], 'Because.');
+  assert.match(calls[0]!, /^create g-token Due: /);
+
+  const done = await put({ status: 'applied' }, 'g-token');
+  assert.equal(done.body.application.calendar.state, 'none');
+  assert.equal(calls.at(-1), 'remove g-token evt-1');
+
+  assert.equal((await put({ status: 'maybe' })).status, 400);
+  const list = (await (await app.request('/api/students/demo/applications')).json()) as any;
+  assert.equal(list.applications.length, 1);
+  assert.equal(list.applications[0].status, 'applied');
+});
+
+test('calendar: an all-day event on the deadline with three pop-up reminders', async () => {
+  const { eventBody, createDeadlineEvent, addToCalendarUrl } = await import('../src/calendar.ts');
+  const event = { title: 'Due: Data Analyst Intern (Harbor Data Co)', deadline: '2026-12-05T23:59:00.000Z', description: 'Apply: https://example.org/x' };
+  const body = eventBody(event);
+  assert.deepEqual(body.start, { date: '2026-12-05' });
+  assert.deepEqual(body.end, { date: '2026-12-06' });
+  assert.deepEqual(body.reminders.overrides.map((o) => o.minutes), [10080, 2880, 0]);
+  assert.match(addToCalendarUrl(event), /dates=20261205%2F20261206/);
+  let seen: Request | null = null;
+  const fake = (async (url: any, init: any) => { seen = new Request(url, init); return Response.json({ id: 'abc', htmlLink: 'https://calendar.google.com/e' }); }) as typeof fetch;
+  assert.deepEqual(await createDeadlineEvent('tok', event, fake), { eventId: 'abc', htmlLink: 'https://calendar.google.com/e' });
+  assert.equal(seen!.headers.get('authorization'), 'Bearer tok');
+  assert.equal(new URL(seen!.url).pathname, '/calendar/v3/calendars/primary/events');
 });

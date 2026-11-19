@@ -71,6 +71,26 @@ Each level runs on a model matched to its job. The master, the managers and the 
 
 The default names come from xAI's model list and are not yet tested: each one has to support web search together with JSON output on the team's account, which needs checking when the key arrives.
 
+### Two ways to reach Grok
+
+Set `GROK_TRANSPORT` in `backend/.env`. The agents are the same either way; only the piece that sends a prompt and reads the answer changes.
+
+| | `api` (default) | `cli` |
+|---|---|---|
+| How | The xAI API over HTTPS (`src/grok.ts`) | The Grok Build CLI on this machine, `grok -p` (`src/grokCli.ts`) |
+| Paid by | API credits, per call, `XAI_API_KEY` | The Grok subscription of whoever ran `grok login` |
+| Good for | A deployed app with many students | Building and demoing on one laptop |
+| Structured answers | Enforced by the API with a JSON schema | Asked for in the prompt, checked on return, one retry |
+| Model tiers | `XAI_MODEL_*` | `GROK_CLI_MODEL_*`, otherwise the CLI's default for every level |
+| At once | 8 worker calls | 3 CLI processes (`GROK_CLI_CONCURRENCY`) |
+
+Cautions for `cli`:
+
+- Grok Build is a coding agent that can read files and run commands. Each call runs in an empty temporary folder and the prompt tells it to use web search only. `GROK_CLI_ALWAYS_APPROVE=1` lets it use tools without asking, which web search may need; that also removes the approval step for anything a web page might talk it into, so turn it on only on a machine and account you are comfortable with.
+- Every student's agents run on one person's subscription and its limits.
+- Whether xAI's terms allow running an app this way has not been checked.
+- Not yet run against the real CLI: its JSON output format and whether web search works in headless mode still need testing.
+
 ### Search managers scale to what the student wants
 
 Search managers are not fixed one per category. Every run has the same number of manager slots, and the master decides how to fill them.
@@ -223,7 +243,11 @@ Steps 1 to 3 need no key and come first. If time runs out, steps 5 and 6 stay on
 
 **Built (in `src/agents/`, watch it at http://localhost:8787/ after `npm run dev`):** the run loop from section 1 with the master agent, four search manager slots that scale to the student's categories, the worker fleet (job queue, concurrency cap, budgets, one retry, shared dedupe), validation agents, application readers, the presentation manager, memory and the scoring from section 5, automatic runs on profile change, on five reactions and on a timer, and a live event stream. Without a Grok key the agents are simulated: the same roles and data flow, with decisions made by rules over an invented catalog (`src/agents/catalog.ts`). The live Grok version of every agent is written (`src/agents/grokBrain.ts`) but has never run against a real key.
 
-**Not built:** roadmap builder, career discovery, application statuses with reminders and calendar, saving agent-system state to Firestore (it is held in memory and lost on restart), and the dashboard connection.
+**Sign-in with Google or with email and password (backend only):** built on Firebase Authentication, project `bearok-ef3fa`. The frontend signs the student in with either method and sends the Firebase ID token as `Authorization: Bearer <token>` (or `?token=` on the live stream). The backend verifies it and gives that student their own agent system under `/api/students/me/`. `GET /api/auth/config` returns the Firebase settings the frontend needs, and `GET /api/auth/me` returns the signed-in user. No sign-in screen is included. The demo student under `/api/students/demo/` stays open. `GET /api/auth/me` also says which method was used and whether an email address has been verified. It switches on when `FIREBASE_WEB_API_KEY` and `FIREBASE_PROJECT_ID` are set in `backend/.env`.
+
+**Application manager (backend only):** built. `PUT /api/students/:id/applications/:oppId` sets the status (`interested`, `to_apply`, `applying`, `applied`), saves draft answers, or supplies a deadline the posting did not state. `GET .../applications` lists them, soonest deadline first, with the prompts and materials the application readers collected. Marking `to_apply` or `applying` creates reminders on its own (a week before, two days before, the day of) and an "Add to Google Calendar" link. If the request carries the student's Google access token in `X-Google-Access-Token` (the frontend gets it at Google sign-in by asking for the `calendar.events` permission), the deadline is put on their Google Calendar as an all-day event with the same three reminders, and removed again when the status becomes `applied`. The token is used for that call and not stored. A posting with no deadline gets no reminder and is flagged `needsDeadline`. The Google Calendar call is tested against a stand-in, not yet against a real account. Reminders are data for the frontend to show; nothing sends an email or notification.
+
+**Not built:** roadmap builder, career discovery, saving agent-system state to Firestore (it is held in memory and lost on restart), and the dashboard connection.
 
 **Earlier prototype, still present:** In `backend/` today: one coordinator, two Grok search workers (clubs and events), deterministic validation (merging reposts, dropping unsupported dates, date and link checks), a Grok verify pass, a Firestore store and a local-file store, an HTTP API driven by a typed request, and 12 passing tests. The live Grok calls and Firestore have never run against real credentials.
 

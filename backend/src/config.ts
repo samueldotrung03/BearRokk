@@ -15,10 +15,34 @@ export const config = {
     normal: env.XAI_MODEL_NORMAL ?? 'grok-4.5',
     low: env.XAI_MODEL_LOW ?? 'grok-4.3',
   },
+  /**
+   * How the agents reach Grok. "api": the xAI API with XAI_API_KEY, billed per call.
+   * "cli": the Grok Build CLI on this machine, signed in with a Grok subscription.
+   */
+  grokTransport: (env.GROK_TRANSPORT === 'cli' ? 'cli' : 'api') as 'api' | 'cli',
+  grokCli: {
+    bin: env.GROK_CLI_BIN ?? 'grok',
+    /** Model names for the CLI, if it should not use its default. */
+    models: { high: env.GROK_CLI_MODEL_HIGH || undefined, normal: env.GROK_CLI_MODEL_NORMAL || undefined, low: env.GROK_CLI_MODEL_LOW || undefined },
+    /** Let the CLI use its tools without asking. Needed for web search if the CLI asks for approval. */
+    alwaysApprove: env.GROK_CLI_ALWAYS_APPROVE === '1',
+    timeoutMs: Number(env.GROK_CLI_TIMEOUT_MS ?? 240_000),
+    /** CLI processes running at once. Each one is a full program, so far fewer than API calls. */
+    concurrency: Number(env.GROK_CLI_CONCURRENCY ?? 3),
+  },
   /** Also give workers the X search tool. Off unless the account supports it. */
   xSearch: env.XAI_X_SEARCH === '1',
   /** Path to a Firebase service account JSON file. Without it, results stay in a local file. */
   firebaseServiceAccount: env.FIREBASE_SERVICE_ACCOUNT?.trim() || null,
+  /**
+   * Firebase web settings for Google sign-in (Project settings > Your apps > Web app).
+   * Sign-in is on when apiKey and projectId are both set.
+   */
+  firebaseWeb: {
+    apiKey: env.FIREBASE_WEB_API_KEY?.trim() || null,
+    projectId: env.FIREBASE_PROJECT_ID?.trim() || null,
+    authDomain: env.FIREBASE_AUTH_DOMAIN?.trim() || null,
+  },
   maxResultsPerType: Number(env.MAX_RESULTS_PER_TYPE ?? 3),
   grokTimeoutMs: Number(env.GROK_TIMEOUT_MS ?? 120_000),
   /** Pause between prepared-mode stages so the dashboard can show progress. */
@@ -26,4 +50,5 @@ export const config = {
   localDataFile: env.LOCAL_DATA_FILE ?? new URL('../.data/store.json', import.meta.url).pathname,
 };
 
-export const liveAvailable = () => config.xaiApiKey !== null;
+/** Live Grok is available with an API key, or when the subscription CLI is chosen. */
+export const liveAvailable = () => config.grokTransport === 'cli' || config.xaiApiKey !== null;

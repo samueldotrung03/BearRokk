@@ -1,9 +1,8 @@
 // Firestore layout:
 //   searches/{searchId}                         one Search document
 //   searches/{searchId}/opportunities/{oppId}   one Opportunity document per validated result
-import { readFileSync } from 'node:fs';
-import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { firebaseApp } from '../firebase.ts';
 import type { Opportunity, Search } from '../types.ts';
 import type { Store } from './index.ts';
 
@@ -15,9 +14,9 @@ export class FirestoreStore implements Store {
     this.db = db;
   }
 
-  static open(serviceAccountPath: string) {
-    const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
-    const app = initializeApp({ credential: cert(serviceAccount) });
+  static open() {
+    const app = firebaseApp();
+    if (!app) throw new Error('Firebase is not configured');
     return new FirestoreStore(getFirestore(app));
   }
 

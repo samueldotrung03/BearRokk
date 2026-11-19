@@ -216,6 +216,43 @@ export interface MemorySummary {
   categoryWeights: Record<Category, number>;
 }
 
+export type ApplicationStatus = 'interested' | 'to_apply' | 'applying' | 'applied';
+export const APPLICATION_STATUSES: ApplicationStatus[] = ['interested', 'to_apply', 'applying', 'applied'];
+
+export interface Reminder {
+  /** ISO time the student should be reminded. */
+  at: string;
+  label: string;
+}
+
+/** One opportunity the student is tracking, with everything needed to apply. */
+export interface Application {
+  opportunityId: string;
+  title: string;
+  organizer: string;
+  status: ApplicationStatus;
+  updatedAt: string;
+  deadline: string | null;
+  /** Where the student submits. */
+  actionUrl: string | null;
+  prompts: string[];
+  materials: string[];
+  /** The student's draft answers, by prompt text. */
+  drafts: Record<string, string>;
+  /** Set automatically while the status is to_apply or applying. Empty otherwise. */
+  reminders: Reminder[];
+  /** True when reminders are wanted but the posting gives no deadline to hang them on. */
+  needsDeadline: boolean;
+  calendar: {
+    /** synced: the deadline is on the student's Google Calendar. link: only the add-to-calendar link is available. */
+    state: 'none' | 'link' | 'synced';
+    eventId: string | null;
+    htmlLink: string | null;
+    addUrl: string | null;
+    error: string | null;
+  };
+}
+
 /** Search job a manager hands to a scout. */
 export interface ScoutSpec {
   label: string;
