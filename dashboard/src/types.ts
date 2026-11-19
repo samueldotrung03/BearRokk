@@ -36,6 +36,8 @@ export interface Opportunity {
   startTime: string | null;
   /** Cover photo. In the live product this is the posting's own preview image. */
   image: string | null;
+  /** Short looping clip the For you reel plays. The photo is its poster and its fallback. */
+  video: string | null;
   /** Width divided by height the cover is shown at, so the grid has varied tile heights. */
   imageAspect: number;
   tags: string[];
@@ -58,6 +60,14 @@ export interface RoadmapStep {
   due: string | null;
 }
 
+/** One thing the goal asks for. It is met by a skill on the profile or by finishing a step. */
+export interface Requirement {
+  id: string;
+  label: string;
+  skill: string | null;
+  stepId: string | null;
+}
+
 export interface RoadmapPhase {
   id: string;
   title: string;
@@ -69,7 +79,43 @@ export interface Roadmap {
   goalId: string;
   goal: string;
   summary: string;
+  requirements: Requirement[];
   phases: RoadmapPhase[];
+}
+
+/**
+ * What one person who reached the goal did on the way, as read from their public profile. No
+ * name is kept: the roadmap needs the pattern across many people, not who any one of them is.
+ */
+export interface PathProfile {
+  id: string;
+  goalId: string;
+  /** Where they ended up, in general terms. */
+  outcome: string;
+  /** Their class year when they got it. */
+  year: ClassYear;
+  /** The few things on the profile that came before the outcome, oldest first. */
+  timeline: string[];
+  /** Roadmap steps this person's history matches. */
+  did: string[];
+}
+
+export type ApplicationStatus = 'interested' | 'to_apply' | 'applying' | 'applied';
+
+/** What the agents read off an application page. Mirrors `ApplicationInfo` in the backend. */
+export interface ApplicationInfo {
+  prompts: string[];
+  materials: string[];
+  /** The questions sit behind a sign-in on the organizer's site, so the agents could not read them. */
+  requiresLogin: boolean;
+}
+
+/** The student's own record for one opportunity they are pursuing. */
+export interface Application {
+  status: ApplicationStatus;
+  /** Draft answers, keyed by the prompt's position. */
+  drafts: Record<string, string>;
+  materialsDone: string[];
 }
 
 export type MatchLevel = 'strong' | 'good' | 'explore';

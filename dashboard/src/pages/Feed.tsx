@@ -8,10 +8,12 @@ import {
   CaretDown,
   CaretUp,
   Clock,
+  Heart,
   Info,
   MapPin,
+  Play,
   Sparkle,
-  X,
+  ThumbsDown,
 } from '@phosphor-icons/react';
 import { PanelLeft, Search, SlidersHorizontal, Undo2, X as XSmall } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -19,9 +21,10 @@ import { Link } from 'react-router';
 import { BrandMark } from '../components/Brand.tsx';
 import { toggleDock } from '../components/Dock.tsx';
 import { formatLabel, typeMeta } from '../components/meta.ts';
-import { Masonry } from '../components/Masonry.tsx';
-import { Cover, Details, OpportunityCard } from '../components/OpportunityCard.tsx';
+import { Cover, Details, OpportunityTile } from '../components/OpportunityCard.tsx';
+import { RoadmapPanel } from '../components/RoadmapPanel.tsx';
 import { opportunities } from '../data/sample.ts';
+import { planFor } from '../lib/roadmap.ts';
 import { daysUntil, dueLabel, shortDate } from '../lib/time.ts';
 import { rankFeedDetailed, signalLabel, type RankedOpportunity } from '../state/ranking.ts';
 import { useStore } from '../state/StoreProvider.tsx';
@@ -64,12 +67,75 @@ function RailButton({
   );
 }
 
+/**
+ * The moving picture behind a reel card. It plays, muted and looping, only while its card is
+ * the one on screen, and falls back to the photo when there is no clip or it cannot load.
+ */
+function ReelVideo({ opportunity: o, active }: { opportunity: Opportunity; active: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  const [failed, setFailed] = useState(false);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (active && !paused && !still) {
+      // Autoplay can be refused; the poster stays up and a click starts it.
+      video.play().catch(() => setPaused(true));
+    } else {
+      video.pause();
+      if (!active) video.currentTime = 0;
+    }
+  }, [active, paused]);
+
+  if (!o.video || failed) return <Cover opportunity={o} className="absolute inset-0 size-full" />;
+  return (
+    <>
+      <video
+        ref={ref}
+        src={o.video}
+        poster={o.image ?? undefined}
+        muted
+        loop
+        playsInline
+        preload={active ? 'auto' : 'metadata'}
+        onError={() => setFailed(true)}
+        onTimeUpdate={(event) => {
+          const { currentTime, duration } = event.currentTarget;
+          if (bar.current && duration) bar.current.style.width = `${(currentTime / duration) * 100}%`;
+        }}
+        className="absolute inset-0 size-full object-cover"
+      />
+      <button
+        type="button"
+        className="reel-video-toggle"
+        aria-label={paused ? 'Play video' : 'Pause video'}
+        onClick={() => setPaused((value) => !value)}
+      >
+        {paused && (
+          <span className="reel-video-play">
+            <Play className="size-7" weight="fill" aria-hidden="true" />
+          </span>
+        )}
+      </button>
+      <div className="reel-video-progress" aria-hidden="true">
+        <div ref={bar} />
+      </div>
+    </>
+  );
+}
+
 function Slide({
   ranked,
+  active,
   onDismiss,
   onDetails,
 }: {
   ranked: RankedOpportunity;
+  /** This card is the one on screen. */
+  active: boolean;
   onDismiss: (o: Opportunity) => void;
   onDetails: (o: Opportunity) => void;
 }) {
@@ -77,6 +143,7 @@ function Slide({
   const o = ranked.opportunity;
   const meta = typeMeta[o.type];
   const saved = state.saved.includes(o.id);
+  const liked = state.liked.includes(o.id);
   const place = [o.format ? formatLabel[o.format] : null, o.location].filter(Boolean).join(' · ');
   const urgent = o.deadline !== null && daysUntil(o.deadline) <= 7;
 
@@ -84,7 +151,7 @@ function Slide({
     <section className="reel-slide" aria-labelledby={`${o.id}-title`}>
       <div className="reel-stage">
         <article className="reel-card">
-          <Cover opportunity={o} className="absolute inset-0 size-full" />
+          <ReelVideo opportunity={o} active={active} />
           <div className="reel-shade" aria-hidden="true" />
 
           <div className="reel-body">
@@ -137,8 +204,11 @@ function Slide({
           <RailButton label={saved ? 'Saved' : 'Save'} active={saved} onClick={() => dispatch({ type: 'toggleSaved', id: o.id })}>
             <BookmarkSimple weight="fill" aria-hidden="true" />
           </RailButton>
-          <RailButton label="Not for me" onClick={() => onDismiss(o)}>
-            <X weight="bold" aria-hidden="true" />
+          <RailButton label={liked ? 'Liked' : 'Like'} active={liked} onClick={() => dispatch({ type: 'toggleLiked', id: o.id })}>
+            <Heart weight="fill" aria-hidden="true" />
+          </RailButton>
+          <RailButton label="Dislike" onClick={() => onDismiss(o)}>
+            <ThumbsDown weight="fill" aria-hidden="true" />
           </RailButton>
           <RailButton label="Details" onClick={() => onDetails(o)}>
             <Info weight="fill" aria-hidden="true" />
@@ -175,13 +245,24 @@ export function Feed() {
   const [index, setIndex] = useState(0);
   const [details, setDetails] = useState<Opportunity | null>(null);
   const [lastDismissed, setLastDismissed] = useState<Opportunity | null>(null);
+  // The card to light up while its step is hovered in the roadmap panel.
+  const [lit, setLit] = useState<string | null>(null);
+  const plan = planFor(state);
   const scroller = useRef<HTMLDivElement>(null);
 
-  // The order is fixed when the feed is opened or refreshed. Saving a card must not reshuffle
-  // the reel under the student's thumb; what they do shows up in the next ranking.
-  const [basis, setBasis] = useState(state);
-  const ranked = useMemo(() => rankFeedDetailed(opportunities, basis), [basis]);
-  const slides = ranked.filter((r) => !state.dismissed.includes(r.opportunity.id));
+  // The ranking runs again on every save, like and dislike, but only for cards the student has
+  // not reached yet: cards already scrolled past keep their place, so nothing moves under the thumb.
+  const [seen, setSeen] = useState<string[]>([]);
+  const live = useMemo(() => rankFeedDetailed(opportunities, state), [state]);
+  const slides = useMemo(() => {
+    const byId = new Map(live.map((r) => [r.opportunity.id, r]));
+    const kept = seen.map((id) => byId.get(id)).filter((r): r is RankedOpportunity => r !== undefined);
+    return [...kept, ...live.filter((r) => !seen.includes(r.opportunity.id))];
+  }, [live, seen]);
+  useEffect(() => {
+    const reached = slides.slice(0, index + 1).map((r) => r.opportunity.id);
+    if (reached.some((id) => !seen.includes(id))) setSeen(reached);
+  }, [index, slides, seen]);
 
   const present = new Set(slides.map((r) => r.opportunity.type));
   const typeOptions = (Object.keys(typeMeta) as OpportunityType[]).filter((t) => present.has(t));
@@ -195,7 +276,7 @@ export function Feed() {
     setFormat('any');
     setClosingSoon(false);
   };
-  const results = slides
+  const results = live
     .map((r) => r.opportunity)
     .filter(
       (o) =>
@@ -263,7 +344,7 @@ export function Feed() {
     setLastDismissed(o);
   };
   const refresh = () => {
-    setBasis(state);
+    setSeen([]);
     setLastDismissed(null);
     toTop();
   };
@@ -327,8 +408,8 @@ export function Feed() {
             tabIndex={0}
             aria-label="Recommended opportunities. Scroll or use the arrow keys to move between them."
           >
-            {slides.map((r) => (
-              <Slide key={r.opportunity.id} ranked={r} onDismiss={dismiss} onDetails={setDetails} />
+            {slides.map((r, position) => (
+              <Slide key={r.opportunity.id} ranked={r} active={tab === 'foryou' && position === index && !details} onDismiss={dismiss} onDetails={setDetails} />
             ))}
 
             <section className="reel-slide" aria-label="End of feed">
@@ -368,13 +449,15 @@ export function Feed() {
         </>
       ) : (
         <div ref={scroller} className="feed-scroller">
-          <div className="mx-auto max-w-6xl">
-            <h1 className="font-display text-5xl leading-tight text-white">Feed</h1>
-            <p className="mt-1 text-[15px] font-medium text-white/90">
-              Everything your agents found, in one place. {results.length} of {slides.length} shown.
-            </p>
+          <div className="feed-board">
+            <div className="flex flex-wrap items-baseline gap-x-4">
+              <h1 className="font-display text-4xl leading-tight text-white">Feed</h1>
+              <p className="text-[15px] font-medium text-white/90">
+                Everything your agents found, next to your roadmap. {results.length} of {slides.length} shown.
+              </p>
+            </div>
 
-            <div className="feed-toolbar mt-5">
+            <div className="feed-toolbar mt-3">
               <label className="feed-search">
                 <Search className="size-[18px] shrink-0 text-ink-3" aria-hidden="true" />
                 <span className="sr-only">Search the feed</span>
@@ -458,7 +541,7 @@ export function Feed() {
             </div>
 
             {/* What is switched on, each removable, so the grid never looks filtered for no reason. */}
-            <div className="mt-3 mb-6 flex min-h-2 flex-wrap items-center gap-2">
+            <div className="feed-active">
               {types.map((value) => (
                 <button key={value} type="button" onClick={() => toggleType(value)} className="feed-chip">
                   {typeMeta[value].plural}
@@ -487,24 +570,35 @@ export function Feed() {
               )}
             </div>
 
-            {results.length === 0 ? (
-              <div className="reel-end mx-auto">
-                <h2 className="font-display text-3xl leading-tight">
-                  {filtersOn ? 'Nothing matches those filters' : 'Nothing here right now'}
-                </h2>
-                <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">
-                  {filtersOn
-                    ? 'Try fewer words or clear the filters.'
-                    : 'Your agents are still searching. New cards appear here as they are verified.'}
-                </p>
-              </div>
-            ) : (
-              <Masonry>
-                {results.map((o) => (
-                  <OpportunityCard key={o.id} opportunity={o} onDismiss={dismiss} />
-                ))}
-              </Masonry>
-            )}
+            <div className="feed-main">
+              {results.length === 0 ? (
+                <div className="grid place-items-center">
+                  <div className="reel-end">
+                    <h2 className="font-display text-3xl leading-tight">
+                      {filtersOn ? 'Nothing matches those filters' : 'Nothing here right now'}
+                    </h2>
+                    <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">
+                      {filtersOn
+                        ? 'Try fewer words or clear the filters.'
+                        : 'Your agents are still searching. New cards appear here as they are verified.'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="feed-grid" data-count={Math.min(results.length, 8)}>
+                  {results.map((o) => (
+                    <OpportunityTile
+                      key={o.id}
+                      opportunity={o}
+                      onDismiss={dismiss}
+                      onRoadmap={plan.steps.some((step) => step.opportunityId === o.id && !state.doneSteps.includes(step.id))}
+                      lit={o.id === lit}
+                    />
+                  ))}
+                </div>
+              )}
+              <RoadmapPanel highlight={setLit} />
+            </div>
           </div>
         </div>
       )}
