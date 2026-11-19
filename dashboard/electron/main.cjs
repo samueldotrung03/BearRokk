@@ -1,7 +1,7 @@
 // Desktop shell for the dashboard. It hosts the built web app and runs the agent backend beside
 // it (backend.cjs). No Node access is given to the page, and links to outside sites open in the
 // system browser instead of inside the app.
-const { app, BrowserWindow, ipcMain, shell, systemPreferences } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, shell, systemPreferences } = require('electron');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -28,7 +28,7 @@ function createWindow() {
     // macOS: no title bar. The page runs to the top edge and the window buttons float over it;
     // the page leaves room for them and marks its top strip as the place to drag the window.
     ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 26, y: 26 } } : {}),
-    backgroundColor: '#f3f7fc',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0a0b0f' : '#f3f7fc',
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -87,6 +87,17 @@ ipcMain.handle('permissions:open', (_event, kind) => {
 });
 
 backend.mount();
+
+// Clicking a deadline notification: the page's own window.focus() is not relied on to raise or
+// un-minimize the window, so the page asks the shell to bring it to the front.
+ipcMain.on('window:focus', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  if (process.platform === 'darwin') app.focus({ steal: true });
+});
 
 app.whenReady().then(async () => {
   // The page needs the backend from its first request, so it is started before the window opens.

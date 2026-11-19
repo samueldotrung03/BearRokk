@@ -7,6 +7,7 @@ import { authMessage } from '../auth/errors.ts';
 import { looksLikeEmail, markOnboarded, passwordChecks, passwordOk } from '../auth/onboarding.ts';
 import { AuthShell, CardTitle, linkClass, Message, PasswordField, QuietButton, SubmitButton, TextField } from '../auth/ui.tsx';
 import { careerOptions, eventOptions, interestOptions, skillOptions } from '../data/sample.ts';
+import { goalForProfile } from '../lib/personalize.ts';
 import { useStore } from '../state/StoreProvider.tsx';
 import type { ClassYear } from '../types.ts';
 
@@ -176,6 +177,8 @@ export function SignUp() {
       about: careers.length && !careers.includes('Not sure yet') ? `Exploring ${careers.join(', ').toLowerCase()}.` : '',
     };
     dispatch({ type: 'setProfile', profile });
+    // The roadmap starts on the path these answers point to, unless the student already picked one.
+    dispatch({ type: 'suggestGoal', id: goalForProfile({ major: profile.major, careerInterests: careers }) });
     await auth.setDisplayName(fullName).catch(() => {});
     // Asking for kinds of event means events are wanted, whatever was picked below.
     const kinds = events.length && !wanted.includes('event') ? [...wanted, 'event'] : wanted;

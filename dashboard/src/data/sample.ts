@@ -2,6 +2,8 @@
 // Every organization here is made up and every link points to example.org. Dates are set
 // relative to today so the template never looks stale.
 import type { AppState } from '../state/store.ts';
+import { moreApplicationInfo, moreOpportunities } from './opportunities-more.ts';
+import { fieldPaths, fieldProfiles, fieldRoadmaps } from './fields.ts';
 import type { AgentEvent, AgentNode, ApplicationInfo, CareerPath, Opportunity, PathProfile, Roadmap } from '../types.ts';
 
 const HOUR = 3_600_000;
@@ -15,8 +17,29 @@ const link = (slug: string) => `https://example.org/${slug}`;
 const photo = (id: string) => `https://images.unsplash.com/photo-${id}?w=640&q=70&auto=format&fit=crop`;
 // Free stock clips from Mixkit, standing in for a posting's own video.
 const clip = (id: number) => `https://assets.mixkit.co/videos/${id}/${id}-720.mp4`;
+const still = (id: number) => `https://assets.mixkit.co/videos/${id}/${id}-thumb-720-0.jpg`;
 
-export const opportunities: Opportunity[] = [
+// Stock clips by kind of opportunity, for cards that arrive without a picture of their own.
+const coverClips: Record<Opportunity['type'], number[]> = {
+  internship: [1728, 46680, 41644, 46635],
+  research: [46748, 41658],
+  hackathon: [9011, 48166],
+  scholarship: [4560, 4519],
+  club: [29991, 4794],
+  event: [48165, 4788, 42666, 13231],
+};
+
+/**
+ * A stock clip and its still for a card with no picture. `pick` is any number from 0 to 1; the
+ * same card always gets the same clip.
+ */
+export function coverFor(type: Opportunity['type'], pick: number): { image: string; video: string } {
+  const pool = coverClips[type];
+  const id = pool[Math.min(pool.length - 1, Math.floor(pick * pool.length))]!;
+  return { image: still(id), video: clip(id) };
+}
+
+const techOpportunities: Opportunity[] = [
   {
     id: 'opp-northwind-swe',
     type: 'internship',
@@ -201,7 +224,194 @@ export const opportunities: Opportunity[] = [
     lastCheckedAt: hoursAgo(8),
     baseScore: 0.66,
   },
+  {
+    id: 'opp-cinder-backend',
+    type: 'internship',
+    origin: 'prepared',
+    title: 'Backend Engineering Intern',
+    organizer: 'Cinder Payments',
+    sourceUrl: link('cinder-backend'),
+    actionUrl: link('cinder-backend/apply'),
+    format: 'online',
+    location: 'Remote',
+    fitExplanation:
+      'Asks for Java or Python and one systems course. You have both, and the team builds the kind of backend services your profile names.',
+    deadline: inDays(16),
+    startTime: null,
+    image: still(1728),
+    video: clip(1728),
+    imageAspect: 0.8,
+    tags: ['Java', 'APIs', 'Remote'],
+    unknowns: [],
+    foundAt: hoursAgo(5),
+    lastCheckedAt: minutesAgo(25),
+    baseScore: 0.86,
+  },
+  {
+    id: 'opp-systems-research',
+    type: 'research',
+    origin: 'prepared',
+    title: 'Research Assistant, Distributed Storage',
+    organizer: 'Systems Reliability Lab',
+    sourceUrl: link('systems-research'),
+    actionUrl: link('systems-research/apply'),
+    format: 'in_person',
+    location: 'On campus',
+    fitExplanation:
+      'A systems lab that takes sophomores who know C++. It would give you the team project your roadmap is missing.',
+    deadline: inDays(19),
+    startTime: null,
+    image: still(46748),
+    video: clip(46748),
+    imageAspect: 0.8,
+    tags: ['Systems', 'C++', 'Spring 2027'],
+    unknowns: [],
+    foundAt: hoursAgo(20),
+    lastCheckedAt: minutesAgo(40),
+    baseScore: 0.83,
+  },
+  {
+    id: 'opp-data-hack',
+    type: 'hackathon',
+    origin: 'prepared',
+    title: 'Open Data Datathon',
+    organizer: 'Civic Data Collective',
+    sourceUrl: link('data-hack'),
+    actionUrl: link('data-hack/apply'),
+    format: 'hybrid',
+    location: 'Oakland, CA',
+    fitExplanation:
+      'Teams of three build something with public data in a weekend. It doubles as SQL practice, which your roadmap still needs.',
+    deadline: inDays(15),
+    startTime: inDays(20),
+    image: still(9011),
+    video: clip(9011),
+    imageAspect: 0.8,
+    tags: ['SQL', 'Data', 'Teams of 3'],
+    unknowns: [],
+    foundAt: hoursAgo(9),
+    lastCheckedAt: minutesAgo(29),
+    baseScore: 0.8,
+  },
+  {
+    id: 'opp-transfer-scholarship',
+    type: 'scholarship',
+    origin: 'prepared',
+    title: 'Transfer Scholars in Computing Award',
+    organizer: 'Alder Foundation',
+    sourceUrl: link('transfer-scholarship'),
+    actionUrl: link('transfer-scholarship/apply'),
+    format: 'online',
+    location: null,
+    fitExplanation:
+      'For computing students who transferred from a community college. The application is two short essays and a transcript.',
+    deadline: inDays(30),
+    startTime: null,
+    image: still(4560),
+    video: clip(4560),
+    imageAspect: 0.8,
+    tags: ['$3,000', 'Transfer students'],
+    unknowns: [],
+    foundAt: hoursAgo(30),
+    lastCheckedAt: minutesAgo(50),
+    baseScore: 0.81,
+  },
+  {
+    id: 'opp-robotics-club',
+    type: 'club',
+    origin: 'prepared',
+    title: 'Campus Robotics Team',
+    organizer: 'Student Robotics Association',
+    sourceUrl: link('robotics-club'),
+    actionUrl: link('robotics-club/apply'),
+    format: 'in_person',
+    location: 'On campus',
+    fitExplanation:
+      'Weekly build sessions with a shared codebase in C++ and Python. Joining counts as the club step on your roadmap.',
+    deadline: null,
+    startTime: inDays(6),
+    image: still(29991),
+    video: clip(29991),
+    imageAspect: 0.8,
+    tags: ['Hardware', 'C++', 'Team project'],
+    unknowns: [],
+    foundAt: hoursAgo(48),
+    lastCheckedAt: minutesAgo(68),
+    baseScore: 0.78,
+  },
+  {
+    id: 'opp-cloud-workshop',
+    type: 'event',
+    origin: 'prepared',
+    title: 'Cloud Fundamentals Weekend Workshop',
+    organizer: 'Skyline Developer Group',
+    sourceUrl: link('cloud-workshop'),
+    actionUrl: link('cloud-workshop/apply'),
+    format: 'online',
+    location: 'Online',
+    fitExplanation:
+      'Two mornings covering deployment basics, free for students. Most backend postings in your feed list cloud experience as a plus.',
+    deadline: inDays(10),
+    startTime: inDays(11),
+    image: still(48165),
+    video: clip(48165),
+    imageAspect: 0.8,
+    tags: ['Cloud', 'Beginner', 'Free'],
+    unknowns: [],
+    foundAt: hoursAgo(14),
+    lastCheckedAt: minutesAgo(34),
+    baseScore: 0.77,
+  },
+  {
+    id: 'opp-alumni-night',
+    type: 'event',
+    origin: 'prepared',
+    title: 'Engineers Meet Students Night',
+    organizer: 'Tidewater Alumni Network',
+    sourceUrl: link('alumni-night'),
+    actionUrl: link('alumni-night/apply'),
+    format: 'in_person',
+    location: 'Berkeley, CA',
+    fitExplanation:
+      'Working engineers answer questions in small groups. A good place to ask someone to review your resume.',
+    deadline: inDays(6),
+    startTime: inDays(8),
+    image: still(4788),
+    video: clip(4788),
+    imageAspect: 0.8,
+    tags: ['Networking', 'Alumni'],
+    unknowns: [],
+    foundAt: hoursAgo(26),
+    lastCheckedAt: minutesAgo(46),
+    baseScore: 0.74,
+  },
+  {
+    id: 'opp-quill-product',
+    type: 'internship',
+    origin: 'prepared',
+    title: 'Associate Product Intern',
+    organizer: 'Quill Labs',
+    sourceUrl: link('quill-product'),
+    actionUrl: link('quill-product/apply'),
+    format: 'hybrid',
+    location: 'San Jose, CA',
+    fitExplanation:
+      'A product role that wants a technical background. It is outside your main goal, shown because you opened two product posts.',
+    deadline: inDays(24),
+    startTime: null,
+    image: still(46680),
+    video: clip(46680),
+    imageAspect: 0.8,
+    tags: ['Product', 'User research'],
+    unknowns: [],
+    foundAt: hoursAgo(70),
+    lastCheckedAt: minutesAgo(90),
+    baseScore: 0.64,
+  },
 ];
+
+/** Every sample opportunity: the technology ones above and the ones for other fields. */
+export const opportunities: Opportunity[] = [...techOpportunities, ...moreOpportunities];
 
 export const roadmaps: Roadmap[] = [
   {
@@ -562,6 +772,7 @@ export const roadmaps: Roadmap[] = [
       },
     ],
   },
+  ...fieldRoadmaps,
 ];
 
 /**
@@ -858,6 +1069,7 @@ export const pathProfiles: PathProfile[] = [
     timeline: ['Product briefs', 'Hackathon lead', 'Info session'],
     did: ['step-pm-writing', 'step-pm-lead', 'step-pm-info'],
   },
+  ...fieldProfiles,
 ];
 
 /**
@@ -865,6 +1077,27 @@ export const pathProfiles: PathProfile[] = [
  * worker fleet fills this in; here it is written by hand.
  */
 export const applicationInfo: Record<string, ApplicationInfo> = {
+  ...moreApplicationInfo,
+  'opp-cinder-backend': {
+    prompts: ['Describe a service or API you built. What would you change now? (200 words)'],
+    materials: ['Resume (PDF)', 'Link to a code sample'],
+    requiresLogin: false,
+  },
+  'opp-systems-research': {
+    prompts: ['Why are you interested in storage systems? (150 words)'],
+    materials: ['Resume (PDF)', 'Unofficial transcript'],
+    requiresLogin: false,
+  },
+  'opp-data-hack': { prompts: [], materials: ['Team name or "looking for a team"'], requiresLogin: false },
+  'opp-transfer-scholarship': {
+    prompts: ['What did transferring teach you? (300 words)', 'How would this award change your year? (200 words)'],
+    materials: ['Unofficial transcript', 'Proof of transfer'],
+    requiresLogin: false,
+  },
+  'opp-robotics-club': { prompts: [], materials: ['Interest form'], requiresLogin: false },
+  'opp-cloud-workshop': { prompts: [], materials: ['Registration'], requiresLogin: false },
+  'opp-alumni-night': { prompts: [], materials: ['RSVP', 'Printed resume'], requiresLogin: false },
+  'opp-quill-product': { prompts: [], materials: ['Resume (PDF)'], requiresLogin: true },
   'opp-northwind-swe': {
     prompts: [
       'Tell us about a project you built with other people. What was your part? (200 words)',
@@ -903,6 +1136,7 @@ export const applicationInfo: Record<string, ApplicationInfo> = {
 export const careerPaths: CareerPath[] = [
   {
     id: 'path-swe',
+    group: 'Technology',
     title: 'Software engineering',
     oneLine: 'Build and run the systems behind products people use.',
     match: 'strong',
@@ -913,6 +1147,7 @@ export const careerPaths: CareerPath[] = [
   },
   {
     id: 'path-ml',
+    group: 'Technology',
     title: 'Machine learning engineering',
     oneLine: 'Train models and turn them into something a product can rely on.',
     match: 'good',
@@ -923,6 +1158,7 @@ export const careerPaths: CareerPath[] = [
   },
   {
     id: 'path-data',
+    group: 'Technology',
     title: 'Data engineering',
     oneLine: 'Move and shape data so analysts and models can trust it.',
     match: 'good',
@@ -933,6 +1169,7 @@ export const careerPaths: CareerPath[] = [
   },
   {
     id: 'path-pm',
+    group: 'Technology',
     title: 'Product management',
     oneLine: 'Decide what gets built, and why, with engineers and designers.',
     match: 'explore',
@@ -941,6 +1178,7 @@ export const careerPaths: CareerPath[] = [
     expects: ['Clear writing', 'Evidence of leading a team to a result', 'Enough technical depth to earn trust'],
     firstSteps: ['Lead a hackathon team', 'Write one product teardown', 'Attend a PM info session'],
   },
+  ...fieldPaths,
 ];
 
 export const agents: { master: AgentNode; managers: AgentNode[]; workers: AgentNode[] } = {
@@ -1104,7 +1342,11 @@ export const initialState: AppState = {
   doneSteps: ['step-ds'],
   extraSteps: [],
   // One application already under way, so the Applications page and the roadmap have something to show.
-  applications: { 'opp-northwind-swe': { status: 'to_apply', drafts: {}, materialsDone: ['Resume (PDF)'] } },
+  applications: {
+    'opp-northwind-swe': { status: 'to_apply', drafts: {}, materialsDone: ['Resume (PDF)'] },
+    'opp-cinder-backend': { status: 'interested', drafts: {}, materialsDone: [] },
+    'opp-transfer-scholarship': { status: 'applied', drafts: {}, materialsDone: ['Unofficial transcript', 'Proof of transfer'] },
+  },
   goalId: 'path-swe',
   profile: {
     name: 'Maya',

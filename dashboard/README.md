@@ -155,3 +155,44 @@ An opportunity's window does not show a roadmap by default. It has a **Start the
 Each For you card plays a short muted, looping clip (`video` on the opportunity) instead of a still photo. Only the card on screen plays; clicking the picture pauses it, a thin bar shows progress, and the photo is the poster and the fallback when a clip is missing or fails. The sample clips are free stock videos loaded from Mixkit, so they need a network connection.
 
 The ranking runs again on every save, like and dislike. Cards the student already scrolled past keep their place; everything below the current card is re-ranked at once. A reaction counts in full for the same type and at half strength for sibling types (internship, research and scholarship are one family; event, hackathon and club the other).
+
+## Feed filters
+
+The Filters panel on the Feed tab filters by type, deadline window (this week, two weeks, a month, or no deadline), format, lowest fit score, and "only show" rules (saved, liked, on my roadmap, new today). Every choice shows how many cards it would leave given the search and the other filters, and a choice that would leave none is dimmed. Active filters appear as removable chips under the toolbar. The logic is in `src/lib/filters.ts`.
+
+## Calendar
+
+The Calendar page (`/calendar`) puts everything with a date on one month view: application deadlines, the reminders before them, start times, and roadmap steps, including the steps of any roadmap started for a single opportunity. `src/lib/calendar.ts` builds the list from the store. Each item is either **have to do** (orange: the student marked the opportunity "To apply" or "Applying", or already applied) or **should do** (blue: a roadmap step, or something saved or liked), and carries a sentence on why it is there. Picking a day shows its items with that reason, a tick box for roadmap steps, and links to the details, the roadmap or the applications. Tiles at the top count this week's items and anything overdue.
+
+## AI features on every page
+
+All of these are generated locally by rules over the sample data, each behind one function or interface that a Grok call can replace, and each page says so in a small line.
+
+- **Ask BearRok** (button in the corner or Cmd/Ctrl+K, `src/lib/assistant.ts`): answers from the feed, roadmap, applications and calendar, and offers the next action as a button. Nothing changes until the button is pressed.
+- **Command-/ launcher** (`src/components/Spotlight.tsx`, `src/lib/spotlight.ts`): a Spotlight-style search over pages, opportunities, roadmap steps and quick actions, with a preview pane and keyboard control.
+- **Feed roadmap panel** (`src/lib/roadmapMatch.ts`): a coach line on what to do first and why, and the opportunities in the feed that would cover unfinished roadmap steps. Feed cards are a fixed 216 by 288.
+- **Roadmap** (`src/lib/roadmapx/`): "Ask your roadmap" coach, Plan my week, readiness score, timeline view, "why this step" drawer with notes and resources, milestones, copy as text.
+- **Career discovery** (`src/lib/discover/`): six-question "Find my path" quiz, match explanations, detail view per path, "Ask about this career", compare table.
+- **Applications** (`src/lib/apps/`): "Outline my answer" and "Check my draft" on every question (outlines use only profile and posting facts and leave marked blanks), readiness score, "What to do next", board view, follow-up checklist, notes, one .ics export.
+- **Calendar** (`src/lib/cal/`): Today's brief, Plan my week with accept and undo, clash warnings, month, week and agenda views, personal items, filters, .ics export.
+- **Agents** (`src/lib/agents/`): a live map of the hierarchy (master, search managers, scouts and readers, validators, presentation) with pulses along the connectors, driven by a seeded run engine with Run, Pause, speed and Reset. "Tell your agents" turns a typed instruction into the master agent's brief; a validation funnel shows what was dropped and why; usage, budget and memory cards. The run is a simulation on sample data and the page says so. A chip shows whether the backend on port 8787 is reachable.
+
+## Every field, not only technology
+
+- **14 career paths in five fields** (technology, finance and business, science, engineering and health, policy, law and society, media and creative). The four technology paths are in `src/data/sample.ts`; the other ten are compact specs in `src/data/fields.ts`, expanded into the same shapes: a roadmap, sample profiles for the "what people actually did" evidence, discovery details and step hours.
+- **Roadmap goal picker:** pick a field, then a goal in it. **Career discovery:** a seven-question quiz that never assumes coding, the top matches with "Show all fields", and compare across fields.
+- **Sample opportunities for every field** are in `src/data/opportunities-more.ts`, with `opportunityPaths` recording which paths each one leads toward.
+- **The feed follows the goal** (`src/state/ranking.ts`): an opportunity that leads to the chosen career is boosted and labelled "Toward your goal", one from another field is pushed down, and anything open to all majors is left alone.
+- While the backend runs simulated agents, the feed shows this sample set together with the backend's cards; real agent results are shown on their own. A backend card with no picture gets a stock clip for its type.
+
+## Today, explanations, notifications and personal start
+
+- **Dashboard** (`/today`, `src/pages/Today.tsx`, `src/lib/today/`, `src/components/today/`, `src/styles/dashboard.css`): the one place to keep track of everything. Four headline tiles (due this week, applications, roadmap, saved), then two columns. Left: the application pipeline by stage with readiness, what the goal asks for and which of it is met, profile strength, and new opportunities. Right: the next seven days with what is coming up and a box to add a reminder (the same reminders the Calendar keeps), the roadmap's next steps (tick them off in place), and what the agents are doing. Every card links to the page that owns it.
+- **"Why this?"** on each reel card (`explain` in `src/state/ranking.ts`, `src/components/WhyThis.tsx`): the reasons behind the card's rank, taken from the same numbers the score uses, with "Show me less like this".
+- **Field filter** in the Feed's Filters (`src/lib/filters.ts`), with a "My field" shortcut for the current goal's field.
+- **Agents page shows the backend's run** when the backend has one (`src/lib/agents/fromLive.ts`), labelled by what ran it: Grok, the Claude test set-up, or simulated agents. With no backend it plays the local simulation.
+- **Notifications** (`src/lib/notify/`, `src/components/DeadlineNotifier.tsx`): system notifications for deadlines, reminders, events and roadmap steps, switched on in Settings. Off by default; permission is only asked when the student switches it on.
+- **Personal start** (`src/lib/personalize.ts`): a signed-in student's profile and field set the starting goal, and each account keeps its own saved state (`bearrok.dashboard.v3.<uid>`). A guest sees the sample student. Settings has "Start a clean demo".
+- The sidebar, the Command-/ launcher and the Ask BearRok panel share one dark glass style; Command (or Ctrl) with 1 to 9 opens the first nine pages.
+- **Keyboard shortcuts** (`src/lib/shortcuts.ts`, `src/components/ShortcutSettings.tsx`): Settings lists every shortcut (launcher, Ask BearRok, each page) and lets the student record a different one, remove one, or go back to the defaults. Only changes are saved (`bearrok.shortcuts`). The sidebar and the Ask button no longer show shortcut hints.
+- **Light and dark** (`src/lib/theme.ts`, `src/styles/theme.css`, `src/components/ThemePicker.tsx`): the student picks Light, Dark or Match system on the sign-in pages or in Settings. The choice is kept on the device (`bearrok.theme`) and applied as `data-theme` on `<html>` before the first paint. Colors come from tokens in `theme.css`; each page stylesheet ends with a "Dark theme" block. New styles should use the tokens (`--surface`, `--color-line`, `--color-ink`, `--brand-text`) so they work in both.

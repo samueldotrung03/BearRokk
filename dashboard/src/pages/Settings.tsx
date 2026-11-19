@@ -7,6 +7,9 @@ import { isDesktop } from '../auth/desktop.ts';
 import { authMessage } from '../auth/errors.ts';
 import { API_URL } from '../auth/firebase.ts';
 import type { GoogleService } from '../auth/google.ts';
+import { ThemePicker } from '../components/ThemePicker.tsx';
+import { NotifySettings } from '../components/NotifySettings.tsx';
+import { ShortcutSettings } from '../components/ShortcutSettings.tsx';
 import { Card, Page } from '../components/Page.tsx';
 import { desktopBridge, loadAllowed, saveAllowed, type GrokConnection, type PermissionKind, type PermissionState } from '../lib/desktopBridge.ts';
 
@@ -139,6 +142,16 @@ export function Settings() {
   return (
     <Page title="Settings" subtitle="What BearRok is connected to, and what its agents are allowed to do on this computer.">
       <div className="grid gap-6">
+        <Card className="p-7">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">Appearance</h2>
+              <p className="mt-1 text-sm text-ink-2">Light, dark, or the same as your computer. Kept on this device.</p>
+            </div>
+            <ThemePicker />
+          </div>
+        </Card>
+
         <Card className="p-7">
           <h2 className="text-lg font-semibold tracking-tight">Connections</h2>
           <p className="mt-1 text-sm text-ink-2">Services your agents use. You can disconnect any of them at any time.</p>
@@ -345,6 +358,8 @@ export function Settings() {
           </ul>
         </Card>
 
+        <NotifySettings />
+        <ShortcutSettings />
         <MoreSettings />
       </div>
     </Page>

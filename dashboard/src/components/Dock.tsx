@@ -3,6 +3,7 @@
 // the page moves over to make room.
 import {
   BookmarkSimple,
+  CalendarDots,
   ClipboardText,
   Compass,
   GearSix,
@@ -11,14 +12,16 @@ import {
   PushPin,
   PushPinSlash,
   Robot,
+  SquaresFour,
   UserCircle,
   X,
   type Icon,
 } from '@phosphor-icons/react';
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, NavLink } from 'react-router';
-import { roadmaps } from '../data/sample.ts';
+import { Link, NavLink, useNavigate } from 'react-router';
+import { agentEvents, agents, agentUsage, opportunities, roadmaps } from '../data/sample.ts';
+import { matchesShortcut, useShortcuts } from '../lib/shortcuts.ts';
 import { relativeTime } from '../lib/time.ts';
 import { useLive, useOpportunities, type LiveAgents } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
@@ -28,27 +31,28 @@ interface DockItem {
   to: string;
   label: string;
   icon: Icon;
-  /** Three colors that swirl inside the icon's orb. */
-  colors: [string, string, string];
   /** Sits at the bottom of the dock, apart from the main pages. */
   bottom?: boolean;
 }
 
 export const dockItems: DockItem[] = [
-  { to: '/', label: 'Feed', icon: House, colors: ['#3ad6ff', '#4f6bff', '#b14bff'] },
-  { to: '/roadmap', label: 'Roadmap', icon: Path, colors: ['#5cf2c0', '#19b5e6', '#3d6bff'] },
-  { to: '/discover', label: 'Career discovery', icon: Compass, colors: ['#ff7ad9', '#9a5bff', '#4f8cff'] },
-  { to: '/applications', label: 'Applications', icon: ClipboardText, colors: ['#7cf29c', '#22c4a6', '#2f7bff'] },
-  { to: '/saved', label: 'Saved', icon: BookmarkSimple, colors: ['#ffd15c', '#ff8a3d', '#ff4f8b'] },
-  { to: '/agents', label: 'Agents', icon: Robot, colors: ['#ff5fa2', '#ff7a45', '#b04bff'] },
-  { to: '/settings', label: 'Settings', icon: GearSix, colors: ['#c6d0e0', '#7f93b5', '#4f6bff'], bottom: true },
-  { to: '/profile', label: 'Profile', icon: UserCircle, colors: ['#9fb4ff', '#6a7cff', '#40e0d0'], bottom: true },
+  { to: '/today', label: 'Dashboard', icon: SquaresFour },
+  { to: '/', label: 'Feed', icon: House },
+  { to: '/roadmap', label: 'Roadmap', icon: Path },
+  { to: '/discover', label: 'Career discovery', icon: Compass },
+  { to: '/applications', label: 'Applications', icon: ClipboardText },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDots },
+  { to: '/saved', label: 'Saved', icon: BookmarkSimple },
+  { to: '/agents', label: 'Agents', icon: Robot },
+  { to: '/settings', label: 'Settings', icon: GearSix, bottom: true },
+  { to: '/profile', label: 'Profile', icon: UserCircle, bottom: true },
 ];
 
 const CLOSE_DELAY = 420;
 const PEEK_MS = 2600;
 const TOGGLE_EVENT = 'dock:toggle';
 const PIN_KEY = 'bearrok.dock.pinned';
+
 
 /** Lets a button elsewhere on the page pin the dock open, or unpin it. */
 export function toggleDock() {
@@ -251,15 +255,32 @@ export function Dock() {
     localStorage.setItem(PIN_KEY, pinned ? '1' : '0');
   }, [pinned]);
 
+  // Each page opens with its keyboard shortcut. Settings lists them and lets the student change them.
+  const navigate = useNavigate();
+  const { shortcuts } = useShortcuts();
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const item = dockItems.find((page) => matchesShortcut(event, shortcuts[`page:${page.to}`]));
+      if (!item) return;
+      event.preventDefault();
+      navigate(item.to);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navigate, shortcuts]);
+
   const visible = open || pinned || !canHover || narrow;
 
   const renderItem = (item: DockItem) => (
-    <NavLink key={item.to} to={item.to} end={item.to === '/'} className="dock-item" aria-label={item.label}>
-      <span
-        className="dock-tile"
-        style={{ '--c1': item.colors[0], '--c2': item.colors[1], '--c3': item.colors[2] } as CSSProperties}
-      >
-        <item.icon weight="fill" aria-hidden="true" />
+    <NavLink
+      key={item.to}
+      to={item.to}
+      end={item.to === '/'}
+      className="dock-item"
+      aria-label={item.label}
+    >
+      <span className="dock-tile">
+        <item.icon weight="regular" aria-hidden="true" />
       </span>
       <span className="dock-name" aria-hidden="true">
         {item.label}
@@ -282,7 +303,7 @@ export function Dock() {
         onBlur={() => scheduleClose()}
       >
         <nav className="dock" aria-label="Primary">
-          <div className="dock-glass glass" aria-hidden="true" />
+          <div className="dock-glass" aria-hidden="true" />
           <Link to="/" className="dock-item dock-brand" aria-label="BearRok home">
             <BrandMark />
             <span className="dock-name" aria-hidden="true">
@@ -302,7 +323,7 @@ export function Dock() {
             onClick={() => setPinned((value) => !value)}
           >
             <span className="dock-pin-icon">
-              {pinned ? <PushPinSlash weight="fill" aria-hidden="true" /> : <PushPin weight="duotone" aria-hidden="true" />}
+              {pinned ? <PushPinSlash weight="regular" aria-hidden="true" /> : <PushPin weight="regular" aria-hidden="true" />}
             </span>
             <span className="dock-name" aria-hidden="true">
               {pinned ? 'Unpin sidebar' : 'Keep sidebar open'}

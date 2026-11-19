@@ -17,7 +17,7 @@ export const typeMeta: Record<OpportunityType, { label: string; plural: string; 
   internship: { label: 'Internship', plural: 'Internships', icon: Briefcase, tint: 'bg-blue-50 text-blue-700' },
   event: { label: 'Event', plural: 'Events', icon: CalendarDays, tint: 'bg-violet-50 text-violet-700' },
   club: { label: 'Club', plural: 'Clubs', icon: Users, tint: 'bg-teal-50 text-teal-700' },
-  hackathon: { label: 'Hackathon', plural: 'Hackathons', icon: Trophy, tint: 'bg-amber-50 text-amber-700' },
+  hackathon: { label: 'Competition', plural: 'Competitions', icon: Trophy, tint: 'bg-amber-50 text-amber-700' },
   research: { label: 'Research', plural: 'Research', icon: FlaskConical, tint: 'bg-indigo-50 text-indigo-700' },
   scholarship: { label: 'Scholarship', plural: 'Scholarships', icon: GraduationCap, tint: 'bg-rose-50 text-rose-700' },
 };
