@@ -1,0 +1,31 @@
+import { useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router';
+import { Dock } from './components/Dock.tsx';
+import { Agents } from './pages/Agents.tsx';
+import { Discover } from './pages/Discover.tsx';
+import { Feed } from './pages/Feed.tsx';
+import { Profile } from './pages/Profile.tsx';
+import { Roadmap } from './pages/Roadmap.tsx';
+import { Saved } from './pages/Saved.tsx';
+
+export function App() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return (
+    <>
+      <Dock />
+      <Routes>
+        <Route path="/" element={<Feed />} />
+        <Route path="/roadmap" element={<Roadmap />} />
+        <Route path="/discover" element={<Discover />} />
+        <Route path="/saved" element={<Saved />} />
+        <Route path="/agents" element={<Agents />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
+  );
+}

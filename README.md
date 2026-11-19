@@ -96,3 +96,5 @@ The event is **Thursday, November 19, 2026**. Grok account access is expected ar
 ## Status
 
 This README describes the idea. An early backend prototype is in `backend/`; it predates the feed, career discovery, the roadmap, and the three-level agent system.
+
+A dashboard template is in `dashboard/` (feed, roadmap, career discovery, saved, agents, profile). It runs on sample data and is not connected to the backend yet; see `dashboard/README.md`.
