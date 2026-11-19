@@ -198,13 +198,36 @@ export interface Job {
   attempts: number;
 }
 
+/**
+ * What one validation agent looks at. Every posting is reviewed once for each of these, by
+ * separate agents, and is kept only if all of them keep it.
+ */
+export type ReviewFocus = 'criteria' | 'status';
+
+export const REVIEWERS: { focus: ReviewFocus; name: string; checks: string }[] = [
+  { focus: 'criteria', name: 'Criteria reviewer', checks: "meets the student's rules and is what they are looking for" },
+  { focus: 'status', name: 'Status reviewer', checks: 'is real, still open, and its dates hold up on the official page' },
+];
+
+/** One validation agent's review of one posting. */
+export interface Review {
+  focus: ReviewFocus;
+  reviewer: string;
+  status: 'checking' | 'kept' | 'rejected';
+  reason: string | null;
+  fit: number | null;
+}
+
+/** A posting under review: one entry per posting, with a review from every validation agent. */
 export interface Validation {
   id: string;
   title: string;
   managerId: string;
+  /** kept only when every review kept it. */
   status: 'checking' | 'kept' | 'rejected';
   reason: string | null;
   fit: number | null;
+  reviews: Review[];
 }
 
 export interface LogEvent {

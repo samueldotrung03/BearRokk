@@ -93,6 +93,8 @@ Set `GROK_TRANSPORT` in `backend/.env`. The agents are the same either way; only
 | Model tiers | `XAI_MODEL_*` | `GROK_CLI_MODEL_*`, otherwise the CLI's default for every level |
 | At once | 8 worker calls | 3 CLI processes (`GROK_CLI_CONCURRENCY`) |
 
+There is a third value, `claude`, which is **temporary and for testing only**: it runs the same agents on Claude through the Claude Code CLI so the live chain can be exercised before Grok access exists. See [`SWAP_TO_GROK.md`](SWAP_TO_GROK.md).
+
 Cautions for `cli`:
 
 - Grok Build is a coding agent that can read files and run commands. Each call runs in an empty temporary folder and the prompt tells it to use web search only. `GROK_CLI_ALWAYS_APPROVE=1` lets it use tools without asking, which web search may need; that also removes the approval step for anything a web page might talk it into, so turn it on only on a machine and account you are comfortable with.

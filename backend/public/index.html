@@ -81,6 +81,10 @@
   .val .title { font-size: 10.5px; fill: var(--ink-3); text-anchor: middle; }
   .val.checking circle.dot { stroke: var(--master); } .val.checking .ring { opacity: 1; animation: spin 1.6s linear infinite; stroke-width: 2.5; stroke-dasharray: 6 5; }
   .val.kept circle.dot { fill: var(--good); stroke: var(--good); } .val.kept .mark { fill: #062016; } .val.kept .title { fill: var(--ink-2); }
+  .val circle.review { fill: var(--panel); stroke: var(--idle); stroke-width: 1.5; }
+  .val circle.review.checking { stroke: var(--master); animation: blink 1s ease-in-out infinite; }
+  .val circle.review.kept { fill: var(--good); stroke: var(--good); }
+  .val circle.review.rejected { fill: var(--bad); stroke: var(--bad); }
   .val.rejected circle.dot { fill: var(--bad); stroke: var(--bad); } .val.rejected .mark { fill: #2a0808; } .val.rejected .title { fill: var(--bad); text-decoration: line-through; }
 
   .feedbox rect { fill: var(--panel); stroke: var(--good); stroke-width: 2; }
@@ -146,7 +150,7 @@
   <div class="ticker" id="ticker"></div>
   <div class="legend">
     <span><b>S</b> scout: searches for leads</span><span><b>R</b> reader: opens a page, extracts details</span><span><b>A</b> application reader</span>
-    <span><b>✓</b> meets the student's criteria</span><span><b>✕</b> rejected</span><span>Colour = the manager a worker reports to</span>
+    <span><b>✓</b> kept by both validation agents</span><span><b>✕</b> rejected</span><span>Two dots = the criteria review and the status review</span><span>Colour = the manager a worker reports to</span>
   </div>
 </footer>
 
@@ -339,17 +343,25 @@ function apply(snapshot, animate) {
       el('circle', { class: 'ring', cx: pos.x, cy: pos.y, r: 19 }, g);
       el('circle', { class: 'dot', cx: pos.x, cy: pos.y, r: 15 }, g);
       const mark = el('text', { class: 'mark', x: pos.x, y: pos.y + 1 }, g, '');
+      // One small dot per validation agent reviewing this posting.
+      const dots = (v.reviews ?? []).map((r, k, all) => el('circle', { class: 'review', cx: pos.x + (k - (all.length - 1) / 2) * 13, cy: pos.y - 25, r: 4.5 }, g));
       el('text', { class: 'title', x: pos.x, y: pos.y + 33 }, g, clip(v.title, 16));
-      n = { g, pos, mark, status: null };
+      n = { g, pos, mark, dots, status: null, reviewKey: '' };
       seen.vals.set(v.id, n);
       const m = seen.managers.get(v.managerId);
       if (m) pk({ x: m.x, y: JOB_Y + 60 }, pos, m.color, { delay: i * 45, dur: 700, size: 4.5 });
+    }
+    // Each reviewer's dot turns green or red as that review comes in, before the posting's overall verdict.
+    const reviewKey = (v.reviews ?? []).map((r) => r.status).join(',');
+    if (n.reviewKey !== reviewKey) {
+      n.reviewKey = reviewKey;
+      (v.reviews ?? []).forEach((r, k) => n.dots[k]?.setAttribute('class', `review ${r.status}`));
+      n.g.querySelector('title').textContent = `${v.title}\n${(v.reviews ?? []).map((r) => `${r.reviewer}: ${r.status === 'checking' ? 'reviewing' : r.status}${r.reason ? ' - ' + r.reason : ''}`).join('\n')}`;
     }
     if (n.status !== v.status) {
       n.status = v.status;
       n.g.setAttribute('class', `val ${v.status}`);
       n.mark.textContent = v.status === 'kept' ? '✓' : v.status === 'rejected' ? '✕' : '';
-      n.g.querySelector('title').textContent = `${v.title}\n${v.status === 'kept' ? 'Kept, fit ' + v.fit : v.reason ?? 'Checking against the criteria'}`;
       if (v.status !== 'checking' && animate && !reduced) n.g.animate([{ transform: 'scale(1.35)' }, { transform: 'none' }], { duration: 350 });
     }
   });
@@ -391,7 +403,7 @@ function apply(snapshot, animate) {
   const jobs = snapshot.jobs, count = (s) => jobs.filter((j) => j.status === s).length;
   $('fleetsub').textContent = jobs.length ? `${count('running')} working · ${count('done')} done${count('skipped') ? ` · ${count('skipped')} over budget` : ''}` : '';
   const vals = snapshot.validations, vc = (s) => vals.filter((v) => v.status === s).length;
-  $('valsub').textContent = vals.length ? `${vc('kept')} kept · ${vc('rejected')} rejected` : '';
+  $('valsub').textContent = vals.length ? `${vals.length} postings × 2 reviews · ${vc('kept')} kept · ${vc('rejected')} rejected` : 'every posting reviewed twice';
 
   const lines = snapshot.log.slice(-3);
   $('ticker').replaceChildren(...lines.map((l) => {
@@ -403,7 +415,7 @@ function apply(snapshot, animate) {
 function renderHeader() {
   if (student) {
     const mode = $('mode');
-    mode.textContent = student.mode === 'live' ? 'Live Grok agents' : 'Simulated agents · sample data';
+    mode.textContent = student.mode !== 'live' ? 'Simulated agents · sample data' : student.provider === 'claude' ? 'Live agents on Claude (test)' : 'Live Grok agents';
     mode.className = 'pill' + (student.mode === 'live' ? ' live' : '');
     const cur = [...student.profile.categories].sort().join(',');
     for (const b of $('scenario').children) b.classList.toggle('on', b.dataset.cats.split(',').sort().join(',') === cur);

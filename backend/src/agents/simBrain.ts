@@ -3,7 +3,7 @@
 import type { Brain, MasterInput } from './brain.ts';
 import { CATALOG, findByUrl, officialUrl, repostUrl, toCandidate, type CatalogItem } from './catalog.ts';
 import { noteMatch, noteSignals } from './scoring.ts';
-import { CATEGORY_LABEL, yearPlural, type Assignment, type Brief, type Candidate, type Category, type Lens, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
+import { CATEGORY_LABEL, yearPlural, type ReviewFocus, type Assignment, type Brief, type Candidate, type Category, type Lens, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
 
 const INTEREST_FIELDS: Record<string, string[]> = {
   coding: ['software'],
@@ -233,24 +233,28 @@ export class SimBrain implements Brain {
     return byType[candidate.type]!;
   }
 
-  async validate(candidate: Candidate, brief: Brief, memory: MemorySummary) {
-    await this.pause(1300, candidate.sourceUrl + 'v');
+  async validate(candidate: Candidate, brief: Brief, memory: MemorySummary, focus: ReviewFocus) {
+    await this.pause(1300, candidate.sourceUrl + focus);
     const reject = (reason: string) => ({ keep: false, reason, fit: 0, record: candidate });
     const now = this.now().getTime();
-
-    // The notes are checked before anything else.
     const signals = noteSignals(brief.notes.map((body) => ({ title: '', body })));
     const noted = noteMatch({ ...candidate, location: candidate.location }, signals);
-    if (noted.avoided.length) return reject(`The student's notes rule this out (${noted.avoided.slice(0, 3).join(', ')})`);
 
-    if (candidate.deadline && Date.parse(candidate.deadline) < now) return reject(`Closed: the deadline passed on ${candidate.deadline.slice(0, 10)}`);
-    if (candidate.eligibleYears && !candidate.eligibleYears.includes(brief.year)) return reject(`Not open to ${yearPlural(brief.year)}: ${candidate.eligibility?.toLowerCase()}`);
-    const item = findByUrl(candidate.sourceUrl);
-    if (candidate.format === 'in_person' && item?.locationKind === 'other city') return reject(`In person in ${candidate.location}, and the student wants near ${brief.location}${brief.remoteOk ? ' or remote' : ''}`);
-    if (candidate.format === 'online' && !brief.remoteOk) return reject('Remote only, and the student wants in person');
-    if (!candidate.deadline && brief.hardCriteria.includes('states a deadline')) return reject('States no deadline, and the student\'s restrictions skip those');
-    if (candidate.format !== 'online' && brief.hardCriteria.includes('remote only')) return reject(`In person in ${candidate.location}, and the student's restrictions say remote only`);
-    if (candidate.field && memory.avoidFields.includes(candidate.field)) return reject(`Not what the student is looking for: they keep disliking ${candidate.field} opportunities`);
+    if (focus === 'status') {
+      // Is it real and still open?
+      if (!findByUrl(candidate.sourceUrl)) return reject('The official page could not be found');
+      if (candidate.deadline && Date.parse(candidate.deadline) < now) return reject(`Closed: the deadline passed on ${candidate.deadline.slice(0, 10)}`);
+      if (!candidate.deadline && brief.hardCriteria.includes('states a deadline')) return reject("States no deadline, and the student's restrictions skip those");
+    } else {
+      // Does it meet the student's rules, and is it what they are looking for? Notes are checked first.
+      if (noted.avoided.length) return reject(`The student's notes rule this out (${noted.avoided.slice(0, 3).join(', ')})`);
+      if (candidate.eligibleYears && !candidate.eligibleYears.includes(brief.year)) return reject(`Not open to ${yearPlural(brief.year)}: ${candidate.eligibility?.toLowerCase()}`);
+      const item = findByUrl(candidate.sourceUrl);
+      if (candidate.format === 'in_person' && item?.locationKind === 'other city') return reject(`In person in ${candidate.location}, and the student wants near ${brief.location}${brief.remoteOk ? ' or remote' : ''}`);
+      if (candidate.format === 'online' && !brief.remoteOk) return reject('Remote only, and the student wants in person');
+      if (candidate.format !== 'online' && brief.hardCriteria.includes('remote only')) return reject(`In person in ${candidate.location}, and the student's restrictions say remote only`);
+      if (candidate.field && memory.avoidFields.includes(candidate.field)) return reject(`Not what the student is looking for: they keep disliking ${candidate.field} opportunities`);
+    }
 
     let fit = 0.38;
     if (candidate.field && brief.interests.includes(candidate.field)) fit += 0.26;
@@ -259,7 +263,11 @@ export class SimBrain implements Brain {
     fit += hash(candidate.sourceUrl) * 0.14;
     // Something a note asks for is a strong fit whatever else is true of it.
     if (noted.wanted.length) fit = Math.max(fit, 0.8) + 0.05 * Math.min(noted.wanted.length, 3);
-    return { keep: true, reason: noted.wanted.length ? 'Asked for in the student\'s notes, and meets every hard criterion' : 'Meets every hard criterion', fit: Math.min(0.98, Number(fit.toFixed(2))), record: candidate };
+    const reason =
+      focus === 'status'
+        ? candidate.deadline ? `Open: the official page gives a deadline of ${candidate.deadline.slice(0, 10)}` : 'Open: the official page is up and lists no closing date'
+        : noted.wanted.length ? "Asked for in the student's notes, and meets every rule" : 'Meets every rule the student set';
+    return { keep: true, reason, fit: Math.min(0.98, Number(fit.toFixed(2))), record: candidate };
   }
 
   async present(kept: Opportunity[], brief: Brief, memory: MemorySummary) {

@@ -1,5 +1,6 @@
 import { Card, Page } from '../components/Page.tsx';
-import { agentEvents, agents } from '../data/sample.ts';
+import { agentEvents as sampleEvents, agents as sampleAgents } from '../data/sample.ts';
+import { useLive } from '../state/live.tsx';
 import { relativeTime } from '../lib/time.ts';
 import type { AgentNode, AgentStatus } from '../types.ts';
 
@@ -47,19 +48,41 @@ function Level({ label, hideLabel = false, children }: { label: string; hideLabe
 }
 
 export function Agents() {
+  const live = useLive();
+  // A real run from the backend when there is one; the example otherwise.
+  const real = live.agents;
+  const agents = real ? { master: real.master, managers: real.managers, workers: real.workers } : sampleAgents;
+  const agentEvents = real ? real.events : sampleEvents;
+  const on = live.provider === 'claude' ? 'Claude (test)' : live.provider === 'grok' ? 'Grok' : 'simulated agents';
   return (
     <Page
       title="Your agents"
-      subtitle="How your agents are organised. The activity below is an example until Grok is connected."
+      subtitle={
+        real
+          ? `What your agents did on their latest search, running on ${on}. They search again on their own when your profile or your reactions change.`
+          : 'How your agents are organised. The activity below is an example until the agent backend is connected.'
+      }
       aside={
-        <span className="w-fit rounded-full bg-white/85 px-4 py-2 text-sm font-medium text-ink shadow-card backdrop-blur">Example activity</span>
+        real ? (
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="flex w-fit items-center gap-2.5 rounded-full bg-white/85 px-4 py-2 text-sm font-medium text-ink shadow-card backdrop-blur">
+              {real.running && <span className="live-dot size-2 rounded-full bg-[#34c759]" aria-hidden="true" />}
+              {real.summary}
+            </span>
+            <button type="button" disabled={real.running} onClick={() => void live.runNow()} className="btn-primary h-10 px-4 text-sm text-white disabled:opacity-60">
+              {real.running ? 'Searching…' : 'Search again'}
+            </button>
+          </div>
+        ) : (
+          <span className="w-fit rounded-full bg-white/85 px-4 py-2 text-sm font-medium text-ink shadow-card backdrop-blur">Example activity</span>
+        )
       }
     >
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div>
           <Level label="Master" hideLabel>
             <div className="mx-auto max-w-md">
-              <Node node={agents.master} />
+              {agents.master ? <Node node={agents.master} /> : <p className="text-center text-sm text-ink-3">The master agent has not started yet.</p>}
             </div>
           </Level>
           <Link />
@@ -71,13 +94,35 @@ export function Agents() {
             </div>
           </Level>
           <Link />
-          <Level label="Workers">
+          <Level label={real ? `Worker fleet (${agents.workers.length})` : 'Workers'}>
             <div className="grid gap-4 sm:grid-cols-2">
               {agents.workers.map((node) => (
                 <Node key={node.id} node={node} compact />
               ))}
             </div>
           </Level>
+          {real && real.validators.length > 0 && (
+            <>
+              <Link />
+              <Level label={`Validation agents (${real.validators.length})`}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {real.validators.map((node) => (
+                    <Node key={node.id} node={node} compact />
+                  ))}
+                </div>
+              </Level>
+            </>
+          )}
+          {real?.presenter && (
+            <>
+              <Link />
+              <Level label="Presentation">
+                <div className="mx-auto max-w-md">
+                  <Node node={real.presenter} />
+                </div>
+              </Level>
+            </>
+          )}
         </div>
 
         <aside className="lg:sticky lg:top-6 lg:self-start">

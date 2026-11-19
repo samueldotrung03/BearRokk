@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, HashRouter } from 'react-router';
 import { App } from './App.tsx';
 import { AuthProvider } from './auth/AuthProvider.tsx';
+import { LiveProvider } from './state/live.tsx';
 import { StoreProvider } from './state/StoreProvider.tsx';
 
 // In the macOS desktop app the title bar is hidden; this class makes room for the window buttons.
@@ -22,7 +23,9 @@ createRoot(document.getElementById('root')!).render(
     <Router>
       <AuthProvider>
         <StoreProvider>
-          <App />
+          <LiveProvider>
+            <App />
+          </LiveProvider>
         </StoreProvider>
       </AuthProvider>
     </Router>

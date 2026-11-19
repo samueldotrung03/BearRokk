@@ -214,7 +214,7 @@ function due(o) {
 function renderHeader() {
   if (!student) return;
   const mode = $('mode');
-  mode.textContent = student.mode === 'live' ? 'Live Grok agents' : 'Simulated agents · sample data';
+  mode.textContent = student.mode !== 'live' ? 'Simulated agents · sample data' : student.provider === 'claude' ? 'Live agents on Claude (test)' : 'Live Grok agents';
   mode.className = 'pill' + (student.mode === 'live' ? ' live' : '');
   $('auto').textContent = student.scheduleSeconds ? `Auto-run: every ${student.scheduleSeconds}s` : 'Auto-run: off';
   $('auto').className = 'btn' + (student.scheduleSeconds ? ' on' : '');
@@ -299,7 +299,8 @@ function renderPipeline() {
 
   const vals = run.validations.map((v) => {
     const mark = v.status === 'kept' ? '✓' : v.status === 'rejected' ? '✕' : '…';
-    const line = v.status === 'kept' ? `Kept · fit ${v.fit}` : v.status === 'rejected' ? v.reason : 'Checking against the criteria…';
+    const reviews = (v.reviews ?? []).map((r) => `${r.reviewer.replace(' reviewer', '')}: ${r.status === 'checking' ? 'reviewing…' : r.status}`).join(' · ');
+    const line = v.status === 'kept' ? `Kept by both · fit ${v.fit} · ${reviews}` : v.status === 'rejected' ? v.reason : reviews || 'Reviewing…';
     return `<div class="val ${v.status}"><i>${mark}</i><strong title="${esc(v.title)}">${esc(v.title)}</strong><small>${esc(line)}</small></div>`;
   }).join('');
 

@@ -12,7 +12,8 @@ import { desktopBridge, loadAllowed, saveAllowed, type PermissionKind, type Perm
 
 interface GrokInfo {
   connected: boolean;
-  mode: 'api' | 'cli' | 'simulated';
+  /** claude: a temporary test set-up, see backend/SWAP_TO_GROK.md. */
+  mode: 'api' | 'cli' | 'claude' | 'simulated';
   detail: string;
 }
 

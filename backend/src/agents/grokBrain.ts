@@ -5,14 +5,15 @@ import { z } from 'zod';
 import { config } from '../config.ts';
 import { grokJson, type GrokTool } from '../grok.ts';
 import type { Brain, MasterInput } from './brain.ts';
-import { CATEGORY_LABEL, type Assignment, type Brief, type Candidate, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
+import { CATEGORY_LABEL, type ReviewFocus, type Assignment, type Brief, type Candidate, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
 
 /**
  * Which model each level runs on. The master, managers, validators and presentation manager
  * run on the normal tier. Workers are many and each does one small job, so they get the cheapest.
  * The high tier (XAI_MODEL_HIGH) is configured but not assigned to any level at the moment.
  */
-const TIER: { high?: string; normal?: string; low?: string } = config.grokTransport === 'cli' ? config.grokCli.models : config.xaiModels;
+const TIER: { high?: string; normal?: string; low?: string } =
+  config.grokTransport === 'claude' ? config.claudeCli.models : config.grokTransport === 'cli' ? config.grokCli.models : config.xaiModels;
 export const AGENT_TIERS = {
   master: 'normal',
   searchManager: 'normal',
@@ -141,14 +142,19 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     return data;
   }
 
-  async validate(candidate: Candidate, brief: Brief, memory: MemorySummary) {
+  async validate(candidate: Candidate, brief: Brief, memory: MemorySummary, focus: ReviewFocus) {
     const Out = z.object({ keep: z.boolean(), reason: z.string(), fit: z.number(), record: CandidateSchema });
+    // Two different agents review every posting. Each has one job, so neither can wave a posting through on the other's ground.
+    const job =
+      focus === 'status'
+        ? `You are the STATUS reviewer. Another agent checks the student's criteria; your only question is whether this is real and open right now. Open the organizer's own page and confirm: the posting exists there, applications or registration are open today, and every date and deadline in the record is what the page says. Correct any field the page contradicts. Set keep to false if it is closed, past, cannot be found on an official page, or if you cannot tell whether it is still open; say which in one sentence.`
+        : `You are the CRITERIA reviewer. Another agent checks whether the posting is real and open; your only question is whether it is right for this student. Check, in this order: the student's custom notes, then every hard criterion in the brief, then whether it is the kind of thing this student is looking for and not just a keyword match. Set keep to false if a note rules it out, if any hard criterion fails, or if the page does not let you confirm a hard criterion such as who may apply; say which in one sentence.`;
     const { data } = await grokJson({
-      name: 'validator',
+      name: focus === 'status' ? 'status_reviewer' : 'criteria_reviewer',
       model: TIER.normal,
       schema: Out,
       tools: tools(),
-      system: `You are a validation agent. Check one posting before a student sees it. Open the organizer's page and confirm: (1) every hard criterion holds, (2) it is the kind of thing this student is looking for and not just a keyword match, (3) it is real and still open. Correct any field the page contradicts. Set keep to false if any check fails and give the reason in one sentence. fit is 0 to 1: how well it matches the student's interests and preferences.\n\n${NOTES_RULE}\nCheck the notes before the other criteria. Reject anything a note rules out, and give a high fit to something a note asks for.\n${EVIDENCE}`,
+      system: `${job}\nfit is 0 to 1: how well it matches the student's interests and preferences.\n\n${NOTES_RULE}\n${EVIDENCE}`,
       user: `Today is ${today()}.\n${notesBlock(brief.notes)}\nStudent brief: ${JSON.stringify(brief)}\nThe student keeps disliking: ${memory.avoidFields.join(', ') || 'nothing yet'}\nPosting: ${JSON.stringify(candidate)}`,
     });
     return { ...data, fit: Math.max(0, Math.min(1, data.fit)) };

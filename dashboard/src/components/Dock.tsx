@@ -20,6 +20,7 @@ import { createPortal } from 'react-dom';
 import { Link, NavLink } from 'react-router';
 import { agentEvents, agents, agentUsage, opportunities, roadmaps } from '../data/sample.ts';
 import { relativeTime } from '../lib/time.ts';
+import { useOpportunities } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import { BrandMark } from './Brand.tsx';
 
@@ -70,6 +71,7 @@ function useMediaQuery(query: string): boolean {
 /** The full agent report, opened from the small "Agents live" button in the dock. */
 function UsageWindow({ onClose }: { onClose: () => void }) {
   const { state } = useStore();
+  const shown = useOpportunities();
   const ref = useRef<HTMLDialogElement>(null);
   const all = [agents.master, ...agents.managers, ...agents.workers];
   const running = all.filter((node) => node.status === 'running');
@@ -81,7 +83,7 @@ function UsageWindow({ onClose }: { onClose: () => void }) {
   const steps = roadmaps.find((r) => r.goalId === state.goalId)?.phases.flatMap((phase) => phase.steps) ?? [];
   const done = steps.filter((step) => state.doneSteps.includes(step.id)).length;
   const stats = [
-    { label: 'in feed', value: opportunities.length - state.dismissed.length },
+    { label: 'in feed', value: shown.filter((o) => !state.dismissed.includes(o.id)).length },
     { label: 'saved', value: state.saved.length },
     { label: 'applications', value: Object.keys(state.applications).length },
     { label: 'roadmap', value: steps.length ? `${Math.round((done / steps.length) * 100)}%` : '0%' },

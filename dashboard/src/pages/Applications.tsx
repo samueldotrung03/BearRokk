@@ -6,7 +6,8 @@ import { Link } from 'react-router';
 import { typeMeta } from '../components/meta.ts';
 import { Cover } from '../components/OpportunityCard.tsx';
 import { Card, Page } from '../components/Page.tsx';
-import { applicationInfo, opportunities } from '../data/sample.ts';
+import { applicationInfo } from '../data/sample.ts';
+import { useOpportunities } from '../state/live.tsx';
 import { STATUSES, googleCalendarUrl, icsFile, progressOf, remindersFor, statusLabel } from '../lib/applications.ts';
 import { daysUntil, dueLabel, shortDate } from '../lib/time.ts';
 import { useStore } from '../state/StoreProvider.tsx';
@@ -176,6 +177,7 @@ function Row({ opportunity: o, application }: { opportunity: Opportunity; applic
 export function Applications() {
   const { state, dispatch } = useStore();
   const [filter, setFilter] = useState<ApplicationStatus | 'all'>('all');
+  const opportunities = useOpportunities();
   const tracked = opportunities
     .filter((o) => state.applications[o.id])
     .sort((a, b) => (a.deadline ? daysUntil(a.deadline) : Infinity) - (b.deadline ? daysUntil(b.deadline) : Infinity));

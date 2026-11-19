@@ -520,3 +520,58 @@ test('experience: text is read out of a PDF résumé', async () => {
   // A file that is not really a PDF gives no text, and does not throw.
   assert.equal(await readResume(new TextEncoder().encode('not a pdf'), 'application/pdf'), null);
 });
+
+test('a small run budget still reads postings: searching cannot use the whole budget', async () => {
+  const s = system({ maxJobs: 8 });
+  await s.trigger('first');
+  const run = s.currentRun()!;
+  const done = (kind: string) => run.jobs.filter((j) => j.kind === kind && j.status === 'done').length;
+  assert.equal(done('scout'), 4, 'one scout per manager');
+  assert.ok(done('extract') >= 4, 'at least one posting read per manager');
+  assert.ok(run.stats.candidates > 0 && s.student().feed.length > 0);
+});
+
+test('validation: every posting found is reviewed by both validation agents, and kept only if both keep it', async () => {
+  const s = system();
+  await s.trigger('first');
+  const run = s.currentRun()!;
+  // Nothing the workers brought back skips review.
+  assert.equal(run.validations.length, run.stats.candidates);
+  assert.ok(run.validations.length > 10);
+  for (const v of run.validations) {
+    assert.deepEqual(v.reviews.map((r) => r.focus), ['criteria', 'status']);
+    assert.ok(v.reviews.every((r) => r.status !== 'checking' && r.reason), `both reviews finished for ${v.title}`);
+    assert.equal(v.status, v.reviews.every((r) => r.status === 'kept') ? 'kept' : 'rejected');
+  }
+  // The two agents catch different things: a closed posting passes the criteria review and fails the status review...
+  const closed = run.validations.find((v) => v.title === 'STEM Leadership Scholarship')!;
+  assert.deepEqual(closed.reviews.map((r) => r.status), ['kept', 'rejected']);
+  assert.match(closed.reason!, /^Status reviewer: Closed/);
+  // ...and one for upper years only is open, but fails the criteria review.
+  const upperYears = run.validations.find((v) => v.title === 'Backend Engineering Intern')!;
+  assert.deepEqual(upperYears.reviews.map((r) => r.status), ['rejected', 'kept']);
+  assert.match(upperYears.reason!, /^Criteria reviewer: Not open to freshmen/);
+  // The feed holds exactly the postings both kept.
+  assert.deepEqual(s.student().feed.map((f) => f.opportunity.id).sort(), run.validations.filter((v) => v.status === 'kept').map((v) => v.id).sort());
+});
+
+test('validation: a review that cannot be done counts against the posting, and it is reviewed again next run', async () => {
+  class Flaky extends SimBrain {
+    fail = true;
+    override async validate(...args: Parameters<SimBrain['validate']>) {
+      if (this.fail && args[3] === 'status' && args[0].title === 'Software Engineering Intern') throw new Error('page timed out');
+      return super.validate(...args);
+    }
+  }
+  const brain = new Flaky({ speed: 0, now: () => NOW });
+  const s = new AgentSystem(brain, { now: () => NOW });
+  await s.trigger('first');
+  const first = s.currentRun()!.validations.find((v) => v.title === 'Software Engineering Intern')!;
+  assert.equal(first.status, 'rejected');
+  assert.match(first.reason!, /Status reviewer: Could not be reviewed: page timed out/);
+  assert.ok(!s.student().feed.some((f) => f.opportunity.title === 'Software Engineering Intern'));
+  // Not written off for good: once the review works, it gets in.
+  brain.fail = false;
+  await s.trigger('manual');
+  assert.ok(s.student().feed.some((f) => f.opportunity.title === 'Software Engineering Intern'));
+});

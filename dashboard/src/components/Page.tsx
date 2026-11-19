@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { BrandMark } from './Brand.tsx';
 import { toggleDock } from './Dock.tsx';
+import { DataBadge } from '../state/live.tsx';
 import { ProfileMenu } from './ProfileMenu.tsx';
 
 function Brand() {
@@ -44,10 +45,7 @@ export function Page({
             <Brand />
           </div>
           <div className="flex items-center gap-3">
-            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur">
-              <span className="sm:hidden">Sample</span>
-              <span className="hidden sm:inline">Sample data</span>
-            </span>
+            <DataBadge />
             <ProfileMenu />
           </div>
         </header>
