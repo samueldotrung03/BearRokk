@@ -1,80 +1,98 @@
 # Student Opportunities
 
-A student asks for the opportunities they want. A coordinating agent scopes the request, delegates discovery to Grok search agents, and brings back listings the student can check and act on. **The hackathon demo covers clubs and events.**
+**An AI that hands opportunities to you, so you don’t have to go looking for them, and builds you a roadmap for reaching them.**
+
+Student Opportunities is a tool for students, built on a system of Grok AI agents for a Grok hackathon. It covers more than internships: it brings you internships, career discovery, networking events, and other opportunities such as clubs, hackathons, research openings, and scholarships. The agents run constantly in the background. They search, keep the results up to date, and base everything on your preferences. You open the app and the opportunities are already there, presented as a feed like social media.
+
+Finding an opportunity is only half of it. The app also creates a personal roadmap for each student: what to learn, in what order, and exactly which actions to take to get from where they are now to the career they want.
 
 ## The student problem
 
-A first-year student looking for a club, hackathon, scholarship, or research opening may need to check Luma, Devpost, school posts, and Reddit. The announcement, the organizer’s instructions, and the deadline can be on different pages. The student has to piece together what is open, when to act, and whether it fits their interests.
+Most students know they should be building toward a career. Far fewer know which one, which opportunities lead to it, or how to get from where they are to an offer. Three difficulties compound each other.
 
-The product should do that discovery and checking for them. Each student sets the scope of their own search. Campus, class year, and student group are optional context. The student makes the final decision about joining, registering, or applying.
+**Figuring out a career path.** A first-year student who likes coding cannot easily tell whether that points to software engineering, data science, product, or research, or what each of those expects from an intern. Advice comes from scattered places: a senior’s story, a Reddit thread, a posting that lists ten requirements with no order to them. The student is left guessing what to learn first, which projects count, and when to start applying. Many find out about a deadline or a prerequisite only after it has passed.
 
-## One student visit
+**Locating opportunities efficiently.** Internships, networking events, career fairs, clubs, and programs are spread across company career pages, LinkedIn, Handshake, event sites, school newsletters, and community posts. The same opening is reposted in several places with different details, and listings stay up after they close. Finding what is real, open, and meant for someone at their level takes hours of searching that a student has to repeat every week.
 
-**Example demo request:** “I want to join a beginner-friendly coding club and attend an online hackathon next month.”
+**Getting anything personalized.** Job boards and event listings return the same keyword results to everyone. They do not know the student’s year, skills, interests, or which listings they already looked at and rejected. A freshman sees roles for juniors, and a student who has skipped every finance posting keeps getting shown finance. The search never gets better with use.
 
-1. The dashboard asks what the student wants to find. The coordinator summarizes the request and asks a follow-up only where an answer would change the search. In this example, “online” describes the hackathon. A useful follow-up is “Should the club also meet online, or do you want one near you?”
-2. One Grok worker looks for clubs accepting members. Another looks for upcoming events matching the time window. A hackathon fits the event category.
-3. The dashboard returns a club and an event when the evidence supports them. A club card should answer **“How do I join, and when does it meet?”** An event card should answer **“When does it happen, and by when do I need to register?”**
-4. The student opens the organizer’s page and decides what to do. If the organizer lists an event date but omits a registration deadline, the dashboard says **“Registration deadline unknown.”**
+All three come from the same thing: the student has to do the looking. Students with a mentor or a well-connected network get a path and a shortlist handed to them. Everyone else gets a search box.
 
-The team reports having skills for reading and evaluating résumés. Those could help personalize later searches. The proposed demo works from the student’s request alone. Résumé integration, review of extracted details, and permission to store those details are open decisions.
+## The idea
 
-## Agent and data flow
+Turn the search around. Instead of the student looking for opportunities, an AI finds them and brings them to the student, then shows the way to reach them.
 
-| Responsibility | Proposed behavior | What the next stage receives |
-|---|---|---|
-| Coordinate the request | Identify opportunity types, interests, date range, and any location or eligibility constraint the student supplies. Keep the original wording available for review. | A brief for each search worker that distinguishes requirements from preferences. |
-| Discover candidates | Use Grok’s web search for club and event leads. Candidate sources include public school or club pages, Luma, Devpost, and Reddit. Use X search when relevant and available. Coverage of individual sites needs a live check. | Candidate URL, organizer if known, and the source text behind each relevant claim. |
-| Validate | Follow the lead to the organizer or official event listing. Check whether joining or registration is open, distinguish event dates from deadlines, and merge repeat announcements. When sources conflict, show what remains uncertain. | One record per opportunity with an organizer link, last-checked time, and evidence for the displayed details. |
-| Store and present | Keep the search scope, run status, validated listings, and their sources in the database. The dashboard uses one result format for both prepared examples and live search. | Cards showing why a result fits, what is unknown, and where the student can act. Each result set identifies its origin. |
+- **It hands opportunities to you.** There is no query to write and no list of sites to check. The feed is filled before you open the app.
+- **It runs constantly.** The agents keep working while you are away: finding new postings, dropping ones that have closed, and refreshing what you see.
+- **It is based on your preferences.** What you tell the app about yourself, and what you do in it, decides what the agents look for. The more you use it, the better it fits.
 
-**Proposed handoff for the dashboard and backend.** Agree on one sample club card and one event card before parallel work starts. Both carry title, type, organizer, source URL, join or registration URL when available, location or online format, fit explanation, and last-checked time. The club adds meeting schedule and membership intake. The event adds start time, time zone, and registration deadline. Missing fields stay visibly unknown. The database engine, hosting, and provider configuration are open.
+- **It builds your roadmap.** Knowing an internship exists does not tell you how to get it. The app turns a goal into a step-by-step plan, and keeps that plan current as you make progress.
 
-## Three-person work split
+The student stays in charge of every decision about what to pursue and where to apply.
 
-Assignments below are provisional. The team has two Claude Max seats and one teammate with regular Claude and ChatGPT credits. Use skill and availability to pick names, then use tool access as a tie-breaker.
+## What it brings you
 
-| Proposed owner | Work owned | First handoff |
-|---|---|---|
-| **A · Agent backend and database** (Max) | Own the request coordinator, Grok workers, validation, and persistence. Keeping source evidence and storage together gives one person responsibility for what a result claims. | Give B the two example records and search states. At account handover, test one live request through to a stored result. |
-| **B · Dashboard UI/UX and integration** (Max) | Own the student’s question, follow-up, progress, cards, and organizer links. Show prepared, live, empty, and failed searches clearly. | Build the demo journey against the agreed examples so dashboard work can proceed before Grok access. Later connect the same view to A’s results. |
-| **C · Pitch website UI/UX and demo** (regular Claude and ChatGPT credits) | Own the pitch page, the transition into the dashboard, and the presentation. Select and manually check the example club and event, recording their source links and dates. | Give A and B the two sources early. Show the fragmented search in the opening, then let the dashboard demonstrate the student’s decision. Own rehearsal and the fallback recording. |
+- **Internships.** Openings that fit your year, skills, and interests.
+- **Career discovery.** Paths and roles you may not have known to look for, based on what you like and what you are good at, with what each one expects.
+- **Networking events.** Career fairs, company info sessions, meetups, and talks where you can meet people in the field.
+- **Other opportunities.** Clubs, hackathons, research openings, scholarships, and programs.
 
-## Key milestones
+## What the app does
 
-The event is **Thursday, November 19, 2026**. Grok account access is expected around **2 p.m.** Pacific time is assumed for this draft. The exact submission time and the kind of access the team will receive still need confirmation. These are proposed work windows.
+The app has two halves that feed each other: a feed that brings opportunities to the student, and a roadmap that tells the student what to do about them.
 
-| When | Milestone | Evidence to move on |
-|---|---|---|
-| Wed, Nov 18 · planning | All three agree on names, one demo query, card fields, and the handoff between the pitch and dashboard. | Everyone can describe the same student journey. C has identified a real club page and a real event page to check. |
-| Thu, Nov 19 · before expected access | A prepares the discovery and storage path around sample records. B and C prepare the dashboard and pitch walkthrough using the manually checked listings. | The team can rehearse from the pitch through both cards to the organizer links. Prepared data is labeled, and a missing deadline stays unknown. |
-| Around 2 p.m. · account handover | A checks whether the handover includes API credentials, search-tool access, and usable allowance. B and C continue the rehearsal. | A records what the account actually supports. If available, one worker returns a real candidate and its source. |
-| After access · before the rehearsal cutoff | A and B trace one live student request through discovery, validation, storage, and display. C compares the displayed facts with the source. | A judge can follow a displayed claim back to the organizer. Record which parts ran live and how long the search took. |
-| Before submission · time open | C runs the timed pitch with A and B. Choose the live or prepared path based on the rehearsal and time remaining. | A complete walkthrough is ready even if live search fails. Any recording or prepared result is labeled accurately. |
+### A feed that recommends opportunities like posts
 
-## What the demo should prove
+Opportunities of every kind appear in one scrolling feed of cards, the way a social app shows posts. The student sets a few preferences to start: interests, class year, skills, and location. After that, the feed learns from history. Saving, dismissing, and opening cards teaches the app what the student wants, so similar opportunities rise and unwanted ones fall away. Each card says why it was recommended and links to the official posting or event page.
 
-- **Grok Use.** Follow one student constraint from the coordinator’s brief to a worker query and a source-backed result. If the team receives only an interactive login, it can show a manual Grok search separately and identify the dashboard examples as prepared.
-- **Student Use.** Ask a first-year student to choose a club or event from the results and explain their next step. Check whether they can distinguish a meeting or event time from a deadline and find the organizer’s instructions.
-- **Validation.** Use a duplicate announcement or a missing deadline to demonstrate one judgment the system makes. Record the actual source and result when available.
+### A roadmap built for each student
 
-| Planning detail | Confirmed value |
-|---|---|
-| Event name and official judging requirements | |
-| Submission time, time zone, presentation length, and rehearsal cutoff | |
-| Names for A, B, and C | |
-| Grok API and search access, available budget | |
-| Database and deployment target | |
+Students struggle most with the question the feed alone cannot answer: “What do I actually need to do to get there?” The roadmap answers it.
 
-## Questions for the team
+- **It starts with career discovery.** For a student who does not yet know what to aim for, the app suggests career paths that match their interests and background and shows what each one involves.
+- **It maps the path.** Once the student picks a path, a role, or a specific internship, the app works out what that goal requires, compares it with where the student is now, and lays out the steps in order.
+- **Every step is an action.** The roadmap says what to learn and exactly what to do: take a course, build a project, join a club, go to a networking event, apply before a deadline.
+- **It connects to the feed.** Steps link to real opportunities the agents have found, so the roadmap is something the student can act on today.
+- **It keeps updating.** As the student completes steps or changes direction, the roadmap adjusts, and so does what the feed recommends.
 
-1. What is the submission time and time zone, how long is the pitch, and does judging require a live API call? These answers determine how long A and B can spend on live integration.
-2. Who is strongest at backend and data work, who can own dashboard integration, and who wants to pitch? When can each person start?
-3. Who is providing the 2 p.m. account, and can they confirm whether it includes a developer API key, enabled search tools, and a spending allowance?
-4. Which real club and event should anchor rehearsal? Are there organizer pages the team already trusts, and what evidence should qualify a result for display if the original page is unavailable?
-5. Is résumé evaluation required on stage? If so, where are the existing skills, what inputs do they need, and can the demonstration use a sample résumé?
-6. Does the dashboard need to remember individual students between visits, or is saving searches and results for the demo sufficient? Which database or hosting setup does someone on the team already know?
+## The Grok agent system
 
-## Planning references
+Grok powers every agent. The search for opportunities is automated: the agents start and repeat their work on their own, and are not just called when a user asks. The system has three levels.
 
-The product direction comes from the team’s November 18 clarification and the supplied *Student Opportunity Platform: Brainstorming & Architecture Summary*. The *Luyten* README supplies the structure for describing the student problem, one complete journey, system responsibilities, evidence, and milestones.
+```
+              MASTER AGENT
+   reads your profile, background, and memory
+                    |
+              MANAGER AGENTS
+   organize the search, and design the feed and the roadmap
+                    |
+              WORKER AGENTS
+   scrape the web and collect opportunity details
+```
+
+- **Master agent.** Reads the student’s profile, background, and memory of what they have done in the app. Decides what this student needs and passes that to the managers.
+- **Manager agents.** Organize how the search is carried out and design how the results are presented to the student, both as feed cards and as roadmap steps. They command the workers.
+- **Worker agents.** Go out to the web, scrape listings, and bring back the details of each internship, event, or other opportunity.
+
+Results flow back up into the two things the student sees: the feed and the roadmap. The same agents that find opportunities also build and update each student’s roadmap. What the student does next is saved to memory, the master agent reads it on the next run, and the cycle continues.
+
+## Team
+
+Three people, provisional roles:
+
+- **A · Agent backend and database.** The Grok agent system, memory, and storage.
+- **B · Dashboard.** The feed, the cards, and the roadmap view.
+- **C · Pitch website and demo.** The pitch page and the presentation.
+
+The event is **Thursday, November 19, 2026**. Grok account access is expected around **2 p.m.**
+
+## Open questions
+
+- How much of the agent system runs live in the demo, and what is shown from prepared examples?
+- Is the feed or the roadmap the centerpiece of the demo?
+- What Grok access and budget will the team have?
+- What is the submission time, and how long is the pitch?
+
+## Status
+
+This README describes the idea. An early backend prototype is in `backend/`; it predates the feed, career discovery, the roadmap, and the three-level agent system.
