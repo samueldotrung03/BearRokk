@@ -60,6 +60,29 @@ export interface StudentPreferences {
   checks: Record<string, boolean>;
   /** Custom notes the student wrote. Read first; they override everything else. */
   notes: { title: string; body: string }[];
+  /** What the student has done so far, from the Experience tab. */
+  experience: StudentExperience;
+}
+
+export interface ExperienceEntry {
+  /** Internship, Research, Project, and so on. Every part is optional and may be empty. */
+  kind: string;
+  role: string;
+  organization: string;
+  location: string;
+  /** YYYY-MM, or empty. */
+  start: string;
+  end: string;
+  current: boolean;
+  summary: string;
+  skills: string[];
+  link: string;
+}
+
+export interface StudentExperience {
+  linkedin: string;
+  links: string[];
+  entries: ExperienceEntry[];
 }
 
 export type Action = 'save' | 'like' | 'dislike' | 'open' | 'apply';

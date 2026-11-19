@@ -4,8 +4,10 @@ import { useAuth } from '../auth/AuthProvider.tsx';
 import { Card, Page } from '../components/Page.tsx';
 import { careerSections, fieldGroups, opportunityKinds, restrictionSections, withDefaults, type Item, type Note, type Preferences, type Section } from '../data/preferences.ts';
 import { useStore } from '../state/StoreProvider.tsx';
+import { Experience } from './ProfileExperience.tsx';
 
 const tabs = [
+  { id: 'experience', label: 'Experience', intro: 'What you have done so far. Your agents use it to judge how well an opportunity fits and what you would still need to learn for it.' },
   { id: 'career', label: 'Career interests', intro: 'This decides what your agents search for. They look in the fields you tick and rank results by how well they match the rest of this page.' },
   { id: 'restrictions', label: 'Restrictions', intro: 'These are rules. Your agents never recommend something that breaks one. When a posting does not say, for example it lists no pay, it is marked "not confirmed" instead of guessed.' },
   { id: 'notes', label: 'Custom notes', intro: 'Write anything you want your agents to know, in your own words, in as many notes as you like. They read these first, and a note wins over anything on the other two tabs.' },
@@ -426,7 +428,7 @@ export function Profile() {
   const { state, dispatch } = useStore();
   const auth = useAuth();
   const prefs = withDefaults(state.preferences);
-  const [tab, setTab] = useState<TabId>('career');
+  const [tab, setTab] = useState<TabId>('experience');
   const [saved, setSaved] = useState<'idle' | 'saving' | 'saved' | 'local'>('idle');
   const timer = useRef<number | null>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -491,9 +493,10 @@ export function Profile() {
         <div role="tabpanel" id={`panel-${current.id}`} aria-labelledby={`tab-${current.id}`}>
           <p className="max-w-3xl rounded-2xl bg-brand-soft px-4 py-3 text-[15px] leading-relaxed text-ink-2">
             {current.intro}
-            {tab !== 'notes' && ' Leave anything blank that does not apply.'}
+            {tab === 'experience' ? ' Everything here is optional.' : tab !== 'notes' ? ' Leave anything blank that does not apply.' : ''}
           </p>
           <div className={`mt-7 ${tab === 'notes' ? '' : 'divide-y divide-line'}`}>
+            {tab === 'experience' && <Experience prefs={prefs} change={change} />}
             {tab === 'career' && <Fields prefs={prefs} change={change} />}
             {tab === 'career' && careerSections.map((s) => <SectionBlock key={s.title} section={s} prefs={prefs} change={change} />)}
             {tab === 'restrictions' && restrictionSections.map((s) => <SectionBlock key={s.title} section={s} prefs={prefs} change={change} />)}

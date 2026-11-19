@@ -6,6 +6,7 @@ import type { Context, Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { AuthUser, Verifier } from '../auth.ts';
 import { createDeadlineEvent, deleteEvent } from '../calendar.ts';
+import { readResume, RESUME_MAX_BYTES, RESUME_TYPES } from '../resume.ts';
 import { exportApplications } from '../sheets.ts';
 import type { AgentSystem } from './system.ts';
 import { APPLICATION_STATUSES, CATEGORIES, type Action, type Category, type ClassYear, type Profile, type StudentPreferences } from './types.ts';
@@ -52,7 +53,30 @@ function cleanPreferences(raw: any): StudentPreferences | null {
     .slice(0, 20)
     .map((n: any) => ({ title: typeof n?.title === 'string' ? n.title.trim().slice(0, 80) : '', body: typeof n?.body === 'string' ? n.body.trim().slice(0, 4000) : '' }))
     .filter((n: { title: string; body: string }) => n.title || n.body);
-  return { fields, topField, answers, lists, checks, notes };
+  const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const month = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}$/.test(v) ? v : '');
+  const exp = raw.experience && typeof raw.experience === 'object' ? raw.experience : {};
+  const experience = {
+    linkedin: str(exp.linkedin, 200),
+    links: (strings(exp.links, 8) ?? []).map((l) => l.trim().slice(0, 200)).filter(Boolean),
+    entries: (Array.isArray(exp.entries) ? exp.entries : [])
+      .slice(0, 30)
+      .map((e: any) => ({
+        kind: str(e?.kind, 40),
+        role: str(e?.role, 100),
+        organization: str(e?.organization, 100),
+        location: str(e?.location, 100),
+        start: month(e?.start),
+        end: month(e?.end),
+        current: e?.current === true,
+        summary: str(e?.summary, 1500),
+        skills: (strings(e?.skills, 12) ?? []).map((s) => s.trim().slice(0, 40)).filter(Boolean),
+        link: str(e?.link, 200),
+      }))
+      // An entry with nothing in it is not kept.
+      .filter((e: any) => e.role || e.organization || e.summary || e.skills.length || e.link || e.start || e.location),
+  };
+  return { fields, topField, answers, lists, checks, notes, experience };
 }
 
 function cleanProfile(body: any): Partial<Profile> {
@@ -163,6 +187,41 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     const body = await c.req.json().catch(() => ({}));
     system.setSchedule(Number(body.seconds) || 0);
     return c.json({ student: system.student() });
+  });
+
+  // ---- résumé --------------------------------------------------------------------------
+  // The file is sent as the request body, with its type in Content-Type and its name (URL-encoded)
+  // in X-File-Name. Only a signed-in student can upload: the demo student is shared.
+  app.put(`${base}/resume`, async (c) => {
+    if (c.req.param('id') !== 'me') return c.json({ error: 'sign in to upload a résumé' }, 403);
+    const system = await systemOf(c);
+    const type = (c.req.header('content-type') ?? '').split(';')[0]!.trim();
+    if (!RESUME_TYPES.includes(type)) return c.json({ error: 'upload a PDF or a plain text file' }, 415);
+    if (Number(c.req.header('content-length') ?? 0) > RESUME_MAX_BYTES) return c.json({ error: 'the file is larger than 5 MB' }, 413);
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    if (bytes.length === 0) return c.json({ error: 'the file is empty' }, 400);
+    if (bytes.length > RESUME_MAX_BYTES) return c.json({ error: 'the file is larger than 5 MB' }, 413);
+    let name = 'resume';
+    try {
+      name = decodeURIComponent(c.req.header('x-file-name') ?? 'resume').replace(/[\\/\u0000-\u001f]/g, '').slice(0, 120) || 'resume';
+    } catch {
+      // keep the default name
+    }
+    const text = await readResume(bytes, type);
+    return c.json({ resume: system.setResume({ name, type, size: bytes.length, uploadedAt: new Date().toISOString(), text, bytes }) });
+  });
+
+  app.get(`${base}/resume`, async (c) => {
+    if (c.req.param('id') !== 'me') return c.json({ error: 'not found' }, 404);
+    const resume = (await systemOf(c)).getResume();
+    if (!resume) return c.json({ error: 'no résumé uploaded' }, 404);
+    return new Response(resume.bytes.slice().buffer, { headers: { 'content-type': resume.type, 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(resume.name)}` } });
+  });
+
+  app.delete(`${base}/resume`, async (c) => {
+    if (c.req.param('id') !== 'me') return c.json({ error: 'not found' }, 404);
+    (await systemOf(c)).setResume(null);
+    return c.json({ resume: null });
   });
 
   // Settings that change how the agents behave for this student.

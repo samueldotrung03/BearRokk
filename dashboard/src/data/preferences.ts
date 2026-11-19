@@ -162,6 +162,34 @@ export interface Note {
   updatedAt: string;
 }
 
+/** One thing the student has done. Every part is optional. */
+export interface ExperienceEntry {
+  id: string;
+  kind: string;
+  role: string;
+  organization: string;
+  location: string;
+  /** YYYY-MM, or empty. */
+  start: string;
+  end: string;
+  /** Still doing it, so there is no end date. */
+  current: boolean;
+  summary: string;
+  skills: string[];
+  link: string;
+}
+
+export const experienceKinds = ['Internship', 'Job', 'Research', 'Project', 'Club or leadership', 'Volunteering', 'Competition or hackathon', 'Teaching or tutoring', 'Other'];
+
+export interface Experience {
+  linkedin: string;
+  /** Other places the student's work lives: GitHub, a portfolio, a personal site. */
+  links: string[];
+  entries: ExperienceEntry[];
+}
+
+export const emptyExperience: Experience = { linkedin: '', links: [], entries: [] };
+
 /** What the student has filled in. Blank answers and unticked boxes are simply absent. */
 export interface Preferences {
   /** Fields ticked under Career interests, including ones the student added. */
@@ -180,9 +208,11 @@ export interface Preferences {
   checks: Record<string, boolean>;
   /** Custom notes. The agents read these first and they override everything else. */
   notes: Note[];
+  /** The Experience tab: links and things the student has done. The résumé file itself is kept by the backend. */
+  experience: Experience;
 }
 
-export const emptyPreferences: Preferences = { fields: [], topField: null, customFields: [], kinds: [], answers: {}, lists: {}, checks: {}, notes: [] };
+export const emptyPreferences: Preferences = { fields: [], topField: null, customFields: [], kinds: [], answers: {}, lists: {}, checks: {}, notes: [], experience: emptyExperience };
 
 /** Older saved answers may lack newer parts. */
-export const withDefaults = (p: Partial<Preferences> | undefined): Preferences => ({ ...emptyPreferences, ...p, lists: p?.lists ?? {} });
+export const withDefaults = (p: Partial<Preferences> | undefined): Preferences => ({ ...emptyPreferences, ...p, lists: p?.lists ?? {}, experience: { ...emptyExperience, ...p?.experience } });

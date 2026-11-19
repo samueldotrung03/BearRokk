@@ -11,7 +11,7 @@ import { LocalStore } from '../src/store/local.ts';
 
 const NOW = new Date('2026-11-18T20:00:00Z');
 const even: Record<Category, number> = { internship: 1, event: 1, club: 1, program: 1 };
-const system = (opts = {}) => new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, ...opts });
+const system = (opts = {}) => new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, typingPauseMs: 300, ...opts });
 
 function opp(id: string, over: Partial<Opportunity> = {}): Opportunity {
   return {
@@ -393,7 +393,7 @@ test('profile page answers: ticked fields steer the search and restrictions beco
   });
   const saved = ((await res.json()) as any).student.profile.preferences;
   // Blank answers and unticked boxes are dropped.
-  assert.deepEqual(saved, { fields: ['Biotech / pharma', 'Design / UX'], topField: 'Biotech / pharma', answers: { minPay: '20' }, lists: { skipIndustries: ['gambling', 'tobacco'] }, checks: { remote: true, paidOnly: true }, notes: [{ title: 'What I want', body: 'A lab where I do real bench work.' }] });
+  assert.deepEqual(saved, { fields: ['Biotech / pharma', 'Design / UX'], topField: 'Biotech / pharma', answers: { minPay: '20' }, lists: { skipIndustries: ['gambling', 'tobacco'] }, checks: { remote: true, paidOnly: true }, notes: [{ title: 'What I want', body: 'A lab where I do real bench work.' }], experience: { linkedin: '', links: [], entries: [] } });
 
   await new Promise((r) => setTimeout(r, 800));
   await s.idle();
@@ -430,7 +430,7 @@ test('custom notes come first: they outrank ticked fields and reaction history, 
   for (const f of before.filter((x) => x.opportunity.field === 'software').slice(0, 4)) s.interact(f.opportunity.id, 'like');
 
   // Ticked field says design; the note says security and hackathons, and rules out Harbor Data Co.
-  s.setProfile({ preferences: { fields: ['Design / UX'], topField: 'Design / UX', answers: {}, lists: {}, checks: {}, notes: [{ title: 'Summer plan', body: "I want security work and hackathons. I already applied to Harbor Data Co, don't show it again." }] } });
+  s.setProfile({ preferences: { fields: ['Design / UX'], topField: 'Design / UX', answers: {}, lists: {}, checks: {}, experience: { linkedin: '', links: [], entries: [] }, notes: [{ title: 'Summer plan', body: "I want security work and hackathons. I already applied to Harbor Data Co, don't show it again." }] } });
   await new Promise((r) => setTimeout(r, 800));
   await s.idle();
   const run = s.currentRun()!;
@@ -452,4 +452,71 @@ test('custom notes come first: they outrank ticked fields and reaction history, 
   const lastNoted = feed.map((f) => f.fromNotes).lastIndexOf(true);
   assert.ok(firstLiked === -1 || feed.filter((f) => f.fromNotes).length <= firstLiked || lastNoted < feed.length, 'liked cards do not outrank noted ones');
   assert.ok(feed.findIndex((f) => f.fromNotes) < (firstLiked === -1 ? Infinity : firstLiked));
+});
+
+test('experience: a résumé is read for the agents, entries are optional throughout, and both shape the search', async () => {
+  const made: AgentSystem[] = [];
+  const { app } = createApp(new LocalStore(null), {}, {
+    demo: system(),
+    webConfig: { apiKey: 'k', projectId: 'p' },
+    verify: async (token) => (token === 'ok' ? { uid: 'u1', name: 'Ana', email: null, picture: null, provider: 'google', emailVerified: true } : Promise.reject(new Error('bad'))),
+    forUser: () => { const s = system(); made.push(s); return s; },
+  });
+  const auth = { authorization: 'Bearer ok' };
+  const upload = (path: string, body: BodyInit, type: string, name = 'My%20R%C3%A9sum%C3%A9.txt', headers: Record<string, string> = auth) =>
+    app.request(path, { method: 'PUT', headers: { ...headers, 'content-type': type, 'x-file-name': name }, body });
+
+  // The demo student is shared, so nothing personal can be uploaded to it.
+  assert.equal((await upload('/api/students/demo/resume', 'x', 'text/plain', 'r.txt', {})).status, 403);
+  assert.equal((await upload('/api/students/me/resume', 'x', 'text/plain', 'r.txt', {})).status, 401);
+  assert.equal((await upload('/api/students/me/resume', 'x', 'application/zip')).status, 415);
+  assert.equal((await upload('/api/students/me/resume', '', 'text/plain')).status, 400);
+
+  const res = await upload('/api/students/me/resume', 'Ana Lima\nCybersecurity club captain. Built a network scanner in Python.', 'text/plain');
+  const info = ((await res.json()) as any).resume;
+  assert.deepEqual({ name: info.name, type: info.type, readable: info.readable }, { name: 'My Résumé.txt', type: 'text/plain', readable: true });
+  const s = made[0]!;
+  // The page is told about the file, never sent the file or its text.
+  assert.deepEqual(Object.keys(s.student().resume!).sort(), ['name', 'readable', 'size', 'type', 'uploadedAt']);
+  const back = await app.request('/api/students/me/resume', { headers: auth });
+  assert.match(await back.text(), /network scanner/);
+
+  // Entries: every part is optional, an empty entry is dropped, odd dates are blanked.
+  const put = await app.request('/api/students/me/profile', {
+    method: 'PUT',
+    headers: { ...auth, 'content-type': 'application/json' },
+    body: JSON.stringify({ preferences: { fields: [], experience: { linkedin: ' linkedin.com/in/ana ', links: ['github.com/ana', ''], entries: [{ role: 'Research assistant', organization: 'Saffron Bio', start: '2026-06', end: 'soon', skills: ['Lab work', ' '] }, { organization: 'Robotics team' }, {}] } } }),
+  });
+  const exp = ((await put.json()) as any).student.profile.preferences.experience;
+  assert.equal(exp.linkedin, 'linkedin.com/in/ana');
+  assert.deepEqual(exp.links, ['github.com/ana']);
+  assert.equal(exp.entries.length, 2);
+  assert.deepEqual(exp.entries[0], { kind: '', role: 'Research assistant', organization: 'Saffron Bio', location: '', start: '2026-06', end: '', current: false, summary: '', skills: ['Lab work'], link: '' });
+
+  await new Promise((r) => setTimeout(r, 900));
+  await s.idle();
+  const brief = s.currentRun()!.brief!;
+  // Background adds areas (security from the résumé, bio and hardware from the entries) behind what was asked for.
+  assert.ok(brief.interests.includes('security') && brief.interests.includes('bio'));
+  assert.ok(brief.interests.indexOf('software') < brief.interests.indexOf('security'), 'stated interests stay ahead of background');
+  assert.ok(brief.preferences.includes('builds on their experience: Research assistant at Saffron Bio'));
+  assert.ok(brief.preferences.includes('matches the skills on their résumé'));
+
+  assert.equal((await app.request('/api/students/me/resume', { method: 'DELETE', headers: auth })).status, 200);
+  assert.equal(s.student().resume, null);
+});
+
+test('experience: text is read out of a PDF résumé', async () => {
+  const { readResume } = await import('../src/resume.ts');
+  const objs: string[] = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  const stream = 'BT /F1 12 Tf 20 100 Td (Maya Tran Python SQL intern) Tj ET';
+  objs[3] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objs.forEach((o, i) => { offsets.push(pdf.length); pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('') + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  assert.equal(await readResume(new TextEncoder().encode(pdf), 'application/pdf'), 'Maya Tran Python SQL intern');
+  // A file that is not really a PDF gives no text, and does not throw.
+  assert.equal(await readResume(new TextEncoder().encode('not a pdf'), 'application/pdf'), null);
 });

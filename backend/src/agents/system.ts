@@ -2,6 +2,7 @@
 // and runs the master -> search managers -> worker fleet -> validators -> presentation manager chain.
 import { createHash } from 'node:crypto';
 import { addToCalendarUrl, type DeadlineEvent } from '../calendar.ts';
+import { resumeInfo, type Resume, type ResumeInfo } from '../resume.ts';
 import { canonicalUrl } from '../validate.ts';
 import type { Brain } from './brain.ts';
 import { Fleet, pooled } from './fleet.ts';
@@ -40,6 +41,8 @@ export interface SystemOptions {
   feedbackThreshold: number;
   /** Pause between the master's commands to each manager, so they can be followed on screen. */
   managerStaggerMs: number;
+  /** How long to wait after the last profile-page edit before running, since that page saves while typing. */
+  typingPauseMs: number;
   now: () => Date;
 }
 
@@ -50,6 +53,7 @@ export const DEFAULT_OPTIONS: SystemOptions = {
   maxValidations: 24,
   feedbackThreshold: 5,
   managerStaggerMs: 0,
+  typingPauseMs: 4000,
   now: () => new Date(),
 };
 
@@ -79,6 +83,8 @@ export interface StudentState {
   runCount: number;
   mode: 'simulated' | 'live';
   applications: Application[];
+  /** The uploaded résumé, without the file itself. */
+  resume: ResumeInfo | null;
 }
 
 type Listener = (event: 'run' | 'student', data: unknown) => void;
@@ -120,6 +126,7 @@ export class AgentSystem {
   private applications = new Map<string, Application>();
   /** Days before a deadline to remind the student. Empty turns reminders off. */
   private reminderDays: number[] = [7, 2, 0];
+  private resume: Resume | null = null;
   private newIds = new Set<string>();
   private run: RunSnapshot | null = null;
   private runCount = 0;
@@ -170,6 +177,7 @@ export class AgentSystem {
       runCount: this.runCount,
       mode: this.brain.mode,
       applications: this.listApplications(),
+      resume: resumeInfo(this.resume),
     };
   }
 
@@ -202,10 +210,29 @@ export class AgentSystem {
   setProfile(patch: Partial<Profile>) {
     this.profile = { ...this.profile, ...patch };
     this.emitStudent();
-    // Several quick edits become one run.
-    if (this.profileTimer) clearTimeout(this.profileTimer);
-    this.profileTimer = setTimeout(() => void this.trigger('profile'), 700);
+    this.runSoon(Object.keys(patch).every((k) => k === 'preferences') ? this.opts.typingPauseMs : 700);
     return this.student();
+  }
+
+  /**
+   * Start a run once the student stops editing. The profile page saves as they type, so its
+   * answers wait longer than a single switch flipped elsewhere.
+   */
+  private runSoon(ms: number) {
+    if (this.profileTimer) clearTimeout(this.profileTimer);
+    this.profileTimer = setTimeout(() => void this.trigger('profile'), ms);
+  }
+
+  /** Store or remove the résumé. A new one is a reason for the agents to look again. */
+  setResume(resume: Resume | null) {
+    this.resume = resume;
+    this.emitStudent();
+    if (resume) this.runSoon(700);
+    return resumeInfo(resume);
+  }
+
+  getResume() {
+    return this.resume;
   }
 
   interact(opportunityId: string, action: Action) {
@@ -237,6 +264,7 @@ export class AgentSystem {
     this.rejectedUrls.clear();
     this.applications.clear();
     this.reminderDays = [7, 2, 0];
+    this.resume = null;
     this.newIds.clear();
     this.profile = structuredClone(this.initialProfile);
     this.feedbackSinceRun = 0;
@@ -432,7 +460,7 @@ export class AgentSystem {
           });
         }
       }
-      const { brief, assignments } = await this.brain.master({ profile: this.profile, memory: summary, assignments: skeleton });
+      const { brief, assignments } = await this.brain.master({ profile: this.profile, memory: summary, resumeText: this.resume?.text ?? null, assignments: skeleton });
       run.brief = brief;
       run.assignments = assignments;
       const mix = (Object.keys(split) as Category[]).filter((c) => split[c] > 0).map((c) => `${split[c]} on ${CATEGORY_LABEL[c].toLowerCase()}`);

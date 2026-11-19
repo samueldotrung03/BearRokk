@@ -120,7 +120,11 @@ export class SimBrain implements Brain {
     const signals = noteSignals(notes);
     const fromNotes = areasOf(signals.want, null);
     const ruledOut = new Set(areasOf(signals.avoid, null));
-    const fields = [...new Set([...fromNotes, ...areasOf(prefs?.fields ?? [], prefs?.topField ?? null), ...fieldsOf([...profile.interests, ...profile.careerInterests.filter((c) => c !== 'Not sure yet')])])].filter((f) => !ruledOut.has(f));
+    // Background comes last: what the student has already done hints at fit, but what they say they want leads.
+    const entries = prefs?.experience?.entries ?? [];
+    const background = [...entries.flatMap((e) => [e.role, e.organization, e.kind, e.summary, ...e.skills]), input.resumeText ?? ''].filter(Boolean);
+    const fromBackground = areasOf(background.join('. ').split(/[.,;\n]/), null).slice(0, 3);
+    const fields = [...new Set([...fromNotes, ...areasOf(prefs?.fields ?? [], prefs?.topField ?? null), ...fieldsOf([...profile.interests, ...profile.careerInterests.filter((c) => c !== 'Not sure yet')]), ...fromBackground])].filter((f) => !ruledOut.has(f));
     const rule = (id: string) => prefs?.checks[id] === true;
     // Answers with several entries read as one comma-separated line; older saves only have the typed answer.
     const said = (id: string) => {
@@ -152,6 +156,8 @@ export class SimBrain implements Brain {
         ...(prefs?.topField ? [`top field: ${prefs.topField}`] : []),
         ...(said('rolesWanted') ? [`roles wanted most: ${said('rolesWanted')}`] : []),
         ...fields.map((f) => `${f} work`),
+        ...entries.slice(0, 3).filter((e) => e.role || e.organization).map((e) => `builds on their experience: ${[e.role, e.organization].filter(Boolean).join(' at ')}`),
+        ...(input.resumeText ? ['matches the skills on their résumé'] : []),
         ...profile.careerInterests.filter((c) => c !== 'Not sure yet').map((c) => `leads toward ${c.toLowerCase()}`),
         ...(profile.eventTypes.length ? [`events such as ${profile.eventTypes.join(', ').toLowerCase()}`] : []),
         ...memory.likes.slice(0, 3).map((l) => `more like what they liked: ${l.feature}`),

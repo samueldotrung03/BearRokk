@@ -76,7 +76,7 @@ Base everything on the notes, profile and memory. Do not invent constraints.
 
 ${NOTES_RULE}
 Read the notes before the rest of the profile. Put what they ask for at the top of preferences, turn anything they rule out into avoid or hardCriteria, and give the managers lenses and focus values that go after what the notes describe.`,
-      user: `Today is ${today()}.\n${notesBlock(notes)}\nProfile (preferences.fields are ticked fields; preferences.checks, preferences.answers and preferences.lists hold the restrictions and the other answers, lists being entries with several values such as cities or companies to skip): ${JSON.stringify(input.profile)}\nMemory: ${JSON.stringify(input.memory)}\nManager slots: ${JSON.stringify(input.assignments.map((a) => ({ managerId: a.managerId, category: a.category })))}`,
+      user: `Today is ${today()}.\n${notesBlock(notes)}\n${input.resumeText ? `Résumé text (background, not a wish list):\n"""${input.resumeText.slice(0, 6000)}"""\n` : ''}Profile (preferences.experience is what they have done so far; preferences.fields are ticked fields; preferences.checks, preferences.answers and preferences.lists hold the restrictions and the other answers, lists being entries with several values such as cities or companies to skip): ${JSON.stringify(input.profile)}\nMemory: ${JSON.stringify(input.memory)}\nManager slots: ${JSON.stringify(input.assignments.map((a) => ({ managerId: a.managerId, category: a.category })))}`,
     });
     // The notes travel in the brief word for word, so no later agent works from a summary of them.
     const brief: Brief = { ...data.brief, year: input.profile.year, location: input.profile.location, remoteOk: input.profile.remoteOk, notes };

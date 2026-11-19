@@ -5,6 +5,8 @@ import type { MemorySummary, Assignment, Brief, Candidate, ApplicationInfo, Lead
 export interface MasterInput {
   profile: Profile;
   memory: MemorySummary;
+  /** Text read from the student's résumé, when they uploaded one that could be read. */
+  resumeText: string | null;
   /** Slots already split over categories; the master fills in lens and focus. */
   assignments: Assignment[];
 }
