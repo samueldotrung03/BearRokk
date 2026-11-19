@@ -14,7 +14,7 @@ export interface ShortcutAction {
 export const shortcutActions: ShortcutAction[] = [
   { id: 'launcher', label: 'Open the launcher', group: 'General', fallback: 'mod+/' },
   { id: 'assistant', label: 'Ask BearRok', group: 'General', fallback: 'mod+k' },
-  { id: 'page:/today', label: 'Today', group: 'Pages', fallback: 'mod+1' },
+  { id: 'page:/today', label: 'Dashboard', group: 'Pages', fallback: 'mod+1' },
   { id: 'page:/', label: 'Feed', group: 'Pages', fallback: 'mod+2' },
   { id: 'page:/roadmap', label: 'Roadmap', group: 'Pages', fallback: 'mod+3' },
   { id: 'page:/discover', label: 'Career discovery', group: 'Pages', fallback: 'mod+4' },

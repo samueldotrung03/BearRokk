@@ -96,6 +96,7 @@ export async function claudeCliJson<S extends z.ZodType>(opts: {
     '--no-session-persistence',
   ];
   if (search) args.push('--allowedTools', 'WebSearch', 'WebFetch');
+  if (config.claudeCli.effort) args.push('--effort', config.claudeCli.effort);
 
   const stdout = await run(args, opts.timeoutMs ?? config.claudeCli.timeoutMs);
   let body: any;

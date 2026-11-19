@@ -45,13 +45,11 @@ function StartLinks() {
 }
 
 export function DoToday({
-  brief,
   actions,
   fresh,
   status,
   onAct,
 }: {
-  brief: string;
   actions: TodayAction[];
   fresh: boolean;
   status: Undoable | null;
@@ -64,13 +62,7 @@ export function DoToday({
     <Card className="td-do td-hero p-6">
       <div className="td-hero-glow" aria-hidden="true" />
       <div className="relative">
-        <span className="td-ai-chip">
-          <Sparkles className="size-3.5" aria-hidden="true" />
-          Today's brief
-        </span>
-        <p className="td-brief">{brief}</p>
-
-        <div className="mt-6 flex items-baseline justify-between gap-3">
+        <div className="flex items-baseline justify-between gap-3">
           <h2 className="td-section-title">Do today</h2>
           {actions.length > 0 && <span className="td-count">Most urgent first</span>}
         </div>

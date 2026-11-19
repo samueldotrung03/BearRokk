@@ -5,10 +5,12 @@ import { SimBrain } from './agents/simBrain.ts';
 import { AgentSystem } from './agents/system.ts';
 import type { StudentMemory } from './agents/types.ts';
 import { createApp } from './app.ts';
+import { CareerGuides } from './careers/guide.ts';
 import { firebaseVerifier, webConfig } from './auth.ts';
 import { config, liveAvailable, provider } from './config.ts';
 import { oauthClientFrom } from './googleOAuth.ts';
 import { openStore } from './store/index.ts';
+import { cached, writeRoadmap } from './roadmap.ts';
 import { UserFirestore } from './store/userFirestore.ts';
 
 const store = await openStore();
@@ -40,6 +42,7 @@ const memory = account
 // A lasting Google connection needs a "Desktop app" OAuth client (GOOGLE_OAUTH_CLIENT_FILE, or
 // GOOGLE_OAUTH_CLIENT_ID and _SECRET). Without one, pages connect Google for one session at a time.
 const oauthClient = oauthClientFrom(process.env);
+const careers = new CareerGuides();
 const { app } = createApp(store, {}, {
   memory,
   google: oauthClient ? { client: oauthClient, redirectBase: `http://127.0.0.1:${config.port}` } : null,
@@ -52,6 +55,7 @@ const { app } = createApp(store, {}, {
   },
   verify,
   webConfig: webConfig(),
+  roadmap: liveAvailable() ? cached(writeRoadmap) : null,
   grok: !liveAvailable()
     ? { connected: false, mode: 'simulated', detail: 'No Grok connection is configured, so the agents are simulated on sample data.' }
     : config.grokTransport === 'claude'
@@ -59,7 +63,7 @@ const { app } = createApp(store, {}, {
       : config.grokTransport === 'cli'
       ? { connected: true, mode: 'cli', detail: 'Through the Grok app on this computer, on its Grok subscription.' }
       : { connected: true, mode: 'api', detail: `Through the xAI API (${config.xaiModels.normal} and ${config.xaiModels.low}).` },
-});
+}, careers);
 
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`backend listening on http://localhost:${port}`);

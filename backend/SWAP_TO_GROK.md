@@ -22,6 +22,8 @@ While it is on:
 2. In `backend/`, run `npm run grok:check`. It makes one small real call with web search and prints the answer.
 3. Restart the backend. The start-up line should name Grok, and the pages should say "Live Grok agents".
 4. Run one full search from `/console` and read the results before trusting it on stage.
+5. Run `npm run roadmap:check`. It writes one career roadmap and one roadmap for a posting already applied to, for an invented student, and checks each has what the dashboard draws (open-ended directions, steps for after applying, the selection process, real links). If a check fails, the prompt in `src/roadmap.ts` is the place to adjust. The roadmap writer asks for `x_search` as well as `web_search`; if the account rejects that tool, remove it in `writeRoadmap`.
+6. Open the dashboard's Roadmap page. The status line should change from "Grok is not connected" to "Written by Grok". Open each roadmap you plan to show once, so its written version is saved in the browser and appears at once on stage. "Rewrite" asks again.
 
 ## What to expect to fix on the Grok side
 

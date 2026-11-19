@@ -15,6 +15,8 @@ export interface AppState {
   goalId: string;
   /** The student picked the goal themselves (Roadmap or Career discovery), so suggestions leave it alone. */
   goalChosen?: boolean;
+  /** Version of the sample data this state was started from, so later sample applications reach a saved guest. */
+  seed?: number;
   profile: Profile;
   /** Answers on the profile page: career interests, restrictions and notes. */
   preferences?: Preferences;
@@ -234,7 +236,10 @@ export function loadState(initial: AppState, uid: string | null = null): AppStat
     const raw = localStorage.getItem(storageKey(uid));
     if (!raw) return initial;
     const stored = JSON.parse(raw) as Partial<AppState>;
-    return { ...initial, ...stored, profile: { ...initial.profile, ...stored.profile } };
+    const next = { ...initial, ...stored, profile: { ...initial.profile, ...stored.profile } };
+    // Sample applications added since this state was saved are brought in once; the student's own stay as they are.
+    if ((stored.seed ?? 1) < (initial.seed ?? 1)) return { ...next, seed: initial.seed, applications: { ...initial.applications, ...stored.applications } };
+    return next;
   } catch {
     return initial;
   }

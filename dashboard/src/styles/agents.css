@@ -708,3 +708,136 @@ button.ag-chip-dark:hover {
     transition: none;
   }
 }
+
+/* ---------- Dark theme ---------- */
+
+/* The run panel becomes a quiet raised surface instead of navy; everything inside it already uses
+   white at low opacity, so it reads the same. */
+:root[data-theme='dark'] .ag-hero {
+  background:
+    radial-gradient(70% 60% at 100% 0%, rgb(110 155 255 / 0.13), transparent 62%),
+    radial-gradient(60% 50% at 0% 100%, rgb(132 96 255 / 0.08), transparent 60%),
+    var(--surface);
+  box-shadow:
+    inset 0 0 0 1px var(--color-line),
+    var(--shadow-card);
+}
+:root[data-theme='dark'] .ag-btn {
+  background: var(--surface-2);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-btn:hover {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .ag-btn[data-primary='true'] {
+  color: #0a0b0f;
+  background: #fff;
+  border-color: transparent;
+  box-shadow: none;
+}
+:root[data-theme='dark'] .ag-btn[data-primary='true']:hover {
+  background: #e6e9ef;
+}
+:root[data-theme='dark'] .ag-seg {
+  background: var(--surface-2);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-seg button[aria-pressed='true'] {
+  color: #0a0b0f;
+  background: #fff;
+}
+:root[data-theme='dark'] .ag-chip-dark {
+  background: var(--surface-2);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] button.ag-chip-dark:hover {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .ag-command {
+  color: var(--color-ink);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+:root[data-theme='dark'] .ag-command:focus-within {
+  box-shadow:
+    0 0 0 1px var(--color-brand),
+    0 0 0 4px rgb(110 155 255 / 0.22);
+}
+:root[data-theme='dark'] .ag-directive[data-kind='focus'] {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+:root[data-theme='dark'] .ag-directive[data-kind='avoid'] {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+:root[data-theme='dark'] .ag-directive[data-kind='only'] {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+:root[data-theme='dark'] .ag-graph-scroll {
+  background: rgb(0 0 0 / 0.28);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-node[data-level='master'] {
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgb(110 155 255 / 0.26), transparent 60%),
+    rgb(255 255 255 / 0.06);
+}
+:root[data-theme='dark'] .ag-dot {
+  background: #5d6577;
+}
+:root[data-theme='dark'] .ag-feed-node {
+  color: #0a0b0f;
+  background: #fff;
+  box-shadow: 0 8px 30px -12px rgb(255 255 255 / 0.35);
+}
+:root[data-theme='dark'] .ag-hub {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+:root[data-theme='dark'] :is(.ag-pulse-pill, .ag-pulse-pill > span) {
+  color: #0a0b0f;
+}
+:root[data-theme='dark'] .ag-panel {
+  background: rgb(255 255 255 / 0.03);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-side-card {
+  background: rgb(255 255 255 / 0.03);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-funnel-bar {
+  background: linear-gradient(90deg, var(--color-brand), #6e9bff);
+  box-shadow: none;
+}
+:root[data-theme='dark'] .ag-funnel-row[data-stage='4'] .ag-funnel-bar {
+  background: linear-gradient(90deg, #059669, #34d399);
+  box-shadow: none;
+}
+:root[data-theme='dark'] :is(.ag-funnel-track, .ag-meter) {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .ag-reason {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .ag-slot {
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+}
+:root[data-theme='dark'] .ag-from[data-from='you'] {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+:root[data-theme='dark'] .ag-from[data-from='profile'] {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .ag-from[data-from='memory'] {
+  color: #c4b5fd;
+  background: rgb(167 139 250 / 0.14);
+}
+:root[data-theme='dark'] .ag-week-bar {
+  background: rgb(110 155 255 / 0.22);
+}
+:root[data-theme='dark'] .ag-week-bar[data-today='true'] {
+  background: var(--color-brand);
+}

@@ -881,3 +881,234 @@
     transform: none;
   }
 }
+
+/* ---------- Dark theme ---------- */
+
+/* Panels become quiet raised surfaces with a hairline border; state rules that set a border or a
+   text color are repeated here because the dark selectors outrank them. */
+:root[data-theme='dark'] .ap-funnel-arrow {
+  color: var(--color-ink-3);
+}
+:root[data-theme='dark'] .ap-stage {
+  border-color: var(--color-line);
+  background: var(--surface);
+}
+:root[data-theme='dark'] .ap-stage[aria-pressed='true'] {
+  border-color: var(--color-brand);
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .ap-nextup {
+  border-color: var(--color-line);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgb(110 155 255 / 0.07), transparent 55%),
+    var(--surface);
+}
+:root[data-theme='dark'] .ap-next-tile {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .ap-next-tile[data-first='true'] {
+  border-color: rgb(110 155 255 / 0.35);
+  background: linear-gradient(180deg, var(--color-brand-soft), var(--surface-2) 70%);
+}
+:root[data-theme='dark'] .ap-next {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .ap-next:hover {
+  background: rgb(110 155 255 / 0.22);
+}
+:root[data-theme='dark'] .ap-next-solid {
+  background: var(--color-ink);
+  color: var(--color-canvas);
+}
+:root[data-theme='dark'] .ap-next-solid:hover {
+  background: #ffffff;
+}
+:root[data-theme='dark'] .ap-search,
+:root[data-theme='dark'] .ap-select select {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .ap-search:focus-within {
+  box-shadow: 0 0 0 3px rgb(110 155 255 / 0.18);
+}
+:root[data-theme='dark'] .ap-select select {
+  color-scheme: dark;
+}
+:root[data-theme='dark'] .ap-export {
+  background: var(--surface);
+  color: var(--brand-text);
+  box-shadow: 0 0 0 1px var(--color-line);
+}
+:root[data-theme='dark'] .ap-export:hover {
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+:root[data-theme='dark'] .ap-chip {
+  background: transparent;
+}
+:root[data-theme='dark'] .ap-chip:hover {
+  border-color: var(--color-brand);
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .ap-chip-warn {
+  border-color: rgb(251 191 36 / 0.3);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+:root[data-theme='dark'] .ap-chip-quiet {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .ap-chip-hot {
+  background: rgb(251 146 60 / 0.13);
+  color: #fdba74;
+}
+:root[data-theme='dark'] .ap-mini {
+  background: transparent;
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .ap-mini:hover {
+  border-color: var(--color-brand);
+}
+:root[data-theme='dark'] :is(.ap-ring, .ap-mini-bar)[data-tone='low'] {
+  --ap-tone: #fb923c;
+}
+:root[data-theme='dark'] :is(.ap-ring, .ap-mini-bar)[data-tone='high'] {
+  --ap-tone: #34d399;
+}
+:root[data-theme='dark'] :is(.ap-panel, .ap-prompt) {
+  background: var(--surface);
+}
+:root[data-theme='dark'] .ap-after {
+  border-color: rgb(52 211 153 / 0.25);
+  background: linear-gradient(180deg, var(--ok-soft), var(--surface) 80%);
+}
+:root[data-theme='dark'] .ap-textarea {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .ap-textarea:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgb(110 155 255 / 0.18);
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .ap-textarea::selection {
+  background: rgb(110 155 255 / 0.35);
+}
+:root[data-theme='dark'] .ap-meter {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .ap-meter > span {
+  background: var(--color-ink-3);
+}
+:root[data-theme='dark'] .ap-meter > i {
+  background: var(--line-strong);
+}
+:root[data-theme='dark'] .ap-meter[data-tone='good'] > span {
+  background: var(--glow);
+}
+:root[data-theme='dark'] .ap-meter[data-tone='over'] > span {
+  background: #fb923c;
+}
+:root[data-theme='dark'] .ap-saved[data-state='saved'] {
+  color: var(--ok);
+}
+:root[data-theme='dark'] .ap-helper {
+  background:
+    radial-gradient(90% 120% at 100% 0%, rgb(139 120 255 / 0.1), transparent 60%),
+    var(--surface-2);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ap-helper-badge {
+  background-image: linear-gradient(90deg, #93b6ff, #b4a6ff);
+}
+:root[data-theme='dark'] .ap-helper-badge svg {
+  color: #b4a6ff;
+}
+:root[data-theme='dark'] .ap-ai-btn {
+  border-color: var(--color-line);
+  background: var(--surface);
+  box-shadow: none;
+}
+:root[data-theme='dark'] .ap-ai-btn svg {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .ap-ai-btn:hover:not(:disabled),
+:root[data-theme='dark'] .ap-ai-btn[aria-pressed='true'] {
+  border-color: var(--color-brand);
+  color: var(--brand-text);
+  box-shadow: 0 0 0 3px rgb(110 155 255 / 0.14);
+}
+:root[data-theme='dark'] .ap-thinking {
+  background: var(--surface);
+}
+:root[data-theme='dark'] .ap-thinking::after {
+  background: linear-gradient(100deg, transparent 30%, rgb(110 155 255 / 0.1) 50%, transparent 70%);
+}
+:root[data-theme='dark'] :is(.ap-section, .ap-note) {
+  background: var(--surface);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ap-starter {
+  border-left-color: rgb(110 155 255 / 0.45);
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .ap-blank {
+  border-color: rgb(251 191 36 / 0.45);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+:root[data-theme='dark'] .ap-fact {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .ap-fact:hover {
+  border-color: var(--color-brand);
+}
+:root[data-theme='dark'] .ap-fact-src {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .ap-fact[data-source='posting'] .ap-fact-src {
+  background: rgb(139 120 255 / 0.15);
+  color: #b4a6ff;
+}
+:root[data-theme='dark'] .ap-note[data-tone='fix'] > svg {
+  color: #fb923c;
+}
+:root[data-theme='dark'] .ap-note[data-tone='tip'] > svg {
+  color: var(--warn);
+}
+:root[data-theme='dark'] .ap-note[data-tone='good'] > svg {
+  color: var(--ok);
+}
+:root[data-theme='dark'] .ap-column {
+  border-color: var(--color-line);
+  background: rgb(255 255 255 / 0.025);
+  box-shadow: none;
+}
+:root[data-theme='dark'] .ap-column[data-over='true'] {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+:root[data-theme='dark'] .ap-card {
+  background: var(--surface);
+  box-shadow: none;
+}
+:root[data-theme='dark'] .ap-card:hover {
+  border-color: var(--line-strong);
+}
+:root[data-theme='dark'] .ap-drop-hint {
+  border-color: var(--line-strong);
+}
+:root[data-theme='dark'] .ap-move:hover:not(:disabled) {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .ap-sheet {
+  box-shadow:
+    0 0 0 1px var(--color-line),
+    var(--shadow-lift);
+}
+:root[data-theme='dark'] .ap-sheet::backdrop {
+  background: var(--scrim);
+}
+:root[data-theme='dark'] .ap-sheet-body {
+  background: var(--color-canvas);
+}
+:root[data-theme='dark'] .ap-progress {
+  background: var(--glow);
+}

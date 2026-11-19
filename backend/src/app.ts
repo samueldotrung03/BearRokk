@@ -2,12 +2,14 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HttpError, mountAgents, type AgentsOptions } from './agents/api.ts';
+import { mountCareers } from './careers/api.ts';
+import type { CareerGuides } from './careers/guide.ts';
 import { config } from './config.ts';
 import { mountDesktopAuth } from './desktopAuth.ts';
 import { Engine, UserError, type Deps, type Mode } from './pipeline.ts';
 import type { Store } from './store/index.ts';
 
-export function createApp(store: Store, deps: Partial<Deps> = {}, agents?: AgentsOptions) {
+export function createApp(store: Store, deps: Partial<Deps> = {}, agents?: AgentsOptions, careers?: CareerGuides) {
   const engine = new Engine(store, deps);
   const app = new Hono();
   app.use('/api/*', cors());
@@ -40,6 +42,7 @@ export function createApp(store: Store, deps: Partial<Deps> = {}, agents?: Agent
 
   // Each student's memory is kept in the same store, under their account.
   if (agents) mountAgents(app, { memory: store, ...agents });
+  if (careers) mountCareers(app, careers);
   mountDesktopAuth(app);
 
   app.onError((err, c) => {

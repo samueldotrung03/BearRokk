@@ -16,6 +16,7 @@ import { Feed } from './pages/Feed.tsx';
 import { ForgotPassword } from './pages/ForgotPassword.tsx';
 import { Profile } from './pages/Profile.tsx';
 import { Roadmap } from './pages/Roadmap.tsx';
+import { RoadmapList } from './pages/RoadmapList.tsx';
 import { Saved } from './pages/Saved.tsx';
 import { Settings } from './pages/Settings.tsx';
 import { SignIn } from './pages/SignIn.tsx';
@@ -48,6 +49,7 @@ export function App() {
         <Route path="/" element={<Feed />} />
         <Route path="/today" element={<Today />} />
         <Route path="/roadmap" element={<Roadmap />} />
+        <Route path="/roadmap/list" element={<RoadmapList />} />
         <Route path="/discover" element={<Discover />} />
         <Route path="/applications" element={<Applications />} />
         <Route path="/calendar" element={<Calendar />} />

@@ -37,7 +37,7 @@ describe('keyboard shortcuts', () => {
     const now = resolveShortcuts(overrides);
     expect(now['assistant']).toBe('mod+1');
     expect(now['page:/today']).toBeNull();
-    expect(takenBy(resolveShortcuts({}), 'mod+1', 'assistant')?.label).toBe('Today');
+    expect(takenBy(resolveShortcuts({}), 'mod+1', 'assistant')?.label).toBe('Dashboard');
   });
 
   it('can switch a shortcut off, and forgets an override that equals the default', () => {

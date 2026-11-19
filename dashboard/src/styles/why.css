@@ -204,3 +204,45 @@
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }
+
+/* ---------- Dark theme ---------- */
+
+:root[data-theme='dark'] .why-pop {
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    0 22px 48px -14px rgb(0 0 0 / 0.85);
+}
+:root[data-theme='dark'] .why-close:hover {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .why-item[data-direction='up'] .why-arrow {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+:root[data-theme='dark'] .why-item[data-direction='down'] .why-arrow {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+:root[data-theme='dark'] .why-item[data-direction='up'] .why-meter i[data-on='true'] {
+  background: #34d399;
+}
+:root[data-theme='dark'] .why-item[data-direction='down'] .why-meter i[data-on='true'] {
+  background: #fbbf24;
+}
+:root[data-theme='dark'] .why-meter i {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .why-actions {
+  background: var(--surface);
+}
+:root[data-theme='dark'] .why-action {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .why-action:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] :is(.why-action, .why-close):focus-visible {
+  outline-color: var(--brand-text);
+}

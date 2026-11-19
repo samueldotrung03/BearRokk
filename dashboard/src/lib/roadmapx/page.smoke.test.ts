@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuthProvider } from '../../auth/AuthProvider.tsx';
 import { careerPaths } from '../../data/sample.ts';
-import { Roadmap } from '../../pages/Roadmap.tsx';
+import { RoadmapList as Roadmap } from '../../pages/RoadmapList.tsx';
 import { LiveProvider } from '../../state/live.tsx';
 import { StoreProvider } from '../../state/StoreProvider.tsx';
 
@@ -48,6 +48,23 @@ describe('Roadmap page', () => {
       stubGoal(path.id);
       const html = render();
       expect(html, path.id).not.toMatch(/undefined|NaN/);
+    }
+  });
+});
+
+describe('Roadmap journey page', () => {
+  it('renders the 3D journey for every goal without a missing value', async () => {
+    const { Roadmap: Journey } = await import('../../pages/Roadmap.tsx');
+    for (const path of careerPaths) {
+      stubGoal(path.id);
+      const html = renderToString(
+        createElement(MemoryRouter, null, createElement(AuthProvider, null, createElement(StoreProvider, null, createElement(LiveProvider, null, createElement(Journey))))),
+      );
+      expect(html, path.id).not.toMatch(/undefined|NaN/);
+      expect(html, path.id).toContain('rm3-opt');
+      expect(html, path.id).toContain('How people got in');
+      expect(html, path.id).toContain('Recommended');
+      expect(html, path.id).toContain(path.title);
     }
   });
 });
