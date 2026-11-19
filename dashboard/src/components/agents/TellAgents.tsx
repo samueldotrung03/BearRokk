@@ -12,7 +12,8 @@ export interface StandingInstruction {
   text: string;
 }
 
-const SUGGESTIONS = ['More research roles, fewer finance', 'Only remote', 'Internships only', 'No events, more hackathons'];
+// Which kinds to search for is chosen in Agent settings, so it is not offered here.
+const SUGGESTIONS = ['More research roles, fewer finance', 'Only remote', 'More hackathons'];
 const kindWord = { focus: 'More', avoid: 'Less', only: 'Only' } as const;
 
 export function Directives({ parsed }: { parsed: ParsedInstruction }) {

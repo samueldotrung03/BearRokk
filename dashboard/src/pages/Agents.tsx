@@ -4,6 +4,7 @@
 // fast beats arrive), the student's standing instructions, and which agent is selected.
 import { Pause, Play, RotateCcw, Server, SkipForward, Square } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { AgentSettingsButton } from '../components/agents/AgentSettings.tsx';
 import { AnimatedNumber, clockText, compact } from '../components/agents/AnimatedNumber.tsx';
 import { Funnel } from '../components/agents/Funnel.tsx';
 import { useBackendStatus, useReducedMotion, type BackendState } from '../components/agents/hooks.ts';
@@ -20,6 +21,8 @@ import { fromRun } from '../lib/agents/view.ts';
 import { useLocal } from '../lib/useLocal.ts';
 import { useLive } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
 import '../styles/agents.css';
 
 const SPEEDS = [0.5, 1, 2, 4] as const;
@@ -139,6 +142,8 @@ export function Agents() {
           : 'idle';
 
   return (
+    // .ag-xai gives this page xAI's type and buttons (styles at the end of agents.css).
+    <div className="ag-xai">
     <Page
       title="Your agents"
       subtitle={
@@ -191,7 +196,9 @@ export function Agents() {
                   Run now
                 </button>
               )
-            ) : (
+            ) : null}
+            {real && <AgentSettingsButton />}
+            {real ? null : (
               <>
                 <button type="button" className="ag-btn" data-primary="true" onClick={() => start(texts, 'Started by hand with Run now.')}>
                   <Play className="size-4" aria-hidden="true" />
@@ -206,6 +213,7 @@ export function Agents() {
                   {run.status === 'paused' ? <Play className="size-4" aria-hidden="true" /> : <Pause className="size-4" aria-hidden="true" />}
                   {run.status === 'paused' ? 'Resume' : 'Pause'}
                 </button>
+                <AgentSettingsButton />
                 <div className="ag-seg" role="group" aria-label="Speed">
                   {SPEEDS.map((s) => (
                     <button key={s} type="button" aria-pressed={speed === s} onClick={() => setSpeed(s)}>
@@ -305,5 +313,6 @@ export function Agents() {
         </>
       )}
     </Page>
+    </div>
   );
 }

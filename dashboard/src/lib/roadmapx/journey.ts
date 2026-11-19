@@ -198,7 +198,7 @@ export function careerJourney(base: AppState, now = Date.now(), skip: string[] =
   // Any career can be looked at, not only the one set as the goal.
   const state = goalId === base.goalId ? base : { ...base, goalId };
   const roadmap = currentRoadmap(state.goalId);
-  const ctx = buildCoachContext(state, 6, now);
+  const ctx = buildCoachContext(state, 6, now, list);
   const byId = new Map(ctx.steps.filter((step) => !step.extra).map((step) => [step.id, step]));
   const mine = new Set(state.profile.skills.map((skill) => skill.toLowerCase()));
   const done = new Set(state.doneSteps);
@@ -734,6 +734,22 @@ export function destinations(state: AppState, list: Opportunity[], byId: Map<str
     .sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || (a.opportunity.deadline ?? '9').localeCompare(b.opportunity.deadline ?? '9'));
   if (tracked.length > 0) return tracked;
   return jobChoices(state, list, suggest).map((opportunity) => ({ opportunity, status: null }));
+}
+
+/**
+ * The postings the student is actively working on: everything set to Applying, then To apply, each
+ * soonest deadline first. Only these get a roadmap of their own; with none, the page sends the
+ * student to the feed or their saved list instead of guessing.
+ */
+export function activeApplications(state: AppState, byId: Map<string, Opportunity>): Destination[] {
+  const order: ApplicationStatus[] = ['applying', 'to_apply'];
+  return Object.entries(state.applications)
+    .filter(([, application]) => order.includes(application.status))
+    .flatMap(([id, application]) => {
+      const opportunity = byId.get(id);
+      return opportunity ? [{ opportunity, status: application.status }] : [];
+    })
+    .sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || (a.opportunity.deadline ?? '9').localeCompare(b.opportunity.deadline ?? '9'));
 }
 
 export interface Point {

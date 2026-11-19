@@ -181,7 +181,7 @@ export function googleItems(events: GoogleEvent[], hideIds: Set<string> = new Se
       }
     } else {
       const day = dayKey(e.start);
-      items.push({ ...base, id: `google-${key}`, day, date: new Date(e.start).toISOString(), why: [`${time(e.start)} – ${time(e.end)}`, e.location, ...where].filter(Boolean).join(' · ') });
+      items.push({ ...base, id: `google-${key}`, day, date: new Date(e.start).toISOString(), timed: true, end: new Date(e.end).toISOString(), why: [`${time(e.start)} – ${time(e.end)}`, e.location, ...where].filter(Boolean).join(' · ') });
     }
   }
   return items;

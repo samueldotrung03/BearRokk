@@ -1013,7 +1013,7 @@ test('search for more: asking for one kind puts every search manager on it, and 
   const run = s.currentRun()!;
   assert.equal(run.trigger, 'manual');
   assert.deepEqual(run.assignments.map((a) => a.category), ['program', 'program', 'program', 'program']);
-  assert.ok(run.assignments.every((a) => a.focus[0] === 'research positions'));
+  assert.ok(run.assignments.every((a) => a.focus.includes('research positions')));
   assert.ok(run.log.some((l) => l.text.includes('asked for more research positions')));
   assert.ok(s.student().profile.categories.includes('program'), 'research is now something they look for');
   assert.ok(s.student().feed.some((f) => f.opportunity.type === 'research'), 'and research reaches the feed');

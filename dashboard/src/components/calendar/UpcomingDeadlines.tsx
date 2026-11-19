@@ -42,39 +42,15 @@ export function UpcomingDeadlines({
 
   return (
     <section aria-labelledby="upcoming-deadlines">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="upcoming-deadlines" className="font-semibold tracking-tight">
-          Upcoming application deadlines
-        </h2>
+      <div className="cx-side-head">
+        <h2 id="upcoming-deadlines">Deadlines</h2>
         <span className="text-sm text-ink-3">{items.length}</span>
       </div>
 
-      <div className="mt-3 rounded-xl bg-canvas px-3 py-2.5 text-sm">
-        {googleState === 'loading' ? (
-          <p className="text-ink-2">Checking your Google Calendar…</p>
-        ) : googleState === 'ok' ? (
-          <p className="flex items-start gap-2 text-ink-2">
-            <CalendarCheck className="mt-0.5 size-4 shrink-0 text-emerald-700" aria-hidden="true" />
-            <span>
-              <span title={googleAccount ?? undefined}>On your Google Calendar automatically</span>: every To apply and Applying deadline, kept up to date.
-              {items.length > 0 && ` ${onCalendar} of ${items.length} on it${live.calendar.syncing ? ', updating…' : '.'}`}
-            </span>
-          </p>
-        ) : (
-          <div className="grid gap-2 text-ink-2">
-            <p>Connect Google Calendar and BearRok puts these deadlines on it for you, with reminders.</p>
-            <ConnectCalendar />
-          </div>
-        )}
-        {live.calendar.errors.length > 0 && <p className="mt-1.5 text-xs text-orange-700">Google Calendar refused some: {live.calendar.errors.join('; ')}</p>}
-      </div>
-
       {items.length === 0 ? (
-        <p className="mt-4 text-sm leading-relaxed text-ink-3">
-          Nothing yet. Set a saved opportunity to To apply or Applying and its deadline shows here.
-        </p>
+        <p className="text-sm leading-relaxed text-ink-3">Nothing due. Deadlines of what you set to To apply or Applying show up here, and go on your Google Calendar.</p>
       ) : (
-        <ul className="mt-3 grid gap-2">
+        <ul className="grid gap-2">
           {items.map(({ o, status, deadline }) => {
             const days = deadline ? daysUntil(deadline) : null;
             return (

@@ -413,6 +413,8 @@ export interface ProfileMemory {
    * for access when it needs it. Never sent to a page.
    */
   google?: { refreshToken: string; services: ('calendar' | 'sheets')[]; connectedAt: string; allCalendars?: boolean } | null;
+  /** Models per agent group and minimums per kind, set on the Agents page. */
+  agentSettings?: AgentSettings;
 }
 
 export interface LinkedSheet {
@@ -454,4 +456,19 @@ export interface PendingPosting {
   managerId: string;
   alsoSeenAt: string[];
   foundAt: string;
+}
+
+/** The agent groups a student can pick a model for. */
+export type AgentGroup = 'master' | 'managers' | 'workers' | 'validators' | 'presentation' | 'helpers';
+export const AGENT_GROUPS: AgentGroup[] = ['master', 'managers', 'workers', 'validators', 'presentation', 'helpers'];
+
+/**
+ * The student's settings for their agents: which Grok model each group runs on (applied while the
+ * agents run on Grok), and how many of a kind of opportunity a search must find before it stops.
+ */
+export interface AgentSettings {
+  models: Partial<Record<AgentGroup, string>>;
+  minimums: Partial<Record<OppType, number>>;
+  /** The kinds searches cover; empty means what the profile asks for. */
+  kinds?: Category[];
 }

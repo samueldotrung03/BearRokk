@@ -5,17 +5,19 @@
 // On top of that: a brief of today, a week plan that places work before each deadline, clash
 // warnings, the student's own items, three views, filters and export. The planning rules live in
 // src/lib/cal so a model can take their place later without touching this page.
-import { ChevronLeft, ChevronRight, Plus, TriangleExclamationPoint, Undo2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Sparkles, TriangleExclamationPoint, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AgendaView } from '../components/calendar/AgendaView.tsx';
-import { DayView } from '../components/calendar/DayView.tsx';
 import { BriefCard } from '../components/calendar/BriefCard.tsx';
-import { FilterBar, ViewToggle, type CalendarView } from '../components/calendar/Controls.tsx';
-import { DayPanel, type PersonalActions } from '../components/calendar/DayPanel.tsx';
+import { ViewToggle, type CalendarView } from '../components/calendar/Controls.tsx';
+import { EventDialog, PersonalForm, type PersonalActions } from '../components/calendar/DayPanel.tsx';
 import { MonthGrid } from '../components/calendar/MonthGrid.tsx';
 import { PlanCard } from '../components/calendar/PlanCard.tsx';
 import { UpcomingDeadlines } from '../components/calendar/UpcomingDeadlines.tsx';
-import { WeekView } from '../components/calendar/WeekView.tsx';
+import { TimeGrid } from '../components/calendar/TimeGrid.tsx';
+import { EventCard } from '../components/calendar/EventCard.tsx';
+import { CalendarChat } from '../components/calendar/CalendarChat.tsx';
+import { GoogleCard, ScheduleCard } from '../components/calendar/SideCards.tsx';
 import { Details } from '../components/OpportunityCard.tsx';
 import { Card, Page } from '../components/Page.tsx';
 import { localAssistant, effortContext } from '../lib/cal/assistant.ts';
@@ -37,6 +39,7 @@ import { DEFAULT_HOURS, acceptedTitle, targetsFrom, type PlanBlock } from '../li
 import { calendarItems, dayKey } from '../lib/calendar.ts';
 import { deleteGoogleEvent, googleItems, insertGoogleEvent, updateGoogleEvent, useGoogleEvents, type EventDraft, type GoogleSyncState } from '../lib/cal/google.ts';
 import { useAuth } from '../auth/AuthProvider.tsx';
+import { careerOnlyEvents, useCareerSort } from '../lib/cal/careerSort.ts';
 import { authMessage } from '../auth/errors.ts';
 import { ConnectCalendar } from '../components/CalendarStatus.tsx';
 import { useLocal } from '../lib/useLocal.ts';
@@ -64,102 +67,18 @@ const validHours = (value: unknown): number[] =>
 const validFilters = (value: CxFilters | null): CxFilters =>
   value && Array.isArray(value.kinds) && Array.isArray(value.priorities) ? value : allFilters;
 
-/** Whether the student's Google Calendar is showing here, whose it is, and how to connect or switch. */
-function GoogleSyncLine({
-  state,
-  count,
-  updatedAt,
-  account,
-  calendars,
-  allCalendars,
-}: {
-  state: GoogleSyncState;
-  count: number;
-  updatedAt: number | null;
-  account: string | null;
-  calendars: number;
-  allCalendars: boolean;
-}) {
-  const ago = updatedAt ? Math.round((Date.now() - updatedAt) / 60_000) : null;
-  return (
-    <div className="cx-google-line mt-3" data-state={state}>
-      <span className="cx-google-dot" aria-hidden="true" />
-      {state === 'ok' ? (
-        <>
-          <span className="min-w-0" title={account ?? undefined}>
-            Synced with {allCalendars ? `${calendars} Google ${calendars === 1 ? 'calendar' : 'calendars'}` : 'Google Calendar'} · {count === 0 ? 'no events nearby' : `${count} ${count === 1 ? 'event' : 'events'}`} · updated{' '}
-            {ago === 0 || ago === null ? 'just now' : `${ago} min ago`}
-          </span>
-          <a
-            href={`https://calendar.google.com/calendar/r${account ? `?authuser=${encodeURIComponent(account)}` : ''}`}
-            target="_blank"
-            rel="noreferrer"
-            className="font-semibold text-brand hover:underline"
-          >
-            Open Google Calendar
-          </a>
-          {count === 0 && allCalendars && <span className="text-ink-3">If your events are in another Google account, switch to it:</span>}
-          <SwitchAccount />
-        </>
-      ) : state === 'loading' ? (
-        <span>Checking your Google Calendar…</span>
-      ) : state === 'expired' ? (
-        <>
-          <span>Google access has run out, so your events are not showing.</span>
-          <ConnectCalendar />
-        </>
-      ) : state === 'error' ? (
-        <span>Your Google Calendar could not be read just now. It is tried again in a few minutes.</span>
-      ) : (
-        <>
-          <span>Not connected. Connect Google Calendar to see your events here and send what you add to it.</span>
-          <ConnectCalendar />
-        </>
-      )}
-    </div>
-  );
-}
-
-/** Connect a different Google account in place of the one connected now. */
-function SwitchAccount() {
-  const auth = useAuth();
-  const [waiting, setWaiting] = useState(false);
-  const attempt = useRef<AbortController | null>(null);
-  useEffect(() => () => attempt.current?.abort(), []);
-  return (
-    <button
-      type="button"
-      className="font-semibold text-brand hover:underline"
-      onClick={async () => {
-        attempt.current?.abort();
-        const controller = new AbortController();
-        attempt.current = controller;
-        setWaiting(true);
-        try {
-          await auth.connectGoogle('calendar', controller.signal, { switchAccount: true });
-        } catch {
-          // Shown by the line itself on the next read.
-        } finally {
-          if (attempt.current === controller) setWaiting(false);
-        }
-      }}
-    >
-      {waiting ? 'Waiting for Google… (click to reopen)' : 'Use a different Google account'}
-    </button>
-  );
-}
-
 interface Toast {
   text: string;
   undo: PersonalItem[] | null;
 }
 
 export function Calendar() {
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
   const today = dayKey(Date.now());
   const [storedView, setView] = useLocal<CalendarView>('bearrok.calendar.view', 'month');
   // v2: filters saved before Google Calendar events existed would hide them, so those are not reused.
-  const [storedFilters, setFilters] = useLocal<CxFilters>('bearrok.calendar.filters.v2', allFilters);
+  // No filter row: everything BearRok holds is shown, and Google events are always career only.
+  const storedFilters: CxFilters = allFilters;
   const [storedPersonal, setPersonal] = useLocal<PersonalItem[]>('bearrok.calendar.personal', []);
   const [storedHours, setHours] = useLocal<number[]>('bearrok.calendar.hours', DEFAULT_HOURS);
   const [planOpen, setPlanOpen] = useLocal<boolean>('bearrok.calendar.planOpen', false);
@@ -183,9 +102,13 @@ export function Calendar() {
   const live = useLive();
   const found = useMemo(() => {
     const byId = new Map<string, Opportunity>();
-    for (const o of [...live.opportunities, ...live.savedCards]) byId.set(o.id, o);
+    for (const o of [...live.opportunities, ...live.savedCards]) {
+      // A deadline the student gave an application (one the posting left out) is the one to show.
+      const own = live.applications[o.id]?.deadline;
+      byId.set(o.id, own && own !== o.deadline ? { ...o, deadline: own } : o);
+    }
     return [...byId.values()];
-  }, [live.opportunities, live.savedCards]);
+  }, [live.opportunities, live.savedCards, live.applications]);
   // Everything the page shows is derived from the store and the page's own saved state.
   // BearRok's own items: deadlines, reminders, steps and what the student added. Planning, the brief
   // and the counts are worked out from these alone.
@@ -205,10 +128,20 @@ export function Calendar() {
       ]),
     [live.applications, personal],
   );
+  // "Career only": the agents' model sorts the Google events, and personal ones are hidden. Only
+  // Google events are ever hidden: what the student added here and their application deadlines stay.
+  // Always on: the calendar is for what matters to the student's studies and career.
+  const careerOnly = true;
+  const careerSort = useCareerSort(google.events, careerOnly);
+  const shownGoogle = useMemo(
+    () => careerOnlyEvents(google.events, careerSort.verdicts, careerOnly, careerSort.failed),
+    [google.events, careerSort.verdicts, careerSort.failed],
+  );
+  const hiddenPersonal = google.events.length - shownGoogle.length;
   const all = useMemo(() => {
     const rank = (item: CxItem) => (item.priority === 'must' ? 0 : 1);
-    return [...own, ...googleItems(google.events, ownEventIds)].sort((a, b) => a.day.localeCompare(b.day) || rank(a) - rank(b) || a.date.localeCompare(b.date));
-  }, [own, google.events, ownEventIds]);
+    return [...own, ...googleItems(shownGoogle, ownEventIds)].sort((a, b) => a.day.localeCompare(b.day) || rank(a) - rank(b) || a.date.localeCompare(b.date));
+  }, [own, shownGoogle, ownEventIds]);
   const shown = useMemo(() => all.filter((item) => matchesFilters(item, filters)), [all, filters]);
   const byDay = useMemo(() => groupByDay(shown), [shown]);
   // Clashes are found on everything, not only what the filters show: hiding a kind does not remove the clash.
@@ -300,7 +233,9 @@ export function Calendar() {
     if (!googleToken) return;
     for (const p of list) if (p.google) void deleteGoogleEvent(googleToken, p.google.eventId).catch(() => {});
   };
-  const [addRequest, setAddRequest] = useState(0);
+  // The event whose card is open, and the add or edit form (a personal item's id, or "new").
+  const [opened, setOpened] = useState<CxItem | null>(null);
+  const [editing, setEditing] = useState<string | 'new' | null>(null);
 
   // Personal items, and plan blocks once accepted (they become personal items with a `block`).
   const remember = (text: string) => setToast({ text, undo: personal });
@@ -379,216 +314,174 @@ export function Calendar() {
     { label: clashesAhead.length === 1 ? 'Day with a clash, next 2 weeks' : 'Days with clashes, next 2 weeks', count: clashesAhead.length, tone: 'late' },
   ];
 
-  const dayAll = all.filter((item) => item.day === selected);
-  const dayItems = byDay.get(selected) ?? [];
-  const dayConflict = conflictByDay.get(selected);
   const weekStart = startOfWeek(selected);
+  // The period, Starship style: a small line above (week number, year or weekday) and the dates.
+  const isoWeek = (day: string) => {
+    const d = dayDate(day);
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+    return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86_400_000 + 1) / 7);
+  };
+  const kicker =
+    view === 'month' ? String(month.getFullYear()) : view === 'week' ? `Week ${isoWeek(weekStart)} / ${dayDate(weekStart).getFullYear()}` : view === 'day' ? dayDate(selected).toLocaleDateString('en-US', { weekday: 'long' }) : 'From today';
   const title =
     view === 'month'
-      ? month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      ? month.toLocaleDateString('en-US', { month: 'long' })
       : view === 'week'
         ? weekTitle(weekStart)
         : view === 'day'
-          ? dayDate(selected).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+          ? dayDate(selected).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
           : 'Agenda';
+  const openDay = (day: string) => {
+    select(day);
+    setView('day');
+  };
+  const openedOpportunity = opened?.opportunityId ? (found.find((o) => o.id === opened.opportunityId) ?? null) : null;
+  const editItem = editing && editing !== 'new' ? personal.find((p) => p.id === editing) : undefined;
+  const careerNote =
+    careerSort.sorting > 0
+      ? `Picking out the career-related events from ${careerSort.sorting} of yours…`
+      : hiddenPersonal > 0
+        ? `Showing career-related events. ${hiddenPersonal} personal ${hiddenPersonal === 1 ? 'one is' : 'ones are'} left out.`
+        : 'Showing career-related events.';
+  void overdue;
+  void upcoming;
+  void tiles;
 
   return (
-    <Page
-      title="Calendar"
-      subtitle="Everything with a date in one place, with your application deadlines beside it."
-    >
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <Card className="cx-frame min-w-0 p-5">
-          {/* The header keeps one size in every view: the title has a fixed size and is cut short
-              rather than pushing the controls around, and the controls never appear or vanish. */}
-          <div className="cx-cal-head">
-            <h2 className="cx-cal-title" title={title}>
-              {title}
-            </h2>
-            <div className="cx-cal-nav">
-              <button type="button" onClick={goToday} className="cal-nav px-3 text-sm font-semibold">
-                Today
-              </button>
-              {/* The agenda is one running list from today: its arrows are hidden but keep their place. */}
-              <button type="button" onClick={() => move(-1)} aria-label={`Previous ${unit}`} className="cal-nav w-9" style={view === 'agenda' ? { visibility: 'hidden' } : undefined}>
-                <ChevronLeft className="size-4" aria-hidden="true" />
-              </button>
-              <button type="button" onClick={() => move(1)} aria-label={`Next ${unit}`} className="cal-nav w-9" style={view === 'agenda' ? { visibility: 'hidden' } : undefined}>
-                <ChevronRight className="size-4" aria-hidden="true" />
-              </button>
+    <Page title="Calendar" subtitle="Everything with a date in one place, with your application deadlines beside it.">
+      <div className="cx-layout">
+        <div className="cx-main">
+          <Card className="cx-frame min-w-0 p-5">
+            {/* One header in every view: the period on the left, the controls on the right, none of
+                them changing size or appearing and vanishing when the view changes. */}
+            <div className="cx-cal-head">
+              <div className="cx-cal-period">
+                <p className="cx-cal-kicker">{kicker}</p>
+                <h2 className="cx-cal-title" title={title}>
+                  {title}
+                </h2>
+              </div>
+              <div className="cx-cal-controls">
+                <div className="cx-cal-pill">
+                  <button type="button" onClick={() => move(-1)} aria-label={`Previous ${unit}`} style={view === 'agenda' ? { visibility: 'hidden' } : undefined}>
+                    <ChevronLeft className="size-4" aria-hidden="true" />
+                  </button>
+                  <button type="button" onClick={goToday} className="cx-cal-today">
+                    Today
+                  </button>
+                  <button type="button" onClick={() => move(1)} aria-label={`Next ${unit}`} style={view === 'agenda' ? { visibility: 'hidden' } : undefined}>
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+                <ViewToggle view={view} onChange={setView} />
+                <button type="button" onClick={() => setEditing('new')} aria-label="Add event" title="Add event" className="btn-primary grid size-9 shrink-0 place-items-center rounded-[10px] text-white">
+                  <Plus className="size-5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
-          </div>
-          <div className="cx-cal-tools mt-3">
-            <ViewToggle view={view} onChange={setView} />
-            <button
-              type="button"
-              onClick={() => setAddRequest((n) => n + 1)}
-              aria-label="Add event"
-              title="Add event"
-              className="btn-primary grid size-9 shrink-0 place-items-center rounded-[10px] text-white"
-            >
-              <Plus className="size-5" aria-hidden="true" />
-            </button>
-          </div>
 
-          <GoogleSyncLine state={google.state} count={google.events.length} updatedAt={google.updatedAt} account={google.account} calendars={google.calendars} allCalendars={google.allCalendars} />
+            {planOpen && visibleBlocks.length > 0 && (
+              <div className="mt-3">
+                <span className="cx-legend-ghost">Suggested blocks</span>
+              </div>
+            )}
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <FilterBar filters={filters} counts={kindCounts} onChange={setFilters} />
-            {planOpen && visibleBlocks.length > 0 && <span className="cx-legend-ghost">Suggested blocks</span>}
-          </div>
-
-          {/* The same size in every view and every day: what does not fit scrolls inside. */}
-          <div key={view} className="cx-view cx-view-box mt-4">
-            {view === 'month' && (
-              <MonthGrid month={month} today={today} selected={selected} byDay={byDay} blocksByDay={blocksByDay} conflicts={conflictByDay} onSelect={select} />
-            )}
-            {view === 'week' && (
-              <WeekView
-                today={today}
-                selected={selected}
-                byDay={byDay}
-                blocksByDay={blocksByDay}
-                planDays={planOpen ? planDays : new Map()}
-                conflicts={conflictByDay}
-                onSelect={select}
-                onAccept={accept}
-              />
-            )}
-            {view === 'day' && (
-              <DayView day={selected} today={today} items={dayItems} blocks={blocksByDay.get(selected) ?? []} conflict={dayConflict} onOpen={openItem} />
-            )}
-            {view === 'agenda' && (
-              <AgendaView today={today} selected={selected} items={shown} blocks={visibleBlocks} conflicts={conflictByDay} onSelect={select} onAccept={accept} />
-            )}
-          </div>
-          <p className="mt-3 text-xs text-ink-3">
-            {view === 'day'
-              ? 'The arrows above move one day.'
-              : view === 'agenda'
-                ? 'Everything from today on, in date order.'
-                : `Arrow keys move the day, Home and End jump to the week's ends${view === 'month' ? ', Page Up and Page Down change month' : ''}.`}
-          </p>
-        </Card>
-
-        <aside className="grid gap-4 lg:sticky lg:top-6">
-          <Card className="cx-side-card p-5">
-            <UpcomingDeadlines found={found} onSelect={select} onOpen={setDetails} googleState={google.state} googleAccount={google.account} />
+            {/* The same size in every view and every day: what does not fit scrolls inside. */}
+            <div key={view} className="cx-view cx-view-box mt-4">
+              {view === 'month' && (
+                <MonthGrid month={month} today={today} selected={selected} byDay={byDay} blocksByDay={blocksByDay} conflicts={conflictByDay} onSelect={select} onOpen={openDay} />
+              )}
+              {(view === 'week' || view === 'day') && (
+                <TimeGrid
+                  days={view === 'week' ? Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)) : [selected]}
+                  today={today}
+                  byDay={byDay}
+                  blocksByDay={blocksByDay}
+                  onOpen={setOpened}
+                  onOpenDay={openDay}
+                />
+              )}
+              {view === 'agenda' && <AgendaView today={today} selected={selected} items={shown} blocks={visibleBlocks} conflicts={conflictByDay} onSelect={openDay} onAccept={accept} />}
+            </div>
           </Card>
 
-          <Card className="cx-side-card p-5">
-            <DayPanel
-              key={selected}
-              day={selected}
+          {planOpen && (
+            <PlanCard
+              plan={plan}
               today={today}
-              items={dayItems}
-              hiddenCount={dayAll.length - dayItems.length}
-              blocks={blocksByDay.get(selected) ?? []}
-              conflict={dayConflict}
-              conflictAdvice={dayConflict ? conflictAdvice(dayConflict, plan, today) : null}
-              personal={personal}
-              found={found}
-              addRequest={addRequest}
-              googleConnected={Boolean(googleToken)}
-              actions={actions}
-              onOpen={setDetails}
+              hours={hours}
+              accepted={acceptedInWindow}
+              source={localAssistant.source}
+              onHours={(weekday, value) => setHours(hours.map((h, index) => (index === weekday ? value : h)))}
               onAccept={accept}
+              onAcceptAll={acceptAll}
+              onUnaccept={actions.remove}
+              onClearAccepted={clearAccepted}
+              onClose={() => setPlanOpen(false)}
+              onJump={select}
+            />
+          )}
+        </div>
+
+        <aside className="cx-aside">
+          <Card className="p-5">
+            <UpcomingDeadlines found={found} onSelect={openDay} onOpen={setDetails} googleState={google.state} googleAccount={google.account} />
+          </Card>
+          <Card className="p-5">
+            <ScheduleCard brief={brief} today={today} clashes={clashesAhead} planOpen={planOpen} onTogglePlan={() => setPlanOpen(!planOpen)} onJump={openDay} source={localAssistant.source} />
+          </Card>
+          <Card className="p-5">
+            <GoogleCard
+              state={google.state}
+              account={google.account}
+              calendars={google.calendars}
+              allCalendars={google.allCalendars}
+              updatedAt={google.updatedAt}
+              careerNote={careerNote}
             />
           </Card>
-
-          {(overdue.length > 0 || upcoming.length > 0 || clashesAhead.length > 0) && (
-            <Card className="p-5">
-              {clashesAhead.length > 0 && (
-                <>
-                  <h2 className="flex items-center gap-1.5 font-semibold tracking-tight text-orange-700">
-                    <TriangleExclamationPoint className="size-4" strokeWidth={2.5} aria-hidden="true" /> Clashes ahead
-                  </h2>
-                  <ul className="mt-2 mb-4 grid gap-1">
-                    {clashesAhead.map((c) => (
-                      <li key={c.day}>
-                        <button type="button" onClick={() => select(c.day)} className="cal-next" data-priority="must">
-                          <span className="truncate">{c.items.map((item) => item.title).join(' + ')}</span>
-                          <span>{shortDay(c.day)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {overdue.length > 0 && (
-                <>
-                  <h2 className="font-semibold tracking-tight text-orange-700">Overdue</h2>
-                  <ul className="mt-2 mb-4 grid gap-1">
-                    {overdue.map((item) => (
-                      <li key={item.id}>
-                        <button type="button" onClick={() => select(item.day)} className="cal-next" data-priority={item.priority}>
-                          <span className="truncate">{item.title}</span>
-                          <span>{shortDay(item.day)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {upcoming.length > 0 && (
-                <>
-                  <h2 className="font-semibold tracking-tight">Coming up</h2>
-                  <ul className="mt-2 grid gap-1">
-                    {upcoming.map((item) => (
-                      <li key={item.id}>
-                        <button type="button" onClick={() => select(item.day)} className="cal-next" data-priority={item.priority}>
-                          <span className="truncate">{item.title}</span>
-                          <span>{shortDay(item.day)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </Card>
-          )}
         </aside>
       </div>
 
-      <div className="mt-4 grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <BriefCard
-          brief={brief}
-          today={today}
-          source={localAssistant.source}
-          planOpen={planOpen}
-          overloaded={plan.overloaded}
-          onTogglePlan={() => setPlanOpen(!planOpen)}
-          onJump={select}
-        />
-        <div className="grid grid-cols-2 gap-3">
-          {tiles.map((tile) => (
-            <Card key={tile.label} className="cal-tile cx-tile">
-              <span className="cal-tile-count" data-tone={tile.tone} data-zero={tile.count === 0}>
-                {tile.count}
-              </span>
-              <span className="text-sm leading-snug font-medium text-ink-2">{tile.label}</span>
-            </Card>
-          ))}
-        </div>
-      </div>
+      {/* Say what to add; the agents turn it into an event on this calendar and Google Calendar. */}
+      <CalendarChat
+        today={today}
+        onAdd={(e) => actions.add({ title: e.title, day: e.day, time: e.time, endTime: e.endTime, note: e.note, priority: 'must' })}
+      />
 
-      {planOpen && (
-        <PlanCard
-          plan={plan}
-          today={today}
-          hours={hours}
-          accepted={acceptedInWindow}
-          source={localAssistant.source}
-          onHours={(weekday, value) => setHours(hours.map((h, index) => (index === weekday ? value : h)))}
-          onAccept={accept}
-          onAcceptAll={acceptAll}
-          onUnaccept={actions.remove}
-          onClearAccepted={clearAccepted}
-          onClose={() => setPlanOpen(false)}
-          onJump={select}
+      {opened && (
+        <EventCard
+          item={opened}
+          opportunity={openedOpportunity}
+          onClose={() => setOpened(null)}
+          onOpenDetails={(o) => (setOpened(null), setDetails(o))}
+          onEdit={(id) => (setOpened(null), setEditing(id))}
+          onDelete={(id) => (setOpened(null), actions.remove(id))}
+          onToggleDone={(item) => {
+            if (item.stepId) dispatch({ type: 'toggleStep', id: item.stepId });
+            else if (item.personalId) actions.update(item.personalId, { done: !item.done });
+            setOpened(null);
+          }}
         />
       )}
 
+      {editing && (
+        <EventDialog onClose={() => setEditing(null)}>
+          <PersonalForm
+            key={editing}
+            initial={editItem}
+            day={selected}
+            googleConnected={Boolean(googleToken)}
+            onCancel={() => setEditing(null)}
+            onSave={(fields) => {
+              if (editItem) actions.update(editItem.id, fields);
+              else actions.add(fields);
+              setEditing(null);
+            }}
+          />
+        </EventDialog>
+      )}
 
       <div className="cx-toast-zone" aria-live="polite">
         {toast && (

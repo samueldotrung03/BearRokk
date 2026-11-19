@@ -15,11 +15,11 @@ export interface Placed {
 }
 
 export const ROWS: Record<Level, { y: number; h: number; label: string }> = {
-  master: { y: 50, h: 66, label: 'Master' },
-  manager: { y: 164, h: 60, label: 'Search managers' },
-  worker: { y: 280, h: 54, label: 'Worker fleet' },
-  validator: { y: 390, h: 50, label: 'Validators' },
-  presenter: { y: 492, h: 58, label: 'Presentation' },
+  master: { y: 50, h: 76, label: 'Master' },
+  manager: { y: 164, h: 72, label: 'Search managers' },
+  worker: { y: 280, h: 62, label: 'Worker fleet' },
+  validator: { y: 390, h: 60, label: 'Validators' },
+  presenter: { y: 492, h: 66, label: 'Presentation' },
 };
 
 /** Hub points sit between rows; this is their drawn size. */

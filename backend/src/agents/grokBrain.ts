@@ -4,8 +4,9 @@
 import { z } from 'zod';
 import { config } from '../config.ts';
 import { grokJson, type GrokTool } from '../grok.ts';
+import { cleanDraft, sortByRules, type CalendarEventInput, type EventAsk, type EventVerdict } from './eventSorter.ts';
 import type { Brain, MasterInput } from './brain.ts';
-import { CATEGORY_LABEL, type ReviewFocus, type Assignment, type Brief, type Candidate, type FoundDeadline, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
+import { CATEGORY_LABEL, type AgentGroup, type ReviewFocus, type Assignment, type Brief, type Candidate, type FoundDeadline, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
 
 /**
  * Which model each level runs on. The master, managers, validators and presentation manager
@@ -66,6 +67,19 @@ const DEADLINE_RULE = `Getting the deadline right matters most, because the stud
 
 export class GrokBrain implements Brain {
   mode = 'live' as const;
+  private models: Partial<Record<AgentGroup, string>> = {};
+
+  setModels(models: Partial<Record<AgentGroup, string>>) {
+    this.models = { ...models };
+  }
+
+  /**
+   * The model for one agent group: the student's choice while the agents run on Grok, the tier's
+   * default otherwise (the Claude test set-up does not take Grok model names).
+   */
+  private model(group: AgentGroup, tier: string | undefined): string | undefined {
+    return config.grokTransport !== 'claude' ? (this.models[group] ?? tier) : tier;
+  }
 
   async master(input: MasterInput) {
     const notes = (input.profile.preferences?.notes ?? []).map((n) => (n.title ? `${n.title}: ${n.body}` : n.body));
@@ -81,7 +95,7 @@ export class GrokBrain implements Brain {
     });
     const { data } = await grokJson({
       name: 'master',
-      model: TIER.normal,
+      model: this.model('master', TIER.normal),
       schema: Out,
       system: `You are the master agent of a system that finds opportunities for one student. You do not search. Read the student's profile and memory and write:
 - brief: goal (one line), hardCriteria (conditions a result must meet: class year, location or remote, still open), preferences (rank by these), avoid (kinds of thing the student keeps disliking), interests (lowercase fields).
@@ -108,7 +122,7 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     const Out = z.object({ jobs: z.array(z.object({ label: z.string(), query: z.string(), lensValue: z.string() })) });
     const { data } = await grokJson({
       name: 'search_manager',
-      model: TIER.normal,
+      model: this.model('managers', TIER.normal),
       schema: Out,
       system: `You are a search manager for ${CATEGORY_LABEL[assignment.category].toLowerCase()}. Turn your assignment into at most 3 search jobs for scout workers. Each job has a short label, a web search query a scout should run, and the focus value it covers. Favor employer and organizer pages and public listings; avoid sites that need a login. Do not cover what the other managers cover.\n\n${NOTES_RULE}`,
       user: `Today is ${today()}.\n${notesBlock(brief.notes)}\nStudent brief: ${JSON.stringify(brief)}\nYour assignment: lens ${assignment.lens}, focus ${assignment.focus.join(', ')}\nOther managers: ${assignment.others.join('; ') || 'none'}\nSearches already run for this student in this category (write queries that differ from every one of these, with new organizations, wording or sources): ${pastSearches.length ? pastSearches.slice(-25).join(' | ') : 'none yet'}`,
@@ -120,7 +134,7 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     const Out = z.object({ leads: z.array(z.object({ title: z.string(), url: z.string() })) });
     const { data } = await grokJson({
       name: 'scout',
-      model: TIER.low,
+      model: this.model('workers', TIER.low),
       schema: Out,
       tools: tools(),
       system: `You are a scout worker. Search the web and return up to 4 leads: real, currently open ${CATEGORY_LABEL[assignment.category].toLowerCase()} that could meet the student's hard criteria. Return only a title and the URL of the posting. Prefer postings the student has not been shown.`,
@@ -133,7 +147,7 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     const Out = z.object({ found: z.boolean(), record: CandidateSchema });
     const { data } = await grokJson({
       name: 'extractor',
-      model: TIER.low,
+      model: this.model('workers', TIER.low),
       schema: Out,
       tools: tools(),
       system: `You are an extractor worker. Open the lead. If it is a repost, follow it to the organizer's own page. Read the details off that page. Set found to false if the page cannot be opened or is not a real posting.\n${EVIDENCE}\n${DEADLINE_RULE}`,
@@ -146,7 +160,7 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     const Out = z.object({ found: z.boolean(), deadline: z.string().nullable(), url: z.string().nullable(), quote: z.string().nullable() });
     const { data } = await grokJson({
       name: 'deadline_finder',
-      model: TIER.low,
+      model: this.model('workers', TIER.low),
       schema: Out,
       tools: tools(),
       system: `You are a deadline finder. The organizer's own pages gave no application or registration deadline for this posting. Search the web for other public postings of the same opportunity and read the deadline off one of them: job boards, internship and scholarship directories, hackathon and event listing sites, university career and department pages, and the organizer's announcements or social posts. Run several searches with different wording (the title with "deadline", "apply by", the year) and open the pages; do not answer from search snippets alone. Check the organizer's apply page and FAQ once more as well.\nSet found to true only when a page states the deadline for this same opportunity in its current cycle. Then return the date in ISO 8601, the URL of the page that states it, and the words giving the date, copied from that page.\n${DEADLINE_RULE}`,
@@ -156,11 +170,48 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     return { deadline: data.deadline, url: data.url, quote: data.quote };
   }
 
+  async draftEvent(text: string, today: string, timeZone: string): Promise<EventAsk> {
+    const Out = z.object({
+      ok: z.boolean(),
+      reply: z.string(),
+      event: z.object({ title: z.string(), day: z.string(), time: z.string().nullable(), endTime: z.string().nullable(), note: z.string() }).nullable(),
+    });
+    const { data } = await grokJson({
+      name: 'calendar_event',
+      model: this.model('helpers', TIER.low),
+      schema: Out,
+      system: `You turn a student's sentence into one calendar event. Today is ${today} (${new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' })}) in the ${timeZone} time zone. day is YYYY-MM-DD: resolve words like "Friday" or "next Tuesday" to the next such date on or after today. time and endTime are 24-hour HH:MM, or null for an all-day event; leave endTime null if no end or length is given. title is short, in the student's words, without the date or time. note holds any other detail they gave, or "". If the sentence has no clear day, or is not about adding an event, set ok to false, event to null, and in reply ask one short question for what is missing. Otherwise set ok to true and reply with one short sentence saying what was added and when.`,
+      user: text,
+    });
+    const event = data.ok ? cleanDraft(data.event) : null;
+    return event ? { ok: true, event, reply: data.reply } : { ok: false, reply: data.reply || 'Say what it is and which day, for example "career fair Thursday 1pm".' };
+  }
+
+  async sortEvents(events: CalendarEventInput[]): Promise<EventVerdict[]> {
+    if (events.length === 0) return [];
+    const rules = new Map(sortByRules(events).map((v) => [v.id, v]));
+    const Out = z.object({ verdicts: z.array(z.object({ id: z.string(), career: z.boolean(), kind: z.enum(['deadline', 'interview', 'event', 'class', 'work', 'opportunity', 'personal']), reason: z.string() })) });
+    try {
+      const { data } = await grokJson({
+        name: 'calendar_sorter',
+        model: this.model('helpers', TIER.low),
+        schema: Out,
+        system: `You sort a university student's calendar events. Their calendar shows only what is about their career and the opportunities they go after; everything else is hidden. Set career to true only for: deadlines of applications and opportunities (internships, jobs, programs, scholarships, fellowships, research positions, competitions); interviews, assessments and recruiter calls; career fairs, info sessions, networking, coffee chats and recruiting events; hackathons and competitions; workshops, talks, panels and conferences; club and student organization meetings and events. Set career to false for classes and coursework of any kind: lectures, seminars, sections, labs, office hours, exams, quizzes, assignments, readings and course deadlines (an event named with a course code such as PB101 or CS 61A is coursework), even when it says "due" or "closes". Also false for shifts at a job, and for personal life: birthdays, family, friends, health, sport, travel, errands, entertainment, holidays. kind is one of deadline, interview, event, class, work, opportunity, personal (class for coursework). reason is at most six words. Return one verdict for every id you are given, with the same id.`,
+        user: JSON.stringify(events.map((e) => ({ id: e.id, title: e.title, calendar: e.calendar ?? undefined, location: e.location ?? undefined }))),
+      });
+      const byId = new Map(data.verdicts.map((v) => [v.id, v]));
+      // Any event the model skipped is sorted by the rules rather than left out.
+      return events.map((e) => byId.get(e.id) ?? rules.get(e.id)!);
+    } catch {
+      return [...rules.values()];
+    }
+  }
+
   async illustrate(candidate: Candidate): Promise<string | null> {
     const Out = z.object({ svg: z.string() });
     const { data } = await grokJson({
       name: 'illustrator',
-      model: TIER.low,
+      model: this.model('helpers', TIER.low),
       schema: Out,
       system: `You draw a simple, attractive cover illustration as SVG for an opportunity card, used only when no photo of it exists. Rules: one <svg> element with viewBox="0 0 800 500" and no width or height; flat shapes, gradients and paths only; no text, letters, logos, people's faces, or brand marks; no <image>, <use>, <style>, <script>, links, external references or data URLs; under 7000 characters. Show the subject in an abstract way (for example a laptop and circuit lines for a coding hackathon, flasks for a lab, a stage for a conference) in a calm palette.`,
       user: `Type: ${candidate.type}\nField: ${candidate.field ?? 'not stated'}\nTitle: ${candidate.title}\nTags: ${candidate.tags.join(', ') || 'none'}`,
@@ -172,7 +223,7 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     const Out = z.object({ prompts: z.array(z.string()), materials: z.array(z.string()) });
     const { data } = await grokJson({
       name: 'application_reader',
-      model: TIER.low,
+      model: this.model('workers', TIER.low),
       schema: Out,
       tools: tools(),
       system: 'You are an application reader. Open the application page and list the questions or essay prompts it asks, and the materials it requires (résumé, transcript, references). Copy prompts as written. Return empty lists if the page needs a login or shows none.',
@@ -190,7 +241,7 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
         : `You are the CRITERIA reviewer. Another agent checks whether the posting is real and open; your only question is whether it is right for this student. Check, in this order: the student's custom notes, then every hard criterion in the brief, then whether it is the kind of thing this student is looking for and not just a keyword match. Set keep to false if a note rules it out, if any hard criterion fails, or if the page does not let you confirm a hard criterion such as who may apply; say which in one sentence.`;
     const { data } = await grokJson({
       name: focus === 'status' ? 'status_reviewer' : 'criteria_reviewer',
-      model: TIER.normal,
+      model: this.model('validators', TIER.normal),
       schema: Out,
       tools: tools(),
       system: `${job}\nfit is 0 to 1: how well it matches the student's interests and preferences.\n\n${NOTES_RULE}\n${EVIDENCE}${focus === 'status' ? `\n${DEADLINE_RULE}` : '\nLeave deadline and deadlineSource as they are in the record; the other reviewer checks them.'}`,
@@ -205,7 +256,7 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
     const Out = z.object({ cards: z.array(z.object({ id: z.string(), reason: z.string() })) });
     const { data } = await grokJson({
       name: 'presentation_manager',
-      model: TIER.normal,
+      model: this.model('presentation', TIER.normal),
       schema: Out,
       system: 'You are the presentation manager. For each opportunity write one sentence, addressed to the student, saying why it is in their feed. Refer to their interests, what they have liked, and who it is open to. Only state what the record supports. When an opportunity is something their custom notes asked for, say so first.',
       user: `${notesBlock(brief.notes)}\nBrief: ${JSON.stringify(brief)}\nLiked: ${memory.likes.map((l) => l.feature).join(', ') || 'nothing yet'}\nOpportunities: ${JSON.stringify(kept.map((o) => ({ id: o.id, title: o.title, organizer: o.organizer, field: o.field, tags: o.tags, eligibility: o.eligibility, format: o.format, location: o.location })))}`,

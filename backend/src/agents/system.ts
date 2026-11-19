@@ -8,6 +8,7 @@ import type { Brain } from './brain.ts';
 import { Fleet, limiter } from './fleet.ts';
 import { isStopped, StoppedError, throwIfStopped, withSignal } from './stop.ts';
 import type { FoundImage, ImageFinder } from './images.ts';
+import type { CalendarEventInput } from './eventSorter.ts';
 import type { TrackerItem } from '../sheets.ts';
 import { allocateSlots, buildMemory, categoryWeights, noteSignals, rankFeed, summarize } from './scoring.ts';
 import {
@@ -29,6 +30,7 @@ import {
   type LearnedMemory,
   type LinkedSheet,
   type ProfileMemory,
+  type AgentSettings,
   type LogEvent,
   type MemorySummary,
   type PendingPosting,
@@ -159,6 +161,8 @@ const MORE_OF: Record<OppType, string> = {
 };
 
 const PICTURE_RETRY_MS = 86_400_000;
+/** Searches in a row the agents may run to reach a minimum the student set, so it cannot run forever. */
+const MINIMUM_RUNS = 12;
 /** True for a posting nobody has looked for a picture for, or one nothing was found for a day ago. */
 const needsPicture = (o: Opportunity, now: Date) =>
   o.imageKind === undefined || (o.imageKind === null && (!o.imageTriedAt || now.getTime() - Date.parse(o.imageTriedAt) > PICTURE_RETRY_MS));
@@ -201,6 +205,8 @@ export class AgentSystem {
   /** Searches the scouts have run, newest last, and the outline of each finished run. */
   private searches: SearchRecord[] = [];
   private runs: RunRecord[] = [];
+  /** Models per agent group and minimums per kind, from the Agents page. */
+  private agentSettings: AgentSettings = { models: {}, minimums: {} };
   /** A kind of opportunity the student asked for more of; the next run searches only for it. */
   private focus: OppType | null = null;
   /** The Google Sheet the saved list is kept in, once the student links one. */
@@ -255,8 +261,8 @@ export class AgentSystem {
     return {
       profile: this.profile,
       memory: summarize(memory),
-      // Only the kinds of opportunity the student asked for.
-      feed: rankFeed([...this.opportunities.values()].filter((o) => this.profile.categories.includes(CATEGORY_OF[o.type])), memory, {
+      // Only the kinds of opportunity the student asked for, in their profile or their agent settings.
+      feed: rankFeed([...this.opportunities.values()].filter((o) => this.profile.categories.includes(CATEGORY_OF[o.type]) || (this.agentSettings.kinds ?? []).includes(CATEGORY_OF[o.type])), memory, {
         now: this.opts.now(),
         reasons: this.reasons,
         newIds: this.newIds,
@@ -295,7 +301,10 @@ export class AgentSystem {
    */
   private shouldFill() {
     // A run that failed, or that the student stopped, is not followed by another on its own.
-    if (this.opts.feedTarget <= 0 || this.run?.status === 'failed' || this.run?.status === 'stopped') return false;
+    if (this.run?.status === 'failed' || this.run?.status === 'stopped') return false;
+    // A minimum the student set keeps the agents going, up to MINIMUM_RUNS searches in a row.
+    if (this.unmetMinimum() && this.fillRuns < MINIMUM_RUNS) return true;
+    if (this.opts.feedTarget <= 0) return false;
     return this.fillRuns < this.opts.maxFillRuns && this.openCards() < this.opts.feedTarget;
   }
 
@@ -342,6 +351,16 @@ export class AgentSystem {
     return this.trigger(this.runCount === 0 ? 'first' : 'manual');
   }
 
+  /** An event from the student's own words, for the calendar's chat box. */
+  draftCalendarEvent(text: string, today: string, timeZone: string) {
+    return this.brain.draftEvent(text, today, timeZone);
+  }
+
+  /** Sort the student's own calendar events into career-related and personal, with the agents' model. */
+  sortCalendarEvents(events: CalendarEventInput[]) {
+    return this.brain.sortEvents(events);
+  }
+
   /** Start a search if the feed is short of its target and nothing is running. */
   fillIfShort() {
     if (!this.running && this.shouldFill()) void this.trigger('fill');
@@ -375,6 +394,7 @@ export class AgentSystem {
         scheduleSeconds: this.scheduleSeconds,
         sheet: this.sheet,
         google: this.google,
+        agentSettings: this.agentSettings,
       },
       learned: {
         interactions: this.interactions,
@@ -400,6 +420,8 @@ export class AgentSystem {
     if (Array.isArray(p?.reminderDays)) this.reminderDays = p.reminderDays;
     this.sheet = p?.sheet ?? null;
     this.google = p?.google ?? null;
+    this.agentSettings = p?.agentSettings ?? { models: {}, minimums: {} };
+    this.brain.setModels?.(this.agentSettings.models);
     this.interactions = structuredClone(l.interactions ?? []);
     this.opportunities = new Map((l.opportunities ?? []).map((o) => [o.id, structuredClone(o)]));
     this.reasons = new Map(Object.entries(l.reasons ?? {}));
@@ -612,6 +634,29 @@ export class AgentSystem {
     return this.sheet;
   }
 
+  getAgentSettings() {
+    return this.agentSettings;
+  }
+
+  /** Saved with the account; a minimum applies from the next search. */
+  setAgentSettings(settings: AgentSettings) {
+    this.agentSettings = settings;
+    this.brain.setModels?.(settings.models);
+    this.emitStudent();
+  }
+
+  /** The first kind with a minimum the feed does not reach yet, with how many it has. */
+  private unmetMinimum(): { type: OppType; have: number; want: number } | null {
+    const now = this.opts.now().getTime();
+    const feed = this.student().feed.filter((e) => !e.opportunity.deadline || Date.parse(e.opportunity.deadline) >= now);
+    for (const [type, want] of Object.entries(this.agentSettings.minimums) as [OppType, number][]) {
+      if (!want || want <= 0) continue;
+      const have = feed.filter((e) => e.opportunity.type === type).length;
+      if (have < want) return { type, have, want };
+    }
+    return null;
+  }
+
   getGoogle() {
     return this.google;
   }
@@ -674,6 +719,15 @@ export class AgentSystem {
         this.abort = null;
         // Something the student did comes first; otherwise search again while the feed is short.
         const next = this.queued ?? (this.shouldFill() ? 'fill' : null);
+        // A follow-up for an unmet minimum searches for that kind only.
+        if (next === 'fill') {
+          const unmet = this.unmetMinimum();
+          if (unmet) {
+            const category = CATEGORY_OF[unmet.type];
+            if (!this.profile.categories.includes(category)) this.profile = { ...this.profile, categories: [...this.profile.categories, category] };
+            this.focus = unmet.type;
+          }
+        }
         this.queued = null;
         if (next) return this.trigger(next);
       });
@@ -752,9 +806,11 @@ export class AgentSystem {
       // A run the student started for one kind of opportunity puts every manager on that kind.
       const focus = this.focus;
       this.focus = null;
+      // The kinds chosen in the agent settings, when any, or else the ones the profile asks for.
+      const kinds = this.agentSettings.kinds?.length ? this.agentSettings.kinds : this.profile.categories;
       const split = focus
         ? (Object.fromEntries(CATEGORIES.map((c) => [c, c === CATEGORY_OF[focus] ? this.opts.slots : 0])) as Record<Category, number>)
-        : allocateSlots(this.profile.categories, categoryWeights(memory), this.opts.slots);
+        : allocateSlots(kinds, categoryWeights(memory), this.opts.slots);
       const perManager = Math.floor(this.opts.maxJobs / this.opts.slots);
       const skeleton: Assignment[] = [];
       for (const category of Object.keys(split) as Category[]) {
@@ -779,7 +835,8 @@ export class AgentSystem {
         pastSearches: this.searches.map((s) => s.query),
       });
       if (focus) {
-        for (const a of assignments) a.focus = [MORE_OF[focus], ...a.focus.filter((f) => f !== MORE_OF[focus])].slice(0, 3);
+        // The kind goes after the managers' own focus values, which the search plans are built from.
+        for (const a of assignments) a.focus = [...a.focus.filter((f) => f !== MORE_OF[focus]).slice(0, 2), MORE_OF[focus]];
         brief.preferences.push(`Find more ${MORE_OF[focus]}: the student asked for more of these just now.`);
         log('Master agent', `The student asked for more ${MORE_OF[focus]}, so every search manager is on them this time`, 'good');
       }
@@ -1086,7 +1143,10 @@ export class AgentSystem {
       log('Presentation manager', `Feed updated: ${this.newIds.size} new opportunities, ${shown} in the feed`, 'good');
 
       run.status = 'complete';
-      if (shown < this.opts.feedTarget) {
+      const unmet = this.unmetMinimum();
+      if (unmet) {
+        log('System', this.fillRuns + 1 < MINIMUM_RUNS ? `${unmet.have} of the ${unmet.want} ${MORE_OF[unmet.type]} you asked for so far. Searching again for more.` : `${unmet.have} of the ${unmet.want} ${MORE_OF[unmet.type]} you asked for after ${this.fillRuns + 1} searches in a row. Stopping here; the next search tries again.`);
+      } else if (shown < this.opts.feedTarget) {
         log('System', this.shouldFill() ? `${shown} of ${this.opts.feedTarget} opportunities found so far. Searching again for more.` : `${shown} of ${this.opts.feedTarget} opportunities found after ${this.fillRuns + 1} searches in a row. The agents will look again on the next run.`);
       }
     } catch (e) {

@@ -2632,3 +2632,58 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Shown instead of the applications chip when nothing is set to To apply or Applying. */
+.rm3-noapps {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 16px;
+  border: 1px dashed var(--color-line);
+  background: var(--surface-glass);
+}
+
+.rm3-noapps > svg {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 7px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  color: var(--color-ink-2);
+}
+
+.rm3-noapps span {
+  display: grid;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--color-ink-3);
+  white-space: normal;
+}
+
+.rm3-noapps strong {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+
+.rm3-noapps-go {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 36px;
+  color: white;
+  background: var(--color-brand);
+}
+
+.rm3-noapps-go + .rm3-noapps-go {
+  color: var(--color-ink);
+  background: white;
+  border: 1px solid var(--color-line);
+}

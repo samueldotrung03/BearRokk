@@ -4,6 +4,7 @@
 // call can be handed the same object as JSON later.
 import { extraStepHours, stepHours } from '../../data/roadmap-extra.ts';
 import { opportunities, pathProfiles } from '../../data/sample.ts';
+import type { Opportunity } from '../../types.ts';
 import type { AppState } from '../../state/store.ts';
 import type { OpportunityType, Profile, RoadmapStep, StepKind } from '../../types.ts';
 import { evidenceFor } from '../pathways.ts';
@@ -70,8 +71,9 @@ export function estimateHours(step: RoadmapStep, type?: OpportunityType): number
   return kindHours[step.kind];
 }
 
-export function buildCoachContext(state: AppState, hoursPerWeek: number, now = Date.now()): CoachContext {
-  const plan = planFor(state);
+/** `found` is the postings a step may point to: what the agents found. The sample set without it. */
+export function buildCoachContext(state: AppState, hoursPerWeek: number, now = Date.now(), found: Opportunity[] = opportunities): CoachContext {
+  const plan = planFor(state, found);
   const evidence = evidenceFor(plan.roadmap, pathProfiles);
   const done = new Set(state.doneSteps);
   const skills = state.profile.skills;
@@ -88,7 +90,7 @@ export function buildCoachContext(state: AppState, hoursPerWeek: number, now = D
   plan.roadmap.phases.forEach((phase) => phase.steps.forEach((step) => phaseOf.set(step.id, phase)));
 
   const steps = plan.steps.map((step): CoachStep => {
-    const o = opportunities.find((candidate) => candidate.id === step.opportunityId);
+    const o = found.find((candidate) => candidate.id === step.opportunityId);
     const phase = phaseOf.get(step.id);
     const ev = evidence.byStep.get(step.id);
     const requirement = requirements.find((r) => r.stepId === step.id);

@@ -33,10 +33,10 @@ async function render(view: string, extra: Record<string, unknown> = {}) {
 describe('Calendar page', () => {
   beforeEach(() => store.clear());
 
-  it.each(['month', 'week', 'agenda'])('renders the %s view with the brief, the plan and the honesty line', async (view) => {
+  it.each(['month', 'week', 'day', 'agenda'])('renders the %s view with the schedule recommendation, the plan and the honesty line', async (view) => {
     const html = await render(view);
-    expect(html).toContain('Today&#x27;s brief');
-    expect(html).toContain('Plan my week');
+    expect(html).toContain('Schedule recommendation');
+    expect(html).toMatch(/Plan my week|Hide the week plan/);
     expect(html).toContain('Grok will plan once the agents are connected');
     expect(html).toContain('cx-block'); // the sample week has work to place
   });
@@ -62,11 +62,11 @@ describe('Calendar page', () => {
 describe('Calendar page layout', () => {
   it('puts the calendar first with the upcoming application deadlines beside it, and has no .ics export or add-to-calendar link', async () => {
     const html = await render('month');
-    expect(html).toContain('Upcoming application deadlines');
-    expect(html.indexOf('cx-view')).toBeLessThan(html.indexOf('Upcoming application deadlines'));
+    expect(html).toContain('>Deadlines<');
+    expect(html.indexOf('cx-view')).toBeLessThan(html.indexOf('>Deadlines<'));
     expect(html).not.toContain('Export .ics');
     expect(html).not.toContain('Add to Google Calendar');
-    expect(html).toContain('BearRok puts these deadlines on it for you');
+    expect(html).toContain('go on your Google Calendar');
   });
 });
 
@@ -76,14 +76,15 @@ describe('Calendar views', () => {
     for (const label of ['Month', 'Week', 'Day', 'Agenda']) expect(html).toMatch(new RegExp(`role="tab"[^>]*>(<svg[\\s\\S]*?</svg>)?${label}</button>`));
     expect(html).toContain('cx-view-box');
     expect(html).toContain('All day');
-    expect(html).toContain('By the hour');
+    // Day and Week are time grids: an hour column with events at their times.
+    expect(html).toContain('cx-tg-rail');
     expect(html).toContain('aria-label="Next day"');
   });
 
   it('the agenda is kept, inside the same frame', async () => {
     const html = await render('agenda');
     expect(html).toContain('cx-view cx-view-box');
-    expect(html).toContain('Everything from today on');
+    expect(html).toContain('>From today<');
   });
 
   it('a month view keeps the same frame', async () => {
@@ -94,20 +95,24 @@ describe('Calendar views', () => {
 });
 
 describe('Calendar and Google Calendar', () => {
-  it("offers to show the student's own Google Calendar when it is not connected, and has a Google Calendar filter", async () => {
+  it("offers to connect the student's own Google Calendar, with no filter row or switch", async () => {
     const html = await render('month');
-    expect(html).toContain('Not connected. Connect Google Calendar to see your events here');
+    expect(html).toContain('>Google Calendar<');
+    expect(html).toContain('Not connected');
+    // No filter row and no Career only switch: career only is how the calendar always works.
+    expect(html).not.toContain('role="group" aria-label="Filters"');
+    expect(html).not.toContain('Career only');
     // Never claims to be connected before the calendar has been read.
     expect(html).not.toContain('Synced with');
-    expect(html).toContain('>Google Calendar<span class="cx-chip-count">0</span>');
   });
 });
 
 describe('Adding events', () => {
   it('has an Add event button, and the form takes a date and an optional time', async () => {
     const html = await render('month');
-    expect(html).toContain('Add event');
-    expect(html).toContain('Add an event');
+    expect(html).toContain('aria-label="Add event"');
+    // And the chat box, where the agents turn a sentence into an event.
+    expect(html).toContain('Tell BearRok what to add');
   });
 });
 
@@ -127,5 +132,14 @@ describe('Calendar header', () => {
     const html = await render('month');
     expect(html).not.toContain('cx-event-dialog');
     expect(html).not.toContain('class="cx-form');
+  });
+});
+
+describe('Calendar wording', () => {
+  it('does not say "free", and does not label each event "Google Calendar"', async () => {
+    for (const view of ['month', 'week', 'day', 'agenda']) {
+      const html = (await render(view)).replace(/<!-- -->/g, '');
+      expect(html).not.toMatch(/\bfree\b/i);
+    }
   });
 });

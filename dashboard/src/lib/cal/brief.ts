@@ -102,7 +102,7 @@ export function buildBrief({ today, name, items, conflicts, plan }: BriefInput):
     if (plan.overloaded) {
       lines.push({
         tone: 'warn',
-        text: `This week asks for ${hoursLabel(plan.needed)} of work and you have ${hoursLabel(plan.available)} free. Plan my week shows what does not fit.`,
+        text: `This week asks for ${hoursLabel(plan.needed)} of work and you have ${hoursLabel(plan.available)} open. Plan my week shows what does not fit.`,
         day: null,
       });
     } else if (todayBlocks.length > 0) {
@@ -112,7 +112,7 @@ export function buildBrief({ today, name, items, conflicts, plan }: BriefInput):
         day: today,
       });
     } else if (plan.needed > 0) {
-      lines.push({ tone: 'plan', text: `About ${hoursLabel(plan.needed)} of work this week fits in your ${hoursLabel(plan.available)} free.`, day: null });
+      lines.push({ tone: 'plan', text: `About ${hoursLabel(plan.needed)} of work this week fits in your ${hoursLabel(plan.available)} of open time.`, day: null });
     }
   }
 

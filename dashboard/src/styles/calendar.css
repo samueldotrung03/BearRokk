@@ -401,42 +401,437 @@
   background: linear-gradient(90deg, var(--color-brand), #ea580c);
 }
 
+/* ---------- Layout, after Starship's: calendar and its controls, cards beside, chat below ---------- */
+
+.cx-layout {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .cx-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+.cx-main,
+.cx-aside {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
 /* ---------- Header: one size in every view ---------- */
 
-/* Row one: the title and Today / previous / next. Row two: the views and the add button. Neither
-   row changes with the view, so nothing moves when the student switches. */
 .cx-cal-head {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.cx-cal-period {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.cx-cal-kicker {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
 }
 
 .cx-cal-title {
-  flex: 1;
-  min-width: 0;
   overflow: hidden;
+  margin-top: 2px;
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: 32px;
   line-height: 38px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.cx-cal-nav,
-.cx-cal-tools {
+.cx-cal-controls {
   display: flex;
-  flex-shrink: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.cx-cal-tools {
-  justify-content: space-between;
+/* Previous, Today and Next in one pill. */
+.cx-cal-pill {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 4px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: white;
 }
 
-.cx-cal-tools .cx-views {
+.cx-cal-pill button {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 999px;
+  color: var(--color-ink-2);
+}
+
+.cx-cal-pill button:hover {
+  background: var(--color-canvas);
+}
+
+.cx-cal-pill .cx-cal-today {
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+/* ---------- Side cards ---------- */
+
+.cx-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.cx-side-head h2 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+
+.cx-side-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-brand);
+}
+
+.cx-side-dot[data-tone='must'],
+.cx-side-dot[data-tone='late'],
+.cx-side-dot[data-tone='clash'] {
+  background: #ea580c;
+}
+
+.cx-side-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-ink-3);
+}
+
+.cx-side-status[data-state='ok'] {
+  background: #16a34a;
+}
+
+.cx-side-status[data-state='expired'],
+.cx-side-status[data-state='error'] {
+  background: #ea580c;
+}
+
+/* ---------- Time grid (Day and Week) ---------- */
+
+.cx-tg {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: white;
+  --cx-tg-rail: 56px;
+}
+
+.cx-tg-head,
+.cx-tg-allday {
+  display: grid;
+  grid-template-columns: var(--cx-tg-rail) repeat(var(--cx-tg-days), minmax(0, 1fr));
+  border-bottom: 1px solid var(--color-line);
+}
+
+.cx-tg-corner {
+  display: flex;
+  align-items: flex-end;
+  padding: 0 6px 8px;
+  font-size: 11px;
+  color: var(--color-ink-3);
+}
+
+.cx-tg-dayhead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 10px 10px 8px;
+  border-left: 1px solid var(--color-line);
+  text-align: left;
+}
+
+.cx-tg-dayhead:hover {
+  background: var(--color-canvas);
+}
+
+.cx-tg-wd {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+.cx-tg-num {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-ink);
+}
+
+.cx-tg-dayhead[data-today='true'] .cx-tg-wd,
+.cx-tg-dayhead[data-today='true'] .cx-tg-num {
+  color: var(--color-brand);
+}
+
+.cx-tg-allday-label {
+  align-items: center;
+  padding-bottom: 0;
+}
+
+.cx-tg-allday-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px;
+  border-left: 1px solid var(--color-line);
+}
+
+.cx-tg-allday-cell[data-today='true'],
+.cx-tg-col[data-today='true'] {
+  background: rgb(36 91 216 / 0.035);
+}
+
+.cx-tg-chip {
+  overflow: hidden;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border-left: 3px solid #3b6ff5;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #1d4ed8;
+  background: #eff4ff;
+}
+
+.cx-tg-chip[data-priority='must'] {
+  border-left-color: #ea580c;
+  color: #9a3412;
+  background: #fff4ec;
+}
+
+.cx-tg-chip[data-done='true'],
+.cx-tg-event[data-done='true'] {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.cx-tg-ghost {
+  border-left-style: dashed;
+  background: white;
+}
+
+.cx-tg-more {
+  align-self: flex-start;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--color-ink-3);
+}
+
+.cx-tg-scroll {
   flex: 1;
-  max-width: 460px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.cx-tg-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--cx-tg-rail) repeat(var(--cx-tg-days), minmax(0, 1fr));
+  background-image: linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
+  background-size: 100% 48px;
+}
+
+.cx-tg-rail {
+  position: relative;
+}
+
+.cx-tg-rail span {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--color-ink-3);
+}
+
+.cx-tg-col {
+  position: relative;
+  border-left: 1px solid var(--color-line);
+}
+
+.cx-tg-event {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 3px 7px;
+  border-radius: 8px;
+  border-left: 3px solid #3b6ff5;
+  text-align: left;
+  color: #1d4ed8;
+  background: #e8efff;
+}
+
+.cx-tg-event[data-priority='must'] {
+  border-left-color: #ea580c;
+  color: #9a3412;
+  background: #fff1e6;
+}
+
+.cx-tg-chip[data-kind='google'],
+.cx-tg-event[data-kind='google'] {
+  border-left-color: #0b8043;
+  color: #0b6b3a;
+  background: #e8f5ee;
+}
+
+.cx-tg-event:hover,
+.cx-tg-chip:hover {
+  filter: brightness(0.97);
+}
+
+.cx-tg-ev-title {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cx-tg-ev-time {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.cx-tg-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #ea580c;
+  z-index: 2;
+}
+
+.cx-tg-now::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ea580c;
+}
+
+/* ---------- Event card ---------- */
+
+.cx-event-card {
+  padding: 24px;
+}
+
+.cx-event-kind {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+/* ---------- Chat box under the calendar ---------- */
+
+.cx-chat-wrap {
+  margin-top: 16px;
+}
+
+.cx-chat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 18px;
+  border: 1px solid rgb(36 91 216 / 0.25);
+  border-radius: 999px;
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.cx-chat input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  font-size: 15px;
+  color: var(--color-ink);
+  background: none;
+  outline: none;
+}
+
+.cx-chat input::placeholder {
+  color: var(--color-ink-3);
+}
+
+.cx-chat-send {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: white;
+  background: var(--color-brand);
+}
+
+.cx-chat-send:disabled {
+  opacity: 0.4;
+}
+
+.cx-chat-reply {
+  margin: 8px 18px 0;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+
+.cx-chat-reply[data-ok='false'] {
+  color: #9a3412;
 }
 
 /* ---------- Add and edit an event, over the screen ---------- */
@@ -546,6 +941,31 @@
 .cx-google-line[data-state='expired'] .cx-google-dot,
 .cx-google-line[data-state='error'] .cx-google-dot {
   background: #ea580c;
+}
+
+/* ---------- The AI "Career only" filter ---------- */
+
+.cx-ai-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  background: white;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.cx-ai-filter[aria-pressed='true'] {
+  color: white;
+  border-color: transparent;
+  background: linear-gradient(90deg, var(--color-brand), #7c3aed);
 }
 
 /* ---------- Day view ---------- */

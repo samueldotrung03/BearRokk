@@ -60,7 +60,7 @@ export function PlanCard({
             {plan.placed > 0 ? `${hoursLabel(plan.placed)} of work, placed before each due date` : acceptedHours > 0 ? 'Your week is planned' : 'Nothing needs planning this week'}
           </h2>
           <p className="mt-1 text-sm text-ink-2">
-            {hoursLabel(plan.available)} free this week after what you accepted
+            {hoursLabel(plan.available)} open this week after what you accepted
             {acceptedHours > 0 && ` (${hoursLabel(acceptedHours)} accepted)`}. Have-to items are placed first, then should-do, never after the due date.
           </p>
         </div>
@@ -86,7 +86,7 @@ export function PlanCard({
           <>
             <span className="cx-ok-dot" aria-hidden="true" />
             <span>
-              Everything fits. {hoursLabel(Math.max(0, plan.available - plan.needed))} stays free for the unexpected.
+              Everything fits. {hoursLabel(Math.max(0, plan.available - plan.needed))} stays open for the unexpected.
             </span>
           </>
         ) : (
@@ -115,13 +115,13 @@ export function PlanCard({
                 <span className="text-ink-3">{shortDay(d.day)}</span>
               </button>
               <div className="cx-stepper">
-                <button type="button" aria-label={`Fewer free hours on ${name}s`} disabled={hours[weekday]! <= 0} onClick={() => onHours(weekday, Math.max(0, hours[weekday]! - 0.5))}>
+                <button type="button" aria-label={`Fewer open hours on ${name}s`} disabled={hours[weekday]! <= 0} onClick={() => onHours(weekday, Math.max(0, hours[weekday]! - 0.5))}>
                   <Minus className="size-3" aria-hidden="true" />
                 </button>
-                <span aria-live="polite" aria-label={`${hoursLabel(d.capacity)} free on ${name}s`}>
+                <span aria-live="polite" aria-label={`${hoursLabel(d.capacity)} open on ${name}s`}>
                   {d.capacity === 0 ? 'Off' : hoursLabel(d.capacity)}
                 </span>
-                <button type="button" aria-label={`More free hours on ${name}s`} disabled={hours[weekday]! >= MAX_HOURS} onClick={() => onHours(weekday, Math.min(MAX_HOURS, hours[weekday]! + 0.5))}>
+                <button type="button" aria-label={`More open hours on ${name}s`} disabled={hours[weekday]! >= MAX_HOURS} onClick={() => onHours(weekday, Math.min(MAX_HOURS, hours[weekday]! + 0.5))}>
                   <Plus className="size-3" aria-hidden="true" />
                 </button>
               </div>
@@ -183,7 +183,7 @@ export function PlanCard({
       )}
       <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-3">
         <Info className="size-3.5 shrink-0" aria-hidden="true" />
-        {source} Hours are estimates; change your free hours and the plan updates at once.
+        {source} Hours are estimates; change your open hours and the plan updates at once.
       </p>
     </Card>
   );

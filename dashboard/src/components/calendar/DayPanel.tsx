@@ -223,7 +223,7 @@ function Item({
       )}
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
-          {item.hours ? `Work block · ${hoursLabel(item.hours)}` : cxKindLabel[item.kind]}
+          {item.kind === 'google' ? null : item.hours ? `Work block · ${hoursLabel(item.hours)}` : cxKindLabel[item.kind]}
         </p>
         <p className={`leading-snug font-semibold ${item.done ? 'line-through opacity-60' : ''}`}>{item.title}</p>
         <p className="mt-1 text-sm leading-snug text-ink-2">
@@ -271,7 +271,7 @@ function Item({
 }
 
 /** The add and edit form, over the whole screen. Escape or a click outside closes it. */
-function EventDialog({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+export function EventDialog({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     ref.current?.showModal();
@@ -291,7 +291,7 @@ function EventDialog({ children, onClose }: { children: React.ReactNode; onClose
   );
 }
 
-function PersonalForm({
+export function PersonalForm({
   initial,
   day,
   googleConnected,

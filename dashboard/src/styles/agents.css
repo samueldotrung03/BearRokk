@@ -841,3 +841,458 @@ button.ag-chip-dark:hover {
 :root[data-theme='dark'] .ag-week-bar[data-today='true'] {
   background: var(--color-brand);
 }
+
+/* ---------- xAI type and buttons ----------
+   The page keeps its layout and colours; only type and buttons follow xAI's style: a neutral
+   grotesk (Geist), monospace uppercase labels and numbers (Geist Mono), and pill buttons, white
+   on the dark run panel and black on the white cards. */
+
+.ag-xai {
+  --font-sans: 'Geist Variable', 'DM Sans Variable', Arial, sans-serif;
+  --ag-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-family: var(--font-sans);
+  letter-spacing: -0.005em;
+}
+
+.ag-xai h1.font-display {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.ag-xai :is(h2, h3).font-display,
+.ag-xai #ag-run-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.ag-xai :is(.ag-stat-num, .ag-funnel-bar, .ag-node-count, .tabular-nums) {
+  font-family: var(--ag-mono);
+  letter-spacing: -0.03em;
+}
+
+.ag-xai .font-display {
+  font-family: var(--ag-mono);
+  letter-spacing: -0.03em;
+}
+
+.ag-xai :is(.ag-stat-label, .ag-panel-label, .ag-side-label, .ag-row-label) {
+  font-family: var(--ag-mono);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+/* Buttons on the dark run panel: a white pill for the main action, outlined pills for the rest. */
+:root .ag-xai .ag-btn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: white;
+  background: transparent;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  box-shadow: none;
+}
+
+:root .ag-xai .ag-btn[aria-label] {
+  width: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
+:root .ag-xai .ag-btn:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.1);
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+:root .ag-xai .ag-btn[data-primary='true'] {
+  color: #000;
+  background: #fff;
+  border-color: #fff;
+  box-shadow: none;
+}
+
+:root .ag-xai .ag-btn[data-primary='true']:hover {
+  background: #e6e6e6;
+  border-color: #e6e6e6;
+}
+
+:root .ag-xai .ag-seg {
+  padding: 3px;
+  border-radius: 999px;
+  background: transparent;
+  border-color: rgb(255 255 255 / 0.22);
+}
+
+:root .ag-xai .ag-seg button {
+  height: 28px;
+  border-radius: 999px;
+  font-family: var(--ag-mono);
+  font-weight: 500;
+}
+
+:root .ag-xai .ag-seg button[aria-pressed='true'] {
+  color: #000;
+  background: #fff;
+}
+
+:root .ag-xai .ag-chip-dark {
+  font-weight: 500;
+  background: transparent;
+  border-color: rgb(255 255 255 / 0.2);
+}
+
+:root .ag-xai button.ag-chip-dark:hover {
+  background: rgb(255 255 255 / 0.1);
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+/* The command bar keeps its white field; it and its send button become pills. */
+:root .ag-xai .ag-command {
+  border-radius: 999px;
+  padding-left: 20px;
+}
+
+:root .ag-xai .ag-command .btn-primary {
+  border-radius: 999px;
+  color: white;
+  background: #000;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+:root .ag-xai .ag-command .btn-primary:hover:not(:disabled) {
+  background: #262626;
+  transform: none;
+}
+
+/* Buttons on the white cards: black pills. */
+:root .ag-xai .btn-primary {
+  border-radius: 999px;
+  color: white;
+  background: #000;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+:root .ag-xai .btn-primary:hover {
+  background: #262626;
+  transform: none;
+}
+
+/* ---------- The map: each agent is a Grok bot with its name under it ---------- */
+
+:root .ag-xai .ag-node {
+  align-items: center;
+  gap: 1px;
+  padding: 0 2px;
+  overflow: visible;
+  text-align: center;
+  background: none;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root .ag-xai .ag-node:hover,
+:root .ag-xai .ag-node[data-status],
+:root .ag-xai .ag-node[data-level='master'] {
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+:root .ag-xai .ag-node[data-status='working']::after {
+  display: none;
+}
+
+:root .ag-xai .ag-node[aria-pressed='true'] {
+  outline: none;
+}
+
+:root .ag-xai .ag-node-title {
+  max-width: 100%;
+  justify-content: center;
+}
+
+:root .ag-xai .ag-node-sub {
+  max-width: 100%;
+}
+
+/* Bots are SVGs inside the map; keep them out of the map's own absolutely placed SVG rule. */
+.ag-graph .gk-bot {
+  position: static;
+  inset: auto;
+}
+
+/* The bot itself, with a ring only when its agent is selected. */
+.ag-bot {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 999px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ag-node:hover .ag-bot {
+  transform: translateY(-1px) scale(1.05);
+}
+
+.ag-node[aria-pressed='true'] .ag-bot {
+  box-shadow:
+    0 0 0 3px #152b43,
+    0 0 0 5px white;
+}
+
+:root[data-theme='dark'] .ag-node[aria-pressed='true'] .ag-bot {
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 5px white;
+}
+
+/* ---------- Grok bots (src/components/agents/GrokBot.tsx) ---------- */
+
+.gk-bot {
+  display: block;
+  overflow: visible;
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+.gk-bot .gk-eye {
+  fill: none;
+  stroke: white;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+.gk-bot :is(.gk-eye, .gk-eyes, .gk-bot-body) {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Idle: blinks now and then. */
+.gk-bot[data-status='idle'] .gk-eye {
+  animation: gk-blink 5s var(--gk-delay, 0s) infinite;
+}
+
+/* Working: glows in its own colour, bounces and glances around. */
+.gk-bot[data-status='working'] {
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+.gk-bot[data-status='working'] .gk-bot-body {
+  animation: gk-bounce 1.2s var(--gk-delay, 0s) ease-in-out infinite;
+}
+
+.gk-bot[data-status='working'] .gk-eyes {
+  animation: gk-glance 2.4s var(--gk-delay, 0s) ease-in-out infinite;
+}
+
+/* Waiting: eyes half shut. */
+.gk-bot[data-status='waiting'] .gk-eye {
+  transform: scaleY(0.45);
+}
+
+/* Done: one small hop. */
+.gk-bot[data-status='done'] .gk-bot-body {
+  animation: gk-hop 0.5s ease-out both;
+}
+
+@keyframes gk-blink {
+  0%, 93%, 100% { transform: scaleY(1); }
+  95.5% { transform: scaleY(0.1); }
+}
+
+@keyframes gk-bounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30% { transform: translateY(-2px) rotate(-4deg); }
+  60% { transform: translateY(0) rotate(3deg); }
+}
+
+@keyframes gk-glance {
+  0%, 20% { transform: translateX(0); }
+  35%, 55% { transform: translateX(1.6px); }
+  70%, 90% { transform: translateX(-1.6px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes gk-hop {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gk-bot *,
+  .gk-bot[data-status] .gk-bot-body {
+    animation: none !important;
+  }
+
+  .ag-bot {
+    transition: none;
+  }
+}
+
+/* ---------- Agent settings ---------- */
+
+.ags-dialog {
+  margin: auto;
+  width: min(640px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 24px;
+  background: white;
+  color: var(--color-ink);
+  box-shadow: var(--shadow-lift);
+}
+
+.ags-dialog:not([open]) {
+  display: none;
+}
+
+.ags-dialog::backdrop {
+  background: rgb(21 43 67 / 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.ags-head,
+.ags-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 24px;
+}
+
+.ags-head {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.ags-foot {
+  justify-content: flex-end;
+  border-top: 1px solid var(--color-line);
+}
+
+.ags-foot > span {
+  margin-right: auto;
+}
+
+.ags-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 24px 20px;
+}
+
+.ags-section {
+  padding-top: 18px;
+}
+
+.ags-section + .ags-section {
+  margin-top: 18px;
+  border-top: 1px solid var(--color-line);
+}
+
+.ags-section h3 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+
+.ags-note {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-ink-3);
+}
+
+.ags-check,
+.ags-min {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ags-check:has(input:checked) {
+  border-color: var(--color-brand);
+  background: rgb(36 91 216 / 0.05);
+}
+
+.ags-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand);
+}
+
+.ags-min input {
+  width: 56px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.ags-model {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ags-model select {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: white;
+  font-size: 14px;
+}
+
+.ags-primary,
+.ags-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ags-primary {
+  color: white;
+  background: var(--color-brand);
+}
+
+.ags-primary:disabled {
+  opacity: 0.6;
+}
+
+.ags-secondary {
+  border: 1px solid var(--color-line);
+  background: white;
+  color: var(--color-ink);
+}

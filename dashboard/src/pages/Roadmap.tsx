@@ -1,5 +1,6 @@
 // The roadmap page. The student picks nothing to get one: there is a roadmap to their career
-// goal, and one for every job or program they are tracking, written by comparing the posting
+// goal, and one for every posting they are working on (set to Applying or To apply on the Saved
+// page, from what the agents found, never the sample set), written by comparing the posting
 // with their profile and with how people got in (src/lib/roadmapx/journey.ts). Two ways to look
 // at each: the 3D journey to travel it, and a quiet overview to see its whole scope.
 import { Briefcase, ArrowUpRight, Check, Pencil, Plus, ChevronDown, Compass, List, Map as MapIcon, Mountain, RefreshCw, RotateCcw, Search, Sparkles, Target, Users } from 'lucide-react';
@@ -11,13 +12,13 @@ import { Scene } from '../components/journey/Scene.tsx';
 import { SkillChips, StepPanel } from '../components/journey/StepPanel.tsx';
 import { Details } from '../components/OpportunityCard.tsx';
 import { Page } from '../components/Page.tsx';
-import { careerPaths, opportunities as sampleOpportunities } from '../data/sample.ts';
+import { careerPaths } from '../data/sample.ts';
 import { aiJourney, aiPlan, chosenFrom, roadmapRequest } from '../lib/roadmapx/ai.ts';
 import { formatHours } from '../lib/roadmapx/context.ts';
-import { careerJourney, careerSearch, customCareer, destinations, jobJourney, planJourney } from '../lib/roadmapx/journey.ts';
+import { activeApplications, careerJourney, careerSearch, customCareer, jobJourney, planJourney } from '../lib/roadmapx/journey.ts';
 import { useLocal } from '../lib/useLocal.ts';
 import { useAiRoadmap } from '../state/aiRoadmap.ts';
-import { useOpportunities } from '../state/live.tsx';
+import { useLive } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import type { ApplicationStatus, Opportunity } from '../types.ts';
 import '../styles/journey.css';
@@ -29,7 +30,13 @@ const statusWords: Record<ApplicationStatus, string> = { interested: 'Interested
 
 export function Roadmap() {
   const { state, dispatch } = useStore();
-  const list = useOpportunities();
+  const live = useLive();
+  // What the agents found and what the student saved: the real postings, never the sample set.
+  const list = useMemo(() => {
+    const seen = new Map<string, Opportunity>();
+    for (const o of [...live.opportunities, ...live.savedCards]) seen.set(o.id, o);
+    return [...seen.values()];
+  }, [live.opportunities, live.savedCards]);
   const [open, setOpen] = useLocal<string>('bearrok.roadmap.open', 'career');
   const [view, setView] = useLocal<'journey' | 'overview'>('bearrok.roadmap.look', 'journey');
   const [skip, setSkip] = useLocal<string[]>('bearrok.roadmap.skip', []);
@@ -46,8 +53,8 @@ export function Roadmap() {
   const [burst, setBurst] = useState<string | null>(null);
   const now = useMemo(() => Date.now(), []);
 
-  const byId = useMemo(() => new Map([...sampleOpportunities, ...list].map((o) => [o.id, o])), [list]);
-  const dests = useMemo(() => destinations(state, list, byId), [state, list, byId]);
+  const byId = useMemo(() => new Map(list.map((o) => [o.id, o])), [list]);
+  const dests = useMemo(() => activeApplications(state, byId), [state, byId]);
   const dest = dests.find((d) => d.opportunity.id === open);
 
   // The draft by fixed rules is there at once; Grok's roadmap replaces it when it arrives.
@@ -91,7 +98,7 @@ export function Roadmap() {
 
   const q = query.trim().toLowerCase();
   const shown = dests.filter((d) => !q || `${d.opportunity.title} ${d.opportunity.organizer}`.toLowerCase().includes(q));
-const tracked = dests.some((d) => d.status !== null);
+  const tracked = dests.length > 0;
   const pick = (id: string) => {
     setOpen(id);
     setListing(false);
@@ -204,7 +211,7 @@ const tracked = dests.some((d) => d.status !== null);
                       if (event.key === 'Escape') setListing(false);
                       if (event.key === 'Enter' && shown[0]) pick(shown[0].opportunity.id);
                     }}
-                    placeholder={tracked ? `Search your ${dests.length} applications` : `Search ${dests.length} suggestions`}
+                    placeholder={`Search your ${dests.length} applications`}
                     aria-label="Search by role or organization"
                   />
                 </label>
@@ -213,9 +220,9 @@ const tracked = dests.some((d) => d.status !== null);
                   <Briefcase aria-hidden="true" />
                   <span>
                     <small>
-                      {tracked ? 'Applied' : 'Suggested for you'} · {dests.length}
+                      Applying and to apply · {dests.length}
                     </small>
-                    {dest ? dest.opportunity.title : tracked ? 'Choose an application' : 'Choose a posting'}
+                    {dest ? dest.opportunity.title : 'Choose an application'}
                   </span>
                   <ChevronDown aria-hidden="true" className="rm3-caret" />
                 </button>
@@ -224,7 +231,7 @@ const tracked = dests.some((d) => d.status !== null);
                 <>
                   <div className="rm3-shade" onClick={() => (setListing(false), setQuery(''))} aria-hidden="true" />
                   <div className="rm3-menu rm3-apps-menu">
-                    <div role="listbox" aria-label={tracked ? 'Your applications' : 'Suggested postings'}>
+                    <div role="listbox" aria-label="Your applications">
                       {shown.map((d) => (
                         <button key={d.opportunity.id} type="button" role="option" aria-selected={d === dest} onClick={() => pick(d.opportunity.id)}>
                           <strong>
@@ -239,6 +246,22 @@ const tracked = dests.some((d) => d.status !== null);
                   </div>
                 </>
               )}
+            </div>
+          )}
+          {!tracked && live.status !== 'connecting' && (
+            // Nothing in progress: point the student at where postings come from, not at guesses.
+            <div className="rm3-noapps" role="note">
+              <Briefcase aria-hidden="true" />
+              <span>
+                <strong>No applications in progress</strong>
+                Set a posting to To apply or Applying and its roadmap appears here.
+              </span>
+              <Link to="/" className="rm3-noapps-go">
+                Explore the feed
+              </Link>
+              <Link to="/saved" className="rm3-noapps-go">
+                Go to Saved
+              </Link>
             </div>
           )}
         </div>

@@ -5,7 +5,7 @@ import { addDays, dayLabel, hoursLabel } from '../../lib/cal/days.ts';
 import { cxKindLabel, dayLoad, groupByDay, type Conflict, type CxItem } from '../../lib/cal/items.ts';
 import type { PlanBlock } from '../../lib/cal/planner.ts';
 
-const LOAD_WORD = ['Free', 'Light', 'Busy', 'Heavy'] as const;
+const LOAD_WORD = ['Open', 'Light', 'Busy', 'Heavy'] as const;
 
 export function AgendaView({
   today,
@@ -97,7 +97,8 @@ function Row({ item, today, onSelect, showDay = false }: { item: CxItem; today: 
   return (
     <li>
       <button type="button" onClick={() => onSelect(item.day)} className="cx-agenda-row" data-kind={item.kind} data-priority={item.priority} data-done={item.done}>
-        <span className="cx-agenda-kind">{item.hours ? `Work · ${hoursLabel(item.hours)}` : cxKindLabel[item.kind]}</span>
+        {/* Google events carry no label of where they came from: their color says it. */}
+        {item.kind !== 'google' && <span className="cx-agenda-kind">{item.hours ? `Work · ${hoursLabel(item.hours)}` : cxKindLabel[item.kind]}</span>}
         <span className="min-w-0 flex-1">
           <span className={`block truncate font-semibold ${item.done ? 'line-through opacity-60' : ''}`}>{item.title}</span>
           <span className="block truncate text-[13px] text-ink-2">{item.why}</span>

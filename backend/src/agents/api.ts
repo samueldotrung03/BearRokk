@@ -9,10 +9,11 @@ import { createDeadlineEvent, deleteEvent } from '../calendar.ts';
 import { readResume, RESUME_MAX_BYTES, RESUME_TYPES } from '../resume.ts';
 import { exportApplications, trackerRows, writeTracker } from '../sheets.ts';
 import type { Store } from '../store/index.ts';
+import { config } from '../config.ts';
 import { randomBytes } from 'node:crypto';
 import { allCalendarsIn, consentUrl, exchangeCode, pkce, refreshAccess, revoke, servicesIn, type GoogleService, type OAuthClient } from '../googleOAuth.ts';
 import type { AgentSystem } from './system.ts';
-import { APPLICATION_STATUSES, CATEGORIES, CATEGORY_OF, type Action, type OppType, type Category, type ClassYear, type Profile, type StudentPreferences } from './types.ts';
+import { AGENT_GROUPS, APPLICATION_STATUSES, CATEGORIES, CATEGORY_OF, type Action, type AgentGroup, type AgentSettings, type OppType, type Category, type ClassYear, type Profile, type StudentPreferences } from './types.ts';
 import { RoadmapRequest, type RoadmapWriter } from '../roadmap.ts';
 
 export interface AgentsOptions {
@@ -414,6 +415,74 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
   }
 
   app.get('/api/google/config', (c) => c.json({ enabled: Boolean(oauth) }));
+
+  // ---- agent settings: models per agent group (Grok only) and minimums per kind ------------------
+  const GROUP_LABEL: Record<AgentGroup, string> = {
+    master: 'Master agent',
+    managers: 'Search managers',
+    workers: 'Worker fleet (scouts, readers, deadline finders)',
+    validators: 'Validation agents',
+    presentation: 'Presentation manager',
+    helpers: 'Helpers (pictures, calendar)',
+  };
+  const grokModels = () => [...new Set([config.xaiModels.high, config.xaiModels.normal, config.xaiModels.low, config.xaiModel].filter(Boolean))];
+
+  app.get(`${base}/agent-settings`, async (c) => {
+    const system = await systemOf(c);
+    return c.json({
+      settings: system.getAgentSettings(),
+      groups: AGENT_GROUPS.map((id) => ({ id, label: GROUP_LABEL[id], tier: id === 'workers' || id === 'helpers' ? config.xaiModels.low : config.xaiModels.normal })),
+      models: grokModels(),
+      // Whether the choices are in use now: only while the agents run on Grok.
+      applied: opts.grok?.mode === 'api' || opts.grok?.mode === 'cli',
+    });
+  });
+
+  app.put(`${base}/agent-settings`, async (c) => {
+    const system = await systemOf(c);
+    const body = await c.req.json().catch(() => ({}));
+    const allowed = new Set(grokModels());
+    const models = Object.fromEntries(
+      AGENT_GROUPS.flatMap((g) => (typeof body?.models?.[g] === 'string' && allowed.has(body.models[g]) ? [[g, body.models[g]]] : [])),
+    ) as AgentSettings['models'];
+    const minimums = Object.fromEntries(
+      Object.keys(CATEGORY_OF).flatMap((t) => {
+        const n = Number(body?.minimums?.[t]);
+        return Number.isInteger(n) && n > 0 ? [[t, Math.min(n, 50)]] : [];
+      }),
+    ) as AgentSettings['minimums'];
+    const kinds = (Array.isArray(body?.kinds) ? body.kinds : []).filter((k: unknown): k is Category => CATEGORIES.includes(k as Category));
+    system.setAgentSettings({ models, minimums, kinds: [...new Set(kinds)] as Category[] });
+    return c.json({ settings: system.getAgentSettings() });
+  });
+
+  // The calendar's chat box: a sentence becomes an event the page then adds (and puts on Google
+  // Calendar), or a question back when something is missing.
+  app.post(`${base}/calendar/ask`, async (c) => {
+    const system = await systemOf(c);
+    const body = await c.req.json().catch(() => ({}));
+    const text = typeof body?.text === 'string' ? body.text.trim().slice(0, 300) : '';
+    if (!text) return c.json({ ok: false, reply: 'Say what to add and when.' });
+    const today = typeof body?.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? body.today : new Date().toISOString().slice(0, 10);
+    const timeZone = typeof body?.timeZone === 'string' && body.timeZone.length < 60 ? body.timeZone : 'UTC';
+    try {
+      return c.json(await system.draftCalendarEvent(text, today, timeZone));
+    } catch (e) {
+      return c.json({ ok: false, reply: `That could not be added just now: ${e instanceof Error ? e.message : 'unknown error'}` });
+    }
+  });
+
+  // The calendar's "Career only" filter: the agents' model sorts the student's own calendar events
+  // into career-related and personal. Only titles, calendar names and places are sent, 80 at most.
+  app.post(`${base}/calendar/sort`, async (c) => {
+    const system = await systemOf(c);
+    const body = await c.req.json().catch(() => ({}));
+    const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+    const events = (Array.isArray(body?.events) ? body.events : [])
+      .slice(0, 80)
+      .flatMap((e: any) => (text(e?.id, 300) && text(e?.title, 200) ? [{ id: text(e.id, 300)!, title: text(e.title, 200)!, calendar: text(e.calendar, 120), location: text(e.location, 120) }] : []));
+    return c.json({ verdicts: await system.sortCalendarEvents(events) });
+  });
 
   app.get(`${base}/google`, async (c) => {
     const system = await systemOf(c);

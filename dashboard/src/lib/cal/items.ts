@@ -33,6 +33,10 @@ export interface CxItem extends Omit<CalendarItem, 'kind'> {
   hours: number | null;
   /** Where the item lives elsewhere, such as the event on Google Calendar. */
   link?: string | null;
+  /** True for an item at a set time of day (it goes on the time grid); otherwise it is for the day. */
+  timed?: boolean;
+  /** When a timed item ends, ISO. */
+  end?: string | null;
 }
 
 export const cxKindLabel: Record<CxKind, string> = {
@@ -65,6 +69,8 @@ export function fromPersonal(p: PersonalItem): CxItem {
     note: p.note,
     hours: p.block?.hours ?? null,
     link: p.google?.link ?? null,
+    timed: Boolean(p.time),
+    end: p.time && p.endTime ? new Date(`${p.day}T${p.endTime}:00`).toISOString() : null,
   };
 }
 

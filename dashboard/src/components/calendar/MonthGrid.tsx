@@ -19,6 +19,7 @@ export function MonthGrid({
   blocksByDay,
   conflicts,
   onSelect,
+  onOpen,
 }: {
   month: Date;
   today: string;
@@ -27,6 +28,8 @@ export function MonthGrid({
   blocksByDay: Map<string, PlanBlock[]>;
   conflicts: Map<string, Conflict>;
   onSelect: (day: string) => void;
+  /** A click on a day opens it; arrow keys only move the selection. */
+  onOpen?: (day: string) => void;
 }) {
   const grid = useRef<HTMLDivElement>(null);
   const wantFocus = useRef(false);
@@ -95,7 +98,7 @@ export function MonthGrid({
                 data-past={key < today}
                 aria-selected={key === selected}
                 aria-label={label}
-                onClick={() => onSelect(key)}
+                onClick={() => (onOpen ?? onSelect)(key)}
               >
                 <span className="flex items-center justify-between gap-1">
                   <span className="cal-day">{date.getDate()}</span>

@@ -5,9 +5,15 @@ import { Link } from 'react-router';
 import { edgeKey, GRAPH_HEIGHT, GRAPH_MIN_WIDTH, layoutGraph, routeOf, ROWS } from '../../lib/agents/layout.ts';
 import { FEED_ID, type AgentLive, type GraphNode, type NodeStatus } from '../../lib/agents/engine.ts';
 import type { MapView } from '../../lib/agents/view.ts';
+import { GrokBot } from './GrokBot.tsx';
 import { useWidth } from './hooks.ts';
 
 export const statusWord: Record<NodeStatus, string> = { idle: 'Idle', working: 'Working', waiting: 'Waiting', done: 'Done' };
+
+/** Bot size on the map, by level, sized so bot and label fit the row heights in layout.ts. */
+const botSize = { master: 44, manager: 36, worker: 34, validator: 32, presenter: 36 } as const;
+/** Workers and validators show only their label under the bot; their state is in the bot itself. */
+const showsSub = (node: GraphNode) => node.level !== 'worker' && node.level !== 'validator';
 
 function countFor(node: GraphNode, agent: AgentLive): string | null {
   if (node.level === 'validator') return agent.kept + agent.rejected ? `${agent.kept}✓ ${agent.rejected}✗` : null;
@@ -89,12 +95,15 @@ export function RunGraph({ view, selected, onSelect, reduced, pulseMs }: { view:
               onClick={() => onSelect(node.id)}
               style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
             >
+              <span className="ag-bot">
+                <GrokBot level={node.level} status={agent.status} size={botSize[node.level]} seed={node.id} />
+              </span>
               <span className="ag-node-title">
                 <span className="ag-dot" data-status={agent.status} aria-hidden="true" />
                 <span className="truncate">{node.title}</span>
                 {tally && <span className="ag-node-count">{tally}</span>}
               </span>
-              <span className="ag-node-sub">{sub}</span>
+              {showsSub(node) && <span className="ag-node-sub">{sub}</span>}
             </button>
           );
         })}

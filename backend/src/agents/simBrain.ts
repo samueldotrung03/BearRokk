@@ -2,6 +2,7 @@
 // by plain rules over the sample catalog, with short pauses so a run can be watched.
 import type { Brain, MasterInput } from './brain.ts';
 import { currentSignal, StoppedError } from './stop.ts';
+import { sortByRules, type CalendarEventInput, type EventAsk, type EventVerdict } from './eventSorter.ts';
 import { CATALOG, findByUrl, officialUrl, repostUrl, toCandidate, type CatalogItem } from './catalog.ts';
 import { noteMatch, noteSignals } from './scoring.ts';
 import { CATEGORY_LABEL, yearPlural, type ReviewFocus, type Assignment, type Brief, type Candidate, type FoundDeadline, type Category, type Lens, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
@@ -228,6 +229,16 @@ export class SimBrain implements Brain {
     await this.pause(1700, lead.url);
     const item = findByUrl(lead.url);
     return item ? toCandidate(item, this.now()) : null;
+  }
+
+  /** Without a model nothing is guessed: the student is told to use the form instead. */
+  async draftEvent(): Promise<EventAsk> {
+    return { ok: false, reply: 'Adding events by describing them needs the agents connected. Use the + button to add it with the form.' };
+  }
+
+  /** Without a model, the keyword rules sort the calendar. */
+  async sortEvents(events: CalendarEventInput[]): Promise<EventVerdict[]> {
+    return sortByRules(events);
   }
 
   /** Simulated agents do not draw: an invented picture would pass for a made one. */

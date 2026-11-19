@@ -254,11 +254,11 @@ export function planWeek(input: PlanInput): WeekPlan {
 
   const warnings: string[] = [];
   if (needed > available) {
-    warnings.push(`This week asks for ${hoursLabel(needed)} of work and you have ${hoursLabel(available)} free.`);
+    warnings.push(`This week asks for ${hoursLabel(needed)} of work and you have ${hoursLabel(available)} open.`);
   }
   for (const s of shortfalls) {
     const beforeDue = window.filter((day) => day < s.due);
-    const where = beforeDue.length > 0 ? `Add hours ${beforeDue.slice(0, 2).map((d) => dayPhrase(d, today)).join(' or ')}` : 'There is no free day before it';
+    const where = beforeDue.length > 0 ? `Add hours ${beforeDue.slice(0, 2).map((d) => dayPhrase(d, today)).join(' or ')}` : 'There is no open day before it';
     warnings.push(
       `${s.priority === 'must' ? 'Have to do' : 'Should do'}: "${s.title}" needs ${hoursLabel(s.missing)} more than fits before it is due ${dayPhrase(s.due, today)}. ${where}.`,
     );
@@ -285,7 +285,7 @@ function explain(target: PlanTarget, day: string, today: string, part: { index: 
   const daysLeft = daysBetween(day, target.due);
   const order =
     target.priority === 'must'
-      ? 'You committed to this, so it gets the earliest free time, before anything you only should do.'
+      ? 'You committed to this, so it gets the earliest open time, before anything you only should do.'
       : 'It moves you toward your goal, so it gets the time left after your have-to items.';
   const timing =
     daysLeft === 0
