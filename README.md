@@ -2,7 +2,7 @@
 
 **An AI that hands opportunities to you, so you don’t have to go looking for them, and builds you a roadmap for reaching them.**
 
-Student Opportunities is a tool for students, built on a system of Grok AI agents for a Grok hackathon. It covers more than internships: it brings you internships, career discovery, networking events, and other opportunities such as clubs, hackathons, research openings, and scholarships. The agents run constantly in the background. They search, keep the results up to date, and base everything on your preferences. You open the app and the opportunities are already there, presented as a feed like social media.
+Student Opportunities is a tool for students, built on a system of Grok AI agents for a Grok hackathon. It covers more than internships: it brings you internships, career discovery, networking events, and other opportunities such as clubs, hackathons, research openings, and scholarships. The agents run constantly in the background. They search, keep the results up to date, and base everything on your preferences. You open the app and the opportunities are already there, in a feed you scroll like Reels. Finding an internship should feel as easy and as entertaining as scrolling social media.
 
 Finding an opportunity is only half of it. The app also creates a personal roadmap for each student: what to learn, in what order, and exactly which actions to take to get from where they are now to the career they want.
 
@@ -25,6 +25,7 @@ All three come from the same thing: the student has to do the looking. Students 
 Turn the search around. Instead of the student looking for opportunities, an AI finds them and brings them to the student, then shows the way to reach them.
 
 - **It hands opportunities to you.** There is no query to write and no list of sites to check. The feed is filled before you open the app.
+- **It feels like social media, not a job board.** Internships come to you one after another, the way Reels do. You scroll, react, and keep going. Looking for opportunities stops being a chore and becomes something you would open the app for.
 - **It runs constantly.** The agents keep working while you are away: finding new postings, dropping ones that have closed, and refreshing what you see.
 - **It adapts to you.** You save, like, or dislike what it shows you, and each decision changes what the AI recommends next. The longer you use it, the more it becomes your own.
 
@@ -42,11 +43,19 @@ The student stays in charge of every decision about what to pursue and where to 
 
 ## What the app does
 
-The app has three parts that feed each other: a feed that brings opportunities to the student, a roadmap that tells the student how to get there, and an application manager that handles everything about applying.
+The app has three parts that feed each other: a social-media-style feed that hands opportunities to the student, a roadmap that tells the student how to get there, and an application manager that handles everything about applying.
 
-### A feed that recommends opportunities like posts
+### A feed you scroll like Reels
 
-Opportunities of every kind appear in one scrolling feed of cards, the way a social app shows posts. Each card says why it was recommended and links to the official posting or event page.
+Job searching today is work: open a board, type keywords, set filters, read through long listings, repeat. Most students put it off. Meanwhile the same students scroll social media every day without effort, because the app does the choosing and every swipe brings something new.
+
+The app brings that experience to opportunities.
+
+- **Opportunities are handed to you, one after another.** Open the app and the first internship is already on screen. Scroll and the next one appears. There is nothing to search for.
+- **Each one is quick to take in.** An opportunity is presented like a post, not a wall of text: what it is, who it is for, why it fits you, and when it is due. The full details and the official page are one tap away.
+- **You react like you would to a post.** Save it, like it, or dislike it, and keep scrolling.
+- **It is meant to be enjoyable.** The feed mixes internships with events, clubs, and career paths so there is always something fresh. A few minutes of scrolling is a few minutes of real progress on your career.
+- **The recommendations are the product.** As with any social feed, what makes it work is that the next thing shown is something you want to see. That is what the adapting AI below is for.
 
 ### An AI that adapts to each student
 
