@@ -1,99 +1,35 @@
-// Career guides for the Career discovery page: for any career a student types, the agents research
-// four sections in the order a student needs them - the basics, what people in the job share on X,
-// how to start, and what the interviews ask. A guide is researched once, kept, and shared by every
-// student; "Search again" refreshes it, and "Add more" sends one section's researcher back for new
-// items that are merged into what is there. Sections are saved as each one finishes, so the page
-// fills in while the rest are still being researched.
+// Career guides for the Career discovery page, run by the agent system's career discovery skill
+// (src/agents/skills/careerDiscovery.ts). For any career a student types, the master plans the
+// guide, one manager per part writes its researcher's job, the researchers run on the shared worker
+// fleet, a validator per part checks what they found, and the presentation agent writes the summary
+// over the posts. How to start is researched after the interviews, so every interview format gets a
+// step that prepares for it. "Add more" runs the same levels for one part, starting from the
+// master's reading of what the student asked. Guides are kept and shared by every student; each
+// student sees only their own asks.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { config, liveAvailable, provider } from '../config.ts';
 import { grokJson, type GrokTool } from '../grok.ts';
+import { Fleet } from '../agents/fleet.ts';
+import type { Job } from '../agents/types.ts';
+import { managerBrief, master, presentation, researcher, validator, type AgentCall } from '../agents/skills/careerDiscovery.ts';
+import type { StudentContext } from '../agents/skills/index.ts';
+import {
+  mergeSection,
+  SECTION_IDS,
+  SECTION_NAMES,
+  summarize,
+  unpreparedFormats,
+  type Guide,
+  type GuideAsk,
+  type GuideEvent,
+  type SectionData,
+  type SectionId,
+  type SectionState,
+} from './schemas.ts';
 
-export const SECTION_IDS = ['basics', 'voices', 'start', 'interview'] as const;
-export type SectionId = (typeof SECTION_IDS)[number];
-
-const Source = z.object({ title: z.string(), url: z.string() });
-
-const Angles = z.object({ basics: z.string(), voices: z.string(), start: z.string(), interview: z.string() });
-const PlanSchema = z.object({ title: z.string(), oneLine: z.string(), field: z.string(), angles: Angles });
-
-export const BasicsSchema = z.object({
-  summary: z.string(),
-  dayInLife: z.array(z.string()),
-  whatTheyDo: z.array(z.string()),
-  whereTheyWork: z.array(z.string()),
-  specialties: z.array(z.object({ name: z.string(), what: z.string() })),
-  skills: z.array(z.string()),
-  education: z.string().nullable(),
-  pay: z.object({ figure: z.string(), url: z.string() }).nullable(),
-  outlook: z.string().nullable(),
-  sources: z.array(Source),
-});
-
-const Post = z.object({
-  author: z.string(),
-  role: z.string(),
-  handle: z.string().nullable(),
-  text: z.string(),
-  takeaway: z.string(),
-  topic: z.enum(['the work', 'getting in', 'advice', 'pay and life']),
-  url: z.string().nullable(),
-  date: z.string().nullable(),
-});
-export const VoicesSchema = z.object({ posts: z.array(Post) });
-
-export const StartSchema = z.object({
-  steps: z.array(z.object({ title: z.string(), detail: z.string(), when: z.string().nullable(), resource: Source.nullable() })),
-  resources: z.array(
-    z.object({
-      title: z.string(),
-      url: z.string(),
-      kind: z.enum(['course', 'book', 'site', 'community', 'video', 'practice']),
-      free: z.boolean().nullable(),
-    }),
-  ),
-});
-
-export const InterviewSchema = z.object({
-  formats: z.array(z.object({ name: z.string(), tests: z.string(), howToPractice: z.string(), url: z.string().nullable() })),
-  questions: z.array(z.object({ kind: z.string(), question: z.string(), tip: z.string().nullable() })),
-  sources: z.array(Source),
-});
-
-export type SectionData = {
-  basics: z.infer<typeof BasicsSchema>;
-  voices: z.infer<typeof VoicesSchema>;
-  start: z.infer<typeof StartSchema>;
-  interview: z.infer<typeof InterviewSchema>;
-};
-
-export type SectionState<T> = {
-  status: 'waiting' | 'working' | 'done' | 'failed';
-  /** The last good answer. Kept while a refresh or "Add more" is researching, so the page never empties. */
-  data: T | null;
-  /** True when the content is an invented example, not something the agents found. */
-  sample: boolean;
-  error: string | null;
-  /** How many items the last "Add more" added, and when; null before the first. */
-  added: { count: number; at: string } | null;
-};
-
-export type Guide = {
-  slug: string;
-  query: string;
-  title: string;
-  oneLine: string | null;
-  field: string | null;
-  /** What each section's researcher looks for, from the plan; reused by "Add more". */
-  angles: z.infer<typeof Angles> | null;
-  status: 'planning' | 'researching' | 'ready' | 'failed';
-  provider: 'grok' | 'claude' | 'simulated';
-  startedAt: string;
-  updatedAt: string;
-  error: string | null;
-  sections: { [K in SectionId]: SectionState<SectionData[K]> };
-};
+export { mergeSection, SECTION_IDS, type Guide, type SectionId } from './schemas.ts';
 
 /** One model call. The default goes through grok.ts (xAI API, Grok CLI, or Claude while testing). */
 export type Ask = <S extends z.ZodType>(opts: { name: string; system: string; user: string; schema: S; tools?: GrokTool[]; model?: string }) => Promise<{ data: z.infer<S> }>;
@@ -117,124 +53,32 @@ export function slugFor(query: string): string {
     .slice(0, 60);
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
-
-const STYLE = `Write for a university student who is new to this career. Plain words, short sentences, no emoji, no hype. Never mention yourself, your search or the pages you opened in the text; the sources list does that. Today is ${today()}.`;
-const SOURCED = `Use only pages you actually opened. Every URL must be a real page you visited. If you cannot find something, leave it out or return null; never guess a number, a name or a link.`;
-const FRESH = (existing: string) =>
-  `The section already holds the items below. Find NEW ones only: do not repeat or reword anything listed, and return empty lists where you find nothing new. For single facts (summary, education, pay, outlook) return null unless the existing one is missing.\nALREADY IN THE SECTION:\n${existing}`;
-
 const emptySection = <T>(): SectionState<T> => ({ status: 'waiting', data: null, sample: false, error: null, added: null });
 
-/** Which model each step runs on: planning on the normal tier, the four researchers on the low tier. */
+/** The models behind each tier, for the transport in use. */
 function tierModels(): { normal?: string; low?: string } {
   if (config.grokTransport === 'claude') return config.claudeCli.models;
   if (config.grokTransport === 'cli') return config.grokCli.models;
   return config.xaiModels;
 }
 
-const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const MAX_ACTIVITY = 80;
+/** Two sentences of at most 25 words each, with a little room. */
+const MAX_SUMMARY_WORDS = 60;
+const SIMULATED = 'Your agents are simulated right now, so they cannot research careers. Connect Grok in Settings.';
+/** What an "Add more" with no words of its own asks for. */
+const DEFAULT_PROMPT = 'Find more of what this part covers.';
 
-/** Adds the items of `more` that `have` does not already hold, judged by `id`. */
-function union<T>(have: T[] | undefined, more: T[] | undefined, id: (item: T) => string): { list: T[]; added: number } {
-  const list = [...(have ?? [])];
-  const seen = new Set(list.map(id));
-  let added = 0;
-  for (const item of more ?? []) {
-    const k = id(item);
-    if (!k || seen.has(k)) continue;
-    seen.add(k);
-    list.push(item);
-    added++;
-  }
-  return { list, added };
-}
-
-/** Merges an "Add more" answer into a section. Returns the merged data and how many items were new. */
-export function mergeSection<K extends SectionId>(id: K, have: SectionData[K], more: SectionData[K]): { data: SectionData[K]; added: number } {
-  const byText = (s: string) => key(s);
-  const byUrl = (s: { url: string }) => s.url;
-  if (id === 'basics') {
-    const h = have as SectionData['basics'];
-    const m = more as SectionData['basics'];
-    const parts = {
-      dayInLife: union(h.dayInLife, m.dayInLife, byText),
-      whatTheyDo: union(h.whatTheyDo, m.whatTheyDo, byText),
-      whereTheyWork: union(h.whereTheyWork, m.whereTheyWork, byText),
-      specialties: union(h.specialties, m.specialties, (s) => key(s.name)),
-      skills: union(h.skills, m.skills, byText),
-      sources: union(h.sources, m.sources, byUrl),
-    };
-    const filled = [!h.education && m.education, !h.pay && m.pay, !h.outlook && m.outlook].filter(Boolean).length;
-    const data: SectionData['basics'] = {
-      ...h,
-      ...Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, v.list])),
-      education: h.education ?? m.education ?? null,
-      pay: h.pay ?? m.pay ?? null,
-      outlook: h.outlook ?? m.outlook ?? null,
-    } as SectionData['basics'];
-    // Sources back up the other items; they are not counted as new information on their own.
-    const added = Object.entries(parts).reduce((n, [k, v]) => n + (k === 'sources' ? 0 : v.added), 0) + filled;
-    return { data: data as SectionData[K], added };
-  }
-  if (id === 'voices') {
-    const posts = union((have as SectionData['voices']).posts, (more as SectionData['voices']).posts, (p) => p.url ?? key(p.text).slice(0, 80));
-    return { data: { posts: posts.list } as SectionData[K], added: posts.added };
-  }
-  if (id === 'start') {
-    const h = have as SectionData['start'];
-    const m = more as SectionData['start'];
-    const steps = union(h.steps, m.steps, (s) => key(s.title));
-    const resources = union(h.resources, m.resources, byUrl);
-    return { data: { steps: steps.list, resources: resources.list } as SectionData[K], added: steps.added + resources.added };
-  }
-  const h = have as SectionData['interview'];
-  const m = more as SectionData['interview'];
-  const formats = union(h.formats, m.formats, (f) => key(f.name));
-  const questions = union(h.questions, m.questions, (q) => key(q.question));
-  const sources = union(h.sources, m.sources, byUrl);
-  return { data: { formats: formats.list, questions: questions.list, sources: sources.list } as SectionData[K], added: formats.added + questions.added };
-}
-
-/** A short list of what a section holds, for the "find new ones only" instruction. */
-function summarize(id: SectionId, data: unknown): string {
-  const d = data as Record<string, unknown>;
-  const lines: string[] = [];
-  const list = (label: string, items: unknown[] | undefined, pick: (x: any) => string) => {
-    if (items?.length) lines.push(`${label}: ${items.map(pick).join('; ')}`);
-  };
-  if (id === 'basics') {
-    for (const k of ['dayInLife', 'whatTheyDo', 'whereTheyWork', 'skills']) list(k, d[k] as string[], (x) => x);
-    list('specialties', d.specialties as unknown[], (x) => x.name);
-    lines.push(`education: ${d.education ? 'known' : 'missing'}; pay: ${d.pay ? 'known' : 'missing'}; outlook: ${d.outlook ? 'known' : 'missing'}`);
-  }
-  if (id === 'voices') list('posts', d.posts as unknown[], (x) => `${x.author}: ${String(x.text).slice(0, 60)}`);
-  if (id === 'start') {
-    list('steps', d.steps as unknown[], (x) => x.title);
-    list('resources', d.resources as unknown[], (x) => x.url);
-  }
-  if (id === 'interview') {
-    list('formats', d.formats as unknown[], (x) => x.name);
-    list('questions', d.questions as unknown[], (x) => x.question);
-  }
-  return lines.join('\n') || 'nothing yet';
-}
-
-const fallbackAngles = (title: string): z.infer<typeof Angles> => ({
-  basics: `What a ${title} does, where they work, the skills, pay and outlook.`,
-  voices: `People working as ${title} at different levels.`,
-  start: `How a student with no experience starts toward becoming a ${title}.`,
-  interview: `How employers hire and assess candidates for ${title} roles.`,
-});
+/** The fleet's job labels, as the activity log names each agent. */
+const agentName = (section: SectionId, role: 'manager' | 'researcher' | 'validator') => `${SECTION_NAMES[section]} ${role}`;
 
 export class CareerGuides {
   private guides = new Map<string, Guide>();
   private running = new Set<string>();
+  private suggestions = new Map<string, string[]>();
   private readonly file: string | null;
   private readonly ask: Ask;
   private readonly env: Env;
-  /** Wait before a section's one retry. */
-  retryMs = 2000;
 
   constructor(
     file: string | null = config.careerGuidesFile,
@@ -264,7 +108,17 @@ export class CareerGuides {
     return this.guides.get(slug) ?? null;
   }
 
-  /** Returns the kept guide, or starts researching one. A refresh keeps the old sections on screen until new ones arrive. */
+  /** The guide as one student sees it: their own asks, and only the activity that is not someone else's ask. */
+  view(slug: string, by: string | null): Guide | null {
+    const guide = this.guides.get(slug);
+    if (!guide) return null;
+    this.backfillSummary(guide);
+    const mine = guide.asks.filter((a) => by && a.by === by);
+    const ids = new Set(mine.map((a) => a.id));
+    return { ...guide, asks: mine, activity: guide.activity.filter((e) => e.ask === null || ids.has(e.ask)) };
+  }
+
+  /** Returns the kept guide, or starts researching one. A refresh keeps the old parts on screen until new ones arrive. */
   start(query: string, refresh = false): Guide {
     const clean = query.replace(/\s+/g, ' ').trim();
     if (clean.length < 2 || clean.length > 60) throw new CareerError('Type a career between 2 and 60 characters.', 400);
@@ -274,11 +128,11 @@ export class CareerGuides {
     const existing = this.guides.get(slug);
     if (existing && this.busy(slug)) return existing;
     if (existing && existing.status === 'ready' && !refresh) return existing;
-    if (!this.env.live()) throw new CareerError('Your agents are simulated right now, so they cannot research careers. Connect Grok in Settings.', 503);
+    if (!this.env.live()) throw new CareerError(SIMULATED, 503);
 
     const now = new Date().toISOString();
     const guide: Guide = existing
-      ? { ...existing, status: 'planning', startedAt: now, updatedAt: now, error: null, provider: this.env.provider() }
+      ? { ...existing, status: 'planning', startedAt: now, updatedAt: now, error: null, provider: this.env.provider(), activity: [] }
       : {
           slug,
           query: clean,
@@ -291,7 +145,9 @@ export class CareerGuides {
           startedAt: now,
           updatedAt: now,
           error: null,
-          sections: { basics: emptySection(), voices: emptySection(), start: emptySection(), interview: emptySection() },
+          sections: { basics: emptySection(), voices: emptySection(), interview: emptySection(), start: emptySection() },
+          asks: [],
+          activity: [],
         };
     for (const id of SECTION_IDS) Object.assign(guide.sections[id], { status: 'waiting', error: null, added: null });
     this.guides.set(slug, guide);
@@ -301,33 +157,49 @@ export class CareerGuides {
     return guide;
   }
 
-  /** Sends one section's researcher back for new items and merges them in. The rest of the guide stays as it is. */
-  more(slug: string, id: string): Guide {
+  /**
+   * "Add more" on one part, with what the student asked. It runs the same levels as a first search,
+   * for this part only: the master reads the request, the part's manager writes the job, the
+   * researcher looks, the validator checks, and the presentation agent merges it in.
+   */
+  more(slug: string, id: string, request: { prompt?: string; by?: string; student?: StudentContext | null } = {}): { guide: Guide; ask: GuideAsk } {
     const guide = this.guides.get(slug);
     if (!guide) throw new CareerError('No guide for this career yet.', 404);
     if (!(SECTION_IDS as readonly string[]).includes(id)) throw new CareerError('There is no such part of the guide.', 404);
     const section = id as SectionId;
     if (this.running.has(slug)) throw new CareerError('The guide is still being researched. Wait until it is ready.', 409);
-    if (this.running.has(`${slug}/${section}`)) return guide;
+    if (this.running.has(`${slug}/${section}`)) throw new CareerError('The agents are already finding more for this part. Wait until they finish.', 409);
     if (!guide.sections[section].data) throw new CareerError('This part has nothing yet. Search again first.', 409);
-    if (!this.env.live()) throw new CareerError('Your agents are simulated right now, so they cannot research careers. Connect Grok in Settings.', 503);
+    if (!this.env.live()) throw new CareerError(SIMULATED, 503);
 
+    const prompt = (request.prompt ?? '').replace(/\s+/g, ' ').trim().slice(0, 300) || DEFAULT_PROMPT;
+    const ask: GuideAsk = { id: `ask-${Date.now().toString(36)}-${guide.asks.length + 1}`, section, by: request.by || 'guest', prompt, at: new Date().toISOString(), status: 'working', added: 0, note: null };
+    guide.asks.push(ask);
     const task = `${slug}/${section}`;
     this.running.add(task);
     this.setSection(guide, section, { status: 'working', error: null });
-    void (async () => {
-      try {
-        const more = await this.withRetry(() => this.researchSection(guide, section, guide.sections[section].data));
-        const merged = mergeSection(section, guide.sections[section].data as never, more as never);
-        this.setSection(guide, section, { status: 'done', data: merged.data as never, error: null, added: { count: merged.added, at: new Date().toISOString() } });
-      } catch (e) {
-        // The old items stay; the section is only marked so the page can say this try found nothing.
-        this.setSection(guide, section, { status: 'done', error: `Could not find more: ${message(e)}` });
-      } finally {
-        this.running.delete(task);
-      }
-    })();
-    return guide;
+    this.log(guide, 'Master', `Asked for more on ${SECTION_NAMES[section].toLowerCase()}: "${prompt}"`, 'info', ask.id);
+    void this.askPart(guide, section, ask, request.student ?? null).finally(() => this.running.delete(task));
+    return { guide: this.view(slug, ask.by)!, ask };
+  }
+
+  /** Requests to offer in the "Add more" window: from what the part holds, the student, and what they asked before. */
+  async suggest(slug: string, id: string, request: { by?: string; student?: StudentContext | null } = {}): Promise<string[]> {
+    const guide = this.guides.get(slug);
+    if (!guide) throw new CareerError('No guide for this career yet.', 404);
+    if (!(SECTION_IDS as readonly string[]).includes(id)) throw new CareerError('There is no such part of the guide.', 404);
+    const section = id as SectionId;
+    if (!guide.sections[section].data) return [];
+    if (!this.env.live()) throw new CareerError(SIMULATED, 503);
+    const holds = summarize(section, guide.sections[section].data);
+    const pastAsks = guide.asks.filter((a) => a.section === section && a.by === (request.by || 'guest')).map((a) => a.prompt);
+    const cacheKey = JSON.stringify([slug, section, holds.length, pastAsks, request.student ?? null]);
+    const kept = this.suggestions.get(cacheKey);
+    if (kept) return kept;
+    const { prompts } = await this.call(presentation.suggest({ guide, section, holds, student: request.student ?? null, pastAsks }));
+    const clean = prompts.map((p) => p.trim()).filter((p) => p.length > 3 && p.length <= 120).slice(0, 3);
+    this.suggestions.set(cacheKey, clean);
+    return clean;
   }
 
   /** Resolves when nothing is running for this guide: its research and any "Add more". For tests. */
@@ -340,120 +212,190 @@ export class CareerGuides {
     return [...this.running].some((t) => t === slug || t.startsWith(`${slug}/`));
   }
 
-  private async withRetry<T>(job: () => Promise<T>): Promise<T> {
-    // One retry: several calls at once through a CLI sometimes lose one to a passing error.
-    return job().catch(async () => {
-      await new Promise((r) => setTimeout(r, this.retryMs));
-      return job();
+  private call<S extends z.ZodType>(c: AgentCall<S>): Promise<z.infer<S>> {
+    const models = tierModels();
+    return this.ask({ name: c.name, system: c.system, user: c.user, schema: c.schema, tools: c.tools, model: c.tier === 'normal' ? models.normal : models.low }).then((r) => r.data);
+  }
+
+  /** A fleet for one run of this guide. Its jobs are written to the guide's activity as they start and finish. */
+  private fleet(guide: Guide, ask: string | null): Fleet {
+    return new Fleet({
+      concurrency: 4,
+      maxJobs: 24,
+      onUpdate: (job: Job) => {
+        if (job.status === 'running' && job.attempts === 1) this.log(guide, job.label, 'Started', 'info', ask);
+        if (job.status === 'running' && job.attempts > 1) this.log(guide, job.label, 'Trying once more', 'info', ask);
+        if (job.status === 'done') this.log(guide, job.label, job.result ?? 'Done', 'good', ask);
+        if (job.status === 'failed') this.log(guide, job.label, `Failed: ${job.result ?? 'no answer'}`, 'bad', ask);
+      },
     });
+  }
+
+  /**
+   * One part, from its manager to its validator. `holds` is set for an "Add more", so the
+   * researcher looks for new items only. Throws when the researcher brought nothing back.
+   */
+  private async runPart<K extends SectionId>(
+    guide: Guide,
+    section: K,
+    ctx: { fleet: Fleet; focus: string | null; holds: string | null; formats: string[]; student: StudentContext | null; ask: string | null },
+  ): Promise<SectionData[K]> {
+    const sample = section === 'voices' && !this.env.canSearchX();
+    const brief = managerBrief({ guide, section, focus: ctx.focus, holds: ctx.holds, formats: ctx.formats, student: ctx.student });
+    this.log(guide, agentName(section, 'manager'), ctx.holds === null ? 'Handed the researcher its job' : 'Handed the researcher a job for new items only', 'info', ctx.ask);
+
+    const found = await ctx.fleet.run({ kind: 'guide-research', managerId: section, label: agentName(section, 'researcher') }, async () => {
+      const value = await this.call(researcher(section, brief, { canSearchX: this.env.canSearchX() }));
+      return { value, summary: `Brought back ${countItems(section, value)} items` };
+    });
+    if (!found) throw new Error(`The ${SECTION_NAMES[section].toLowerCase()} researcher brought nothing back.`);
+
+    // The validator is exempt from the budget: a part is never saved unchecked because the run was busy.
+    const reviewed = await ctx.fleet.run({ kind: 'guide-review', managerId: section, label: agentName(section, 'validator'), exempt: true }, async () => {
+      const value = await this.call(validator(section, found, { sample, formats: ctx.formats }));
+      return { value, summary: value.removed.length ? `Took out ${value.removed.length}: ${value.removed.map((r) => r.reason).slice(0, 2).join('; ')}` : 'Every item follows the rules' };
+    });
+    // Without a review the researcher's answer is kept as it came, and the log says so.
+    if (!reviewed) this.log(guide, agentName(section, 'validator'), 'Could not check this part; kept as the researcher wrote it', 'bad', ctx.ask);
+    const data = (reviewed?.data ?? found) as Record<string, unknown>;
+    return (section === 'voices' ? { summary: null, ...data } : data) as SectionData[K];
+  }
+
+  /**
+   * Guides researched before the summary existed, or whose summary is longer than two short
+   * sentences, get one written the first time they are opened. Runs once at a time per guide.
+   */
+  private backfillSummary(guide: Guide) {
+    const s = guide.sections.voices;
+    const words = s.data?.summary?.split(/\s+/).length ?? 0;
+    const task = `${guide.slug}/voices-summary`;
+    if (!s.data?.posts.length || (s.data.summary && words <= MAX_SUMMARY_WORDS) || !this.env.live()) return;
+    if (this.running.has(task) || this.running.has(guide.slug) || this.running.has(`${guide.slug}/voices`)) return;
+    this.running.add(task);
+    void this.summarizeVoices(guide, null).finally(() => this.running.delete(task));
+  }
+
+  /** The presentation agent's two sentences over every post. Keeps the old summary if it cannot write one. */
+  private async summarizeVoices(guide: Guide, ask: string | null) {
+    const s = guide.sections.voices;
+    if (!s.data?.posts.length) return;
+    try {
+      const { summary } = await this.call(presentation.voicesSummary(guide.title, s.data.posts, s.sample));
+      this.setSection(guide, 'voices', { data: { ...s.data, summary } });
+      this.log(guide, 'Presentation', 'Wrote the summary of what people say', 'good', ask);
+    } catch (e) {
+      this.log(guide, 'Presentation', `Could not write the summary: ${message(e)}`, 'bad', ask);
+    }
   }
 
   private async research(guide: Guide) {
     try {
-      const { data: plan } = await this.ask({
-        name: 'career_plan',
-        model: tierModels().normal,
-        schema: PlanSchema,
-        system: `You plan a four-part career guide for a student. ${STYLE}
-Name the career the way people in it say it (for example "Economist" for "economic"). oneLine is what the job is in at most 16 words. field is one lowercase word for the area. angles gives each researcher one sentence on what to look for:
-- basics: what the job is, a typical day, where people work, the specialties inside it, the skills, education, pay and outlook.
-- voices: the kinds of people in this career whose posts on X would help a student (roles, seniority, topics).
-- start: how a student with no experience starts learning and gets a first foot in.
-- interview: how this career hires and assesses people (for example coding interviews for software, case interviews and online assessments for consulting) and the kinds of questions asked.`,
-        user: `The student typed: "${guide.query}"`,
-      });
+      this.log(guide, 'Master', `Routed "${guide.query}" to career discovery and is planning the guide`, 'info', null);
+      const plan = await this.call(master.plan(guide.query));
       this.update(guide, { title: plan.title, oneLine: plan.oneLine, field: plan.field, angles: plan.angles, status: 'researching' });
+      this.log(guide, 'Master', `Planned the guide to ${plan.title}`, 'good', null);
     } catch (e) {
       this.update(guide, { status: 'failed', error: `Could not plan the guide: ${message(e)}` });
+      this.log(guide, 'Master', `Could not plan the guide: ${message(e)}`, 'bad', null);
       return;
     }
 
-    await Promise.all(
-      SECTION_IDS.map(async (id) => {
-        this.setSection(guide, id, { status: 'working' });
-        try {
-          const data = await this.withRetry(() => this.researchSection(guide, id, null));
-          this.setSection(guide, id, { status: 'done', data: data as never, sample: id === 'voices' && !this.env.canSearchX(), error: null });
-        } catch (e) {
-          this.setSection(guide, id, { status: 'failed', error: message(e) });
-        }
-      }),
-    );
+    const fleet = this.fleet(guide, null);
+    const part = async (id: SectionId, formats: string[] = []) => {
+      this.setSection(guide, id, { status: 'working' });
+      try {
+        const data = await this.runPart(guide, id, { fleet, focus: null, holds: null, formats, student: null, ask: null });
+        this.setSection(guide, id, { status: 'done', data: data as never, sample: id === 'voices' && !this.env.canSearchX(), error: null });
+        if (id === 'voices') await this.summarizeVoices(guide, null);
+      } catch (e) {
+        this.setSection(guide, id, { status: 'failed', error: message(e) });
+      }
+    };
+
+    // How to start waits for the interviews, so its steps can be written to prepare for each format.
+    await Promise.all([
+      part('basics'),
+      part('voices'),
+      part('interview').then(() => part('start', guide.sections.interview.data?.formats.map((f) => f.name) ?? [])),
+    ]);
 
     const failed = SECTION_IDS.filter((id) => guide.sections[id].status === 'failed');
-    this.update(guide, failed.length === SECTION_IDS.length ? { status: 'failed', error: 'None of the four sections could be researched.' } : { status: 'ready' });
+    this.update(guide, failed.length === SECTION_IDS.length ? { status: 'failed', error: 'None of the four parts could be researched.' } : { status: 'ready' });
+    this.log(guide, 'Master', failed.length ? `Finished; ${failed.length} part(s) could not be researched` : 'Finished the guide', failed.length ? 'bad' : 'good', null);
   }
 
-  /** One section's researcher. With `existing` it is asked for new items only. */
-  private async researchSection(guide: Guide, id: SectionId, existing: unknown): Promise<SectionData[SectionId]> {
-    const model = tierModels().low;
-    const angles = guide.angles ?? fallbackAngles(guide.title);
-    const fresh = existing ? `\n\n${FRESH(summarize(id, existing))}` : '';
-    const user = `Career: ${guide.title}\nFocus: ${angles[id]}${fresh}`;
-    const web: GrokTool[] = [{ type: 'web_search' }];
-
-    if (id === 'basics') {
-      return (
-        await this.ask({
-          name: 'career_basics',
-          model,
-          schema: BasicsSchema,
-          tools: web,
-          system: `You research the basics of a career. ${STYLE} ${SOURCED}
-summary: 2-3 sentences on what the job is. dayInLife: 4-6 short lines that walk through a typical working day in order. whatTheyDo: 4-6 everyday tasks. whereTheyWork: 3-5 kinds of employer. specialties: 3-5 areas people specialise in, each with one line on what it is. skills: 5-8 skills that matter most. education: one sentence on the usual degree or training, or null. pay: a typical pay figure as one short phrase of at most 12 words (for example "$124,720 median a year in the US, 2025") with the page that states it, or null. outlook: one sentence of at most 25 words on demand, with its page in sources, or null. sources: up to 6 pages you used. Every list item is at most 20 words.`,
-          user,
-        })
-      ).data;
-    }
-    if (id === 'voices') {
-      if (!this.env.canSearchX()) {
-        return (
-          await this.ask({
-            name: 'career_voices_sample',
-            model,
-            schema: VoicesSchema,
-            system: `You write sample stories that show the layout of a page before real posts from X are available. ${STYLE}
-Write 4 short first-person stories, each from a different kind of person in this career (different seniority and employer), about what the work is really like, how they got in, advice, or pay and life. topic says which. Every person is fictional: an invented first name and last initial, a generic role and employer type ("analyst at a mid-size bank"), never a real person, company or @handle. handle, url and date are null. text is at most 280 characters. takeaway is one line on what a student learns from it.`,
-            user,
-          })
-        ).data;
+  private async askPart(guide: Guide, section: SectionId, ask: GuideAsk, student: StudentContext | null) {
+    const done = (patch: Partial<GuideAsk>) => {
+      Object.assign(ask, patch);
+      this.update(guide, {});
+    };
+    try {
+      const holds = summarize(section, guide.sections[section].data);
+      const pastAsks = guide.asks.filter((a) => a.section === section && a.by === ask.by && a.id !== ask.id);
+      let focus = ask.prompt;
+      try {
+        const plan = await this.call(master.readAsk({ guide, section, prompt: ask.prompt, student, holds, pastAsks }));
+        if (plan.route === 'opportunity-search') {
+          this.log(guide, 'Master', 'Routed this request to the opportunity search', 'info', ask.id);
+          this.setSection(guide, section, { status: 'done' });
+          done({ status: 'redirected', note: plan.reply });
+          return;
+        }
+        focus = plan.focus || ask.prompt;
+        ask.note = plan.reply || null;
+        this.log(guide, 'Master', plan.reply || 'Planned what to look for', 'info', ask.id);
+      } catch (e) {
+        // Without the master's reading, the researcher works from the student's own words.
+        this.log(guide, 'Master', `Could not read the request, so the researcher works from it as written: ${message(e)}`, 'bad', ask.id);
       }
-      return (
-        await this.ask({
-          name: 'career_voices',
-          model,
-          schema: VoicesSchema,
-          tools: [{ type: 'x_search' }, { type: 'web_search' }],
-          system: `You find what people who work in a career share on X. ${STYLE} ${SOURCED}
-Search X for 4-6 recent posts where people in this career say what the job is really like, how they got in, what they wish they had known, or what pay and life are like; topic says which. Prefer people at different levels. Use only real posts you found. author is the name shown on the post, role is what they do as their profile or post says, handle is the @handle, url is the post's link, date is ISO 8601. text keeps the post's words, shortened to at most 280 characters without changing the meaning. takeaway is one line on what a student learns from it. If you find none, return an empty list.`,
-          user,
-        })
-      ).data;
+
+      const fleet = this.fleet(guide, ask.id);
+      const formats = guide.sections.interview.data?.formats.map((f) => f.name) ?? [];
+      const more = await this.runPart(guide, section, { fleet, focus, holds, formats, student, ask: ask.id });
+      const merged = mergeSection(section, guide.sections[section].data as never, more as never);
+      this.setSection(guide, section, { status: 'done', data: merged.data as never, error: null, added: { count: merged.added, at: new Date().toISOString() } });
+      this.log(guide, 'Presentation', merged.added ? `Added ${merged.added} new items` : 'Found nothing new this time', merged.added ? 'good' : 'info', ask.id);
+      if (section === 'voices' && merged.added) await this.summarizeVoices(guide, ask.id);
+      let added = merged.added;
+
+      // New interview formats get steps in how to start that prepare for them.
+      if (section === 'interview' && guide.sections.start.data) {
+        const missing = unpreparedFormats(guide);
+        if (missing.length) added += await this.prepareFormats(guide, missing, fleet, student, ask.id);
+      }
+      done({ status: 'done', added });
+    } catch (e) {
+      // The old items stay; the part is only marked so the page can say this try found nothing.
+      this.setSection(guide, section, { status: 'done', error: `Could not find more: ${message(e)}` });
+      done({ status: 'failed', note: `Could not find more: ${message(e)}` });
     }
-    if (id === 'start') {
-      return (
-        await this.ask({
-          name: 'career_start',
-          model,
-          schema: StartSchema,
-          tools: web,
-          system: `You map how a student starts in a career. ${STYLE} ${SOURCED}
-steps: 5-7 steps in order, from today, for a student with no experience. Each has a short title (a verb first), one or two sentences of detail (at most 35 words), when (a short time like "First semester" or "Summer after year two", or null), and one resource page that helps with that step, or null. resources: 4-8 of the best pages to learn from, free ones first, with their kind and whether they are free (null if unclear).`,
-          user,
-        })
-      ).data;
+  }
+
+  /** Writes steps in how to start for interview formats nothing prepares for yet. Returns how many items it added. */
+  private async prepareFormats(guide: Guide, formats: string[], fleet: Fleet, student: StudentContext | null, ask: string | null): Promise<number> {
+    const task = `${guide.slug}/start`;
+    if (this.running.has(task)) return 0;
+    this.running.add(task);
+    this.setSection(guide, 'start', { status: 'working' });
+    this.log(guide, 'Master', `Asked how to start for steps that prepare for: ${formats.join(', ')}`, 'info', ask);
+    try {
+      const focus = `Steps that get a student ready for these interview formats: ${formats.join('; ')}. Every step's prepares names the formats it covers.`;
+      const more = await this.runPart(guide, 'start', { fleet, focus, holds: summarize('start', guide.sections.start.data), formats, student, ask });
+      const merged = mergeSection('start', guide.sections.start.data!, more);
+      this.setSection(guide, 'start', { status: 'done', data: merged.data, error: null, added: { count: merged.added, at: new Date().toISOString() } });
+      return merged.added;
+    } catch (e) {
+      this.setSection(guide, 'start', { status: 'done', error: `Could not add steps for the new formats: ${message(e)}` });
+      return 0;
+    } finally {
+      this.running.delete(task);
     }
-    return (
-      await this.ask({
-        name: 'career_interview',
-        model,
-        schema: InterviewSchema,
-        tools: web,
-        system: `You explain how a career hires. ${STYLE} ${SOURCED}
-formats: 2-5 ways candidates are assessed (for example a coding interview with LeetCode-style problems, a case interview, an online game-based or aptitude assessment, a technical exam, a portfolio review), each with what it tests (at most 15 words, starting with a noun, not "Tests"), how to practise it (at most 25 words), and a page about it or null. questions: 6-10 example questions of the kinds asked, written as the question itself, each tagged with its format name in kind, and tip: one line on what a strong answer shows, or null. Never say a question comes from a named company unless a source says so. sources: up to 5 pages you used.`,
-        user,
-      })
-    ).data;
+  }
+
+  private log(guide: Guide, agent: string, text: string, tone: GuideEvent['tone'], ask: string | null) {
+    guide.activity.push({ at: new Date().toISOString(), agent, text: text.slice(0, 200), tone, ask });
+    if (guide.activity.length > MAX_ACTIVITY) guide.activity.splice(0, guide.activity.length - MAX_ACTIVITY);
+    this.update(guide, {});
   }
 
   private setSection<K extends SectionId>(guide: Guide, id: K, patch: Partial<SectionState<SectionData[K]>>) {
@@ -470,23 +412,7 @@ formats: 2-5 ways candidates are assessed (for example a coding interview with L
     if (!this.file) return;
     try {
       const saved = JSON.parse(readFileSync(this.file, 'utf8')) as { guides?: Guide[] };
-      for (const g of saved.guides ?? []) {
-        g.angles ??= null;
-        // Work that was running when the backend stopped cannot finish now.
-        if (g.status === 'planning' || g.status === 'researching') {
-          g.status = g.oneLine ? 'ready' : 'failed';
-          g.error = g.status === 'failed' ? 'The research stopped before it finished. Search again.' : null;
-        }
-        for (const id of SECTION_IDS) {
-          const s = g.sections[id];
-          s.added ??= null;
-          if (s.status === 'working' || s.status === 'waiting') {
-            s.status = s.data ? 'done' : 'failed';
-            if (!s.data) s.error = 'The research stopped before it finished. Search again.';
-          }
-        }
-        this.guides.set(g.slug, g);
-      }
+      for (const g of saved.guides ?? []) this.guides.set(g.slug, upgrade(g));
     } catch {
       // No file yet, or unreadable: start empty.
     }
@@ -501,6 +427,42 @@ formats: 2-5 ways candidates are assessed (for example a coding interview with L
       console.error('could not save career guides:', message(e));
     }
   }
+}
+
+/** Brings a guide saved by an older version up to the current shape, and marks work a restart cut off. */
+function upgrade(g: Guide): Guide {
+  g.angles ??= null;
+  g.asks ??= [];
+  g.activity ??= [];
+  const basics = g.sections.basics.data as (SectionData['basics'] & { skills: unknown[] }) | null;
+  // Older guides kept skills as plain words; they are kept, filed as knowledge.
+  if (basics) basics.skills = basics.skills.map((s) => (typeof s === 'string' ? { name: s, kind: 'knowledge' as const } : s)) as SectionData['basics']['skills'];
+  if (g.sections.voices.data) g.sections.voices.data.summary ??= null;
+  for (const step of g.sections.start.data?.steps ?? []) step.prepares ??= [];
+  const cut = 'The research stopped before it finished. Search again.';
+  if (g.status === 'planning' || g.status === 'researching') {
+    g.status = g.oneLine ? 'ready' : 'failed';
+    g.error = g.status === 'failed' ? cut : null;
+  }
+  for (const id of SECTION_IDS) {
+    const s = g.sections[id];
+    s.added ??= null;
+    if (s.status === 'working' || s.status === 'waiting') {
+      s.status = s.data ? 'done' : 'failed';
+      if (!s.data) s.error = cut;
+    }
+  }
+  for (const a of g.asks) if (a.status === 'working') Object.assign(a, { status: 'failed', note: cut });
+  return g;
+}
+
+function countItems(section: SectionId, data: unknown): number {
+  const d = data as Record<string, unknown[] | undefined>;
+  const n = (k: string) => d[k]?.length ?? 0;
+  if (section === 'basics') return n('dayInLife') + n('whatTheyDo') + n('whereTheyWork') + n('specialties') + n('skills');
+  if (section === 'voices') return n('posts');
+  if (section === 'start') return n('steps') + n('resources');
+  return n('formats') + n('questions');
 }
 
 function message(e: unknown): string {

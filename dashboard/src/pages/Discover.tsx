@@ -16,10 +16,11 @@ import { pathExtras, quizQuestions } from '../data/discover-extra.ts';
 import { pathGroups } from '../data/fields.ts';
 import { careerPaths, opportunities } from '../data/sample.ts';
 import type { AnswerAction } from '../lib/discover/ask.ts';
-import { slugFor, useCareerGuide, useGuideList } from '../lib/discover/guide.ts';
+import { askerId, slugFor, useCareerGuide, useGuideList, type StudentContext } from '../lib/discover/guide.ts';
 import { rankPaths, type PathMatch, type QuizAnswers } from '../lib/discover/match.ts';
 import { currentRoadmap } from '../lib/roadmap.ts';
 import { useLocal } from '../lib/useLocal.ts';
+import { useAuth } from '../auth/AuthProvider.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import '../styles/discover.css';
 
@@ -47,7 +48,23 @@ export function Discover() {
   const guideRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { guide, error, busy, searchAgain, retry, addMore } = useCareerGuide(career);
+  const auth = useAuth();
+  const by = useMemo(() => askerId(auth.user?.uid), [auth.user?.uid]);
+  // What the agents may know about the student when they add to a part for them; their notes come first.
+  const student: StudentContext = useMemo(
+    () => ({
+      year: state.profile.year || null,
+      major: state.profile.major || null,
+      school: state.profile.school || null,
+      location: state.profile.location || null,
+      interests: state.profile.interests ?? [],
+      careerInterests: state.profile.careerInterests ?? [],
+      skills: state.profile.skills ?? [],
+      notes: (state.preferences?.notes ?? []).map((n) => [n.title, n.body].filter(Boolean).join(': ')).filter(Boolean),
+    }),
+    [state.profile, state.preferences?.notes],
+  );
+  const { guide, error, busy, searchAgain, retry, addMore, suggest } = useCareerGuide(career, by, student);
   const kept = useGuideList(guide?.status);
 
   const history = useMemo(() => ({ saved: state.saved, liked: state.liked, dismissed: state.dismissed }), [state.saved, state.liked, state.dismissed]);
@@ -150,7 +167,7 @@ export function Discover() {
   return (
     <Page
       title="Career discovery"
-      subtitle="Learn any career in four steps: the basics, what people in the job share, how to start, and what the interviews ask."
+      subtitle="Learn any career in four steps: the basics, what people in the job share, what the interviews ask, and how to start."
       aside={
         goal && (
           <button type="button" onClick={() => navigate('/roadmap')} className="dc-goal-pill">
@@ -247,6 +264,7 @@ export function Discover() {
               guide={guide}
               onSearchAgain={searchAgain}
               onAddMore={addMore}
+              onSuggest={suggest}
               goalAction={guidePath && guidePath !== state.goalId ? () => act({ kind: 'setGoal', pathId: guidePath, label: '' }) : undefined}
             />
           ) : busy ? (

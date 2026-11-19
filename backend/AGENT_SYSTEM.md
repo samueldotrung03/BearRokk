@@ -54,7 +54,7 @@ Two more agents run on demand, not in every run:
 
 | Agent | When | Output |
 |---|---|---|
-| **Career discovery** | Profile created or changed a lot | 3 to 5 career paths: what each is, why it fits, what it expects, first steps |
+| **Career discovery** | A student types a career, or asks for more on one part of its guide | A four-part guide; see "Skills" below |
 | **Roadmap builder** | Student sets or changes a goal | Phases and dated steps; steps link to validated opportunities when one fits |
 
 ### Custom notes come first
@@ -293,3 +293,26 @@ Reused as is: the Grok client, the stores, the evidence rules, the deterministic
 `src/roadmap.ts`, served at `POST /api/students/:id/roadmap`. It is one call, not a run of the agent tree: the normal tier with web search. The request carries the student's profile, notes and restrictions, either a career goal or one posting with the application's status, and any paths the app already holds. The answer is a fit check (what the profile shows and what is missing), three to five phases of steps each marked as coming from the posting, a gap, what people did, or after applying, real resource links, and short accounts of how people got in. The prompt keeps the same rules as the agents: notes first, restrictions as rules, no guessed facts. For a posting already applied to it writes what to do while waiting instead of how to apply. Answers are kept in memory per distinct request. With no model connected the route answers 503 and the dashboard draws its own rule-built draft. It has run once on the Claude test path and never on Grok.
 
 When a career request carries `chosen` (the options the student picked on the dashboard's board), the roadmap is built from exactly those: one phase per category, one step per pick with `actions` (things to do, in order), and `more` on each phase (further recommendations in that category). For a posting it also searches the web and X for the organizer's selection process and returns the stages it can source in `process` (empty when it found none; it is told not to guess them). `npm run roadmap:check` writes one roadmap of each form for an invented student and checks the shape the dashboard draws.
+
+## Skills
+
+One agent system runs more than one kind of request. Each kind has a **skill**: the instructions for every agent level that works on it. The master's first decision on a request is which skill it belongs to (`routeRequest` in `src/agents/skills/index.ts`), and the agents on that request read only that skill's instructions, so the rules for finding postings never reach a career guide and the other way round.
+
+| Skill | Handles | Instructions |
+|---|---|---|
+| Opportunity search | Runs that fill one student's feed | `src/agents/grokBrain.ts`, `src/agents/simBrain.ts` |
+| Career discovery | A career guide, and "Add more" on one part of one | `src/agents/skills/careerDiscovery.ts` |
+
+**Career discovery levels.** Same tier rule as the opportunity search: master, validators and presentation on the normal tier, researchers on the low tier.
+
+| Level | First search | "Add more" on one part |
+|---|---|---|
+| Master | Names the career and gives each part an angle | Reads what the student asked, with their profile and notes (notes first) and their earlier asks; writes the part's focus, or routes a request for postings to the opportunity search |
+| Managers (one per part, no model call) | Write the researcher's job from the angle; for how to start, list the interview formats to prepare for | The same, from the focus, with what the part already holds so only new items come back |
+| Workers (shared fleet, kinds `guide-research`, `guide-review`) | Basics, posts from X (sample stories on Claude), interviews, then how to start once the interviews are validated | The one part |
+| Validators (one per part) | Take out or correct items that break the part's rules (soft skills in basics, a `prepares` name that is not a real format, a post with no real link) | The same |
+| Presentation | Writes the two-sentence summary over every post | Merges without repeats; rewrites the summary when posts were added; new interview formats get steps in how to start; writes the three suggested requests for the "Add more" window |
+
+**The same for every career.** `GUIDE_CONTRACT` in `careerDiscovery.ts` is what every guide holds, whatever the career: the four parts in order; the basics led by technical skills by kind (a career with little software lists its instruments, equipment or materials as tools); a two-sentence summary over the posts; every way the career assesses people (interview, audition, portfolio, licensing exam, trial shift); and steps in how to start for each. The master's plan and the presentation agent are told it. The summary is checked in code too: a guide with none, or one over 60 words, gets it written when it is next opened.
+
+Every step is written to the guide's activity log (`activity`, tagged with the ask it belongs to), which the "Add more" window shows while the agents work.

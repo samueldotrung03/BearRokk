@@ -1,6 +1,7 @@
 // One career's guide, as four parts shown one at a time in the order a student needs them: the
-// basics, what people in the job say, how to start, and what the interviews ask. Each part fills in
-// when the agents finish it, and "Add more" sends that part's researcher back for new items. While
+// basics, what people in the job say, what the interviews ask, and how to start. Each part fills in
+// when the agents finish it. "Add more" opens a window where the student tells the agents what they
+// want more of. Each interview format links to the steps of how to start that prepare for it. While
 // the agents work, one line says what they are doing.
 import { ArrowRight, ExternalLink, Plus, RotateCw, Target } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
@@ -17,9 +18,13 @@ import {
   type PostTopic,
   type SectionId,
   type SectionState,
+  type Skill,
+  type SkillKind,
   type Start,
   type Voices,
+  stepsFor,
 } from '../../lib/discover/guide.ts';
+import { AskAgents } from './AskAgents.tsx';
 import { PartIcon } from './CareerGuideIcons.tsx';
 
 const dateLabel = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -80,10 +85,44 @@ export function itemCount(id: SectionId, data: unknown): number {
   return (data as Interview).formats.length + (data as Interview).questions.length;
 }
 
+const SKILL_GROUPS: { kind: SkillKind; label: string }[] = [
+  { kind: 'tool', label: 'Tools' },
+  { kind: 'method', label: 'Methods' },
+  { kind: 'knowledge', label: 'Knowledge' },
+  { kind: 'credential', label: 'Credentials' },
+];
+
+/** The technical keywords of the job, under the kind of thing each one is. Plain words from older guides sit under Knowledge. */
+function Skills({ skills }: { skills: (string | Skill)[] }) {
+  const all: Skill[] = skills.map((s) => (typeof s === 'string' ? { name: s, kind: 'knowledge' } : s));
+  const groups = SKILL_GROUPS.map((g) => ({ ...g, items: all.filter((s) => s.kind === g.kind) })).filter((g) => g.items.length);
+  if (!groups.length) return null;
+  return (
+    <div className="dc-block">
+      <h3 className="dc-eyebrow">Technical skills</h3>
+      <dl className="dc-skills">
+        {groups.map((g) => (
+          <div key={g.kind}>
+            <dt>{g.label}</dt>
+            <dd>
+              {g.items.map((s) => (
+                <span key={s.name} className="dc-tag">
+                  {s.name}
+                </span>
+              ))}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function BasicsBody({ data }: { data: Basics }) {
   return (
     <>
       <p className="dc-summary">{data.summary}</p>
+      <Skills skills={data.skills} />
       {data.dayInLife && data.dayInLife.length > 0 && (
         <div className="dc-block">
           <h3 className="dc-eyebrow">A typical day</h3>
@@ -97,7 +136,6 @@ function BasicsBody({ data }: { data: Basics }) {
       <div className="dc-cols dc-block">
         <List title="What they do" items={data.whatTheyDo} />
         <List title="Where they work" items={data.whereTheyWork} />
-        <List title="Skills that matter" items={data.skills} />
       </div>
       {data.specialties && data.specialties.length > 0 && (
         <div className="dc-block">
@@ -145,6 +183,12 @@ function VoicesBody({ data, sample }: { data: Voices; sample: boolean }) {
   if (!data.posts.length) return <p className="dc-empty">No posts from people in this job were found on X this time. Try Add more.</p>;
   return (
     <>
+      {data.summary && (
+        <div className="dc-overall">
+          <h3 className="dc-eyebrow">What they say overall</h3>
+          <p>{data.summary}</p>
+        </div>
+      )}
       {sample && <p className="dc-note">Sample stories with made-up people, to show what this part looks like. Grok will find real posts on X once it is connected.</p>}
       {present.length > 1 && (
         <div className="dc-filter" role="group" aria-label="Show posts about">
@@ -188,12 +232,12 @@ function VoicesBody({ data, sample }: { data: Voices; sample: boolean }) {
   );
 }
 
-function StartBody({ data }: { data: Start }) {
+function StartBody({ data, target }: { data: Start; target: number[] }) {
   return (
     <>
       <ol className="dc-steps-list">
         {data.steps.map((step, i) => (
-          <li key={step.title}>
+          <li key={step.title} id={`guide-step-${i}`} className={target.includes(i) ? 'is-target' : ''} tabIndex={-1}>
             <span className="dc-num" aria-hidden="true">
               {i + 1}
             </span>
@@ -203,6 +247,16 @@ function StartBody({ data }: { data: Start }) {
                 {step.when && <span className="dc-tag">{step.when}</span>}
               </p>
               <p className="mt-0.5 text-ink-2">{step.detail}</p>
+              {(step.prepares ?? []).length > 0 && (
+                <p className="dc-prepares">
+                  <span>Prepares you for</span>
+                  {step.prepares!.map((p) => (
+                    <span key={p} className="dc-tag">
+                      {p}
+                    </span>
+                  ))}
+                </p>
+              )}
               {step.resource && (
                 <p className="mt-1">
                   <Link href={step.resource.url}>{step.resource.title}</Link>
@@ -230,7 +284,7 @@ function StartBody({ data }: { data: Start }) {
   );
 }
 
-function InterviewBody({ data }: { data: Interview }) {
+function InterviewBody({ data, start, onPrepare }: { data: Interview; start: Start | null; onPrepare: (steps: number[]) => void }) {
   // Questions are grouped under the format that asks them, in the order the formats are listed.
   const groups = useMemo(() => {
     const order = [...data.formats.map((f) => f.name), ...data.questions.map((q) => q.kind)];
@@ -248,11 +302,18 @@ function InterviewBody({ data }: { data: Interview }) {
               <p className="mt-0.5 text-ink-2">
                 <span className="text-ink-3">How to practise:</span> {f.howToPractice}
               </p>
-              {f.url && (
-                <p className="mt-1">
-                  <Link href={f.url}>Read more</Link>
-                </p>
-              )}
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+                {(() => {
+                  const steps = stepsFor(start, f.name);
+                  return steps.length ? (
+                    <button type="button" className="dc-link" onClick={() => onPrepare(steps.map((s) => s.i))}>
+                      {`How to prepare: ${steps[0]!.step.title}${steps.length > 1 ? ` and ${steps.length - 1} more` : ''}`}
+                      <ArrowRight className="size-4" aria-hidden="true" />
+                    </button>
+                  ) : null;
+                })()}
+                {f.url && <Link href={f.url}>Source</Link>}
+              </p>
             </div>
           </li>
         ))}
@@ -346,7 +407,7 @@ function Part({
           )}
         </div>
         {state.data !== null && (
-          <button type="button" className="dc-soft" onClick={onAddMore} disabled={working || guideBusy}>
+          <button type="button" className="dc-soft" onClick={onAddMore} disabled={guideBusy} aria-haspopup="dialog">
             <Plus className="size-4" aria-hidden="true" />
             {working ? 'Finding more' : 'Add more'}
           </button>
@@ -417,18 +478,26 @@ export function CareerGuide({
   guide,
   onSearchAgain,
   onAddMore,
+  onSuggest = async () => [],
   goalAction,
   firstPart = 'basics',
 }: {
   guide: Guide;
   onSearchAgain: () => void;
-  onAddMore: (section: SectionId) => void;
+  /** Sends what the student asked for one part. Resolves to an error line, or null once the agents have started. */
+  onAddMore: (section: SectionId, prompt: string) => Promise<string | null>;
+  /** Requests the agents suggest for one part. */
+  onSuggest?: (section: SectionId) => Promise<string[]>;
   /** Shown when this career is one of the roadmap paths and not already the goal. */
   goalAction?: () => void;
   /** The part shown when the guide opens. */
   firstPart?: SectionId;
 }) {
   const [current, setCurrent] = useState<SectionId>(firstPart);
+  /** The part whose "Add more" window is open. */
+  const [asking, setAsking] = useState<SectionId | null>(null);
+  /** Steps of how to start reached from an interview format, highlighted until the student moves on. */
+  const [target, setTarget] = useState<number[]>([]);
   const line = stepLine(guide);
   const researching = isResearching(guide);
   const s = guide.sections;
@@ -436,6 +505,7 @@ export function CareerGuide({
 
   const pick = (id: SectionId) => {
     setCurrent(id);
+    setTarget([]);
     // Keep the new part's top in view when a long part was scrolled.
     const top = topRef.current?.getBoundingClientRect().top ?? 0;
     if (top < 0) topRef.current?.scrollIntoView({ block: 'start' });
@@ -446,6 +516,7 @@ export function CareerGuide({
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (document.querySelector('dialog[open]')) return;
       const n = Number(e.key);
       if (n >= 1 && n <= SECTION_IDS.length) pick(SECTION_IDS[n - 1]!);
     };
@@ -453,12 +524,23 @@ export function CareerGuide({
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  // From an interview format to the steps that prepare for it.
+  const prepare = (steps: number[]) => {
+    setCurrent('start');
+    setTarget(steps);
+    requestAnimationFrame(() => {
+      const first = document.getElementById(`guide-step-${steps[0]}`);
+      first?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      first?.focus({ preventScroll: true });
+    });
+  };
+
   const index = SECTION_IDS.indexOf(current);
   const bodies: Record<SectionId, ReactNode> = {
     basics: s.basics.data && <BasicsBody data={s.basics.data} />,
     voices: s.voices.data && <VoicesBody data={s.voices.data} sample={s.voices.sample} />,
-    start: s.start.data && <StartBody data={s.start.data} />,
-    interview: s.interview.data && <InterviewBody data={s.interview.data} />,
+    interview: s.interview.data && <InterviewBody data={s.interview.data} start={s.start.data} onPrepare={prepare} />,
+    start: s.start.data && <StartBody data={s.start.data} target={target} />,
   };
 
   return (
@@ -504,13 +586,14 @@ export function CareerGuide({
             index={index}
             state={s[current] as SectionState<unknown>}
             guideBusy={researching}
-            onAddMore={() => onAddMore(current)}
+            onAddMore={() => setAsking(current)}
             onNext={index < SECTION_IDS.length - 1 ? () => pick(SECTION_IDS[index + 1]!) : undefined}
           >
             {bodies[current]}
           </Part>
         </div>
       )}
+      {asking && <AskAgents guide={guide} section={asking} onSend={(prompt) => onAddMore(asking, prompt)} onSuggest={() => onSuggest(asking)} onClose={() => setAsking(null)} />}
     </div>
   );
 }

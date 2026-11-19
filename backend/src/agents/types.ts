@@ -208,7 +208,8 @@ export interface AgentNode {
   detail: string;
 }
 
-export type JobKind = 'scout' | 'extract' | 'application' | 'deadline' | 'image';
+/** guide-research and guide-review are the career discovery skill's researchers and validators. */
+export type JobKind = 'scout' | 'extract' | 'application' | 'deadline' | 'image' | 'guide-research' | 'guide-review';
 
 export interface Job {
   id: string;

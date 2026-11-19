@@ -1,9 +1,11 @@
-// Career guides from the backend (backend/src/careers): the types, the calls, a hook that keeps a
-// guide current while the agents research it, and the one line that says what they are doing.
+// Career guides from the backend (backend/src/careers, run by the agents' career discovery skill):
+// the types, the calls, a hook that keeps a guide current while the agents research it or add more
+// to a part, and the one line that says what they are doing.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_URL } from '../../auth/firebase.ts';
 
-export const SECTION_IDS = ['basics', 'voices', 'start', 'interview'] as const;
+/** In reading order: the interviews come before how to start, which is written to prepare for them. */
+export const SECTION_IDS = ['basics', 'voices', 'interview', 'start'] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 
 type Source = { title: string; url: string };
@@ -15,16 +17,24 @@ export type Basics = {
   whatTheyDo: string[];
   whereTheyWork: string[];
   specialties?: { name: string; what: string }[];
-  skills: string[];
+  /** Technical keywords. Older guides hold plain words. */
+  skills: (string | Skill)[];
   education?: string | null;
   pay: { figure: string; url: string } | null;
   outlook: string | null;
   sources: Source[];
 };
+export type SkillKind = 'tool' | 'method' | 'knowledge' | 'credential';
+export type Skill = { name: string; kind: SkillKind };
 export type PostTopic = 'the work' | 'getting in' | 'advice' | 'pay and life';
-export type Voices = { posts: { author: string; role: string; handle: string | null; text: string; takeaway: string; topic?: PostTopic; url: string | null; date: string | null }[] };
+export type Voices = {
+  /** Two sentences on what everyone in the posts says, written over all of them. */
+  summary?: string | null;
+  posts: { author: string; role: string; handle: string | null; text: string; takeaway: string; topic?: PostTopic; url: string | null; date: string | null }[];
+};
 export type Start = {
-  steps: { title: string; detail: string; when?: string | null; resource: Source | null }[];
+  /** prepares names the interview formats a step gets the student ready for. */
+  steps: { title: string; detail: string; when?: string | null; resource: Source | null; prepares?: string[] }[];
   resources: { title: string; url: string; kind: 'course' | 'book' | 'site' | 'community' | 'video' | 'practice'; free: boolean | null }[];
 };
 export type Interview = {
@@ -42,6 +52,31 @@ export type SectionState<T> = {
   added?: { count: number; at: string } | null;
 };
 
+/** One "Add more" this student asked for. */
+export type GuideAsk = {
+  id: string;
+  section: SectionId;
+  prompt: string;
+  at: string;
+  status: 'working' | 'done' | 'failed' | 'redirected';
+  added: number;
+  note: string | null;
+};
+
+export type GuideEvent = { at: string; agent: string; text: string; tone: 'info' | 'good' | 'bad'; ask: string | null };
+
+/** What the agents may know about the student when they add to a part for them. */
+export type StudentContext = {
+  year: string | null;
+  major: string | null;
+  school: string | null;
+  location: string | null;
+  interests: string[];
+  careerInterests: string[];
+  skills: string[];
+  notes: string[];
+};
+
 export type Guide = {
   slug: string;
   query: string;
@@ -53,7 +88,10 @@ export type Guide = {
   startedAt: string;
   updatedAt: string;
   error: string | null;
-  sections: { basics: SectionState<Basics>; voices: SectionState<Voices>; start: SectionState<Start>; interview: SectionState<Interview> };
+  sections: { basics: SectionState<Basics>; voices: SectionState<Voices>; interview: SectionState<Interview>; start: SectionState<Start> };
+  /** This student's own asks, oldest first. */
+  asks?: GuideAsk[];
+  activity?: GuideEvent[];
 };
 
 export type GuideSummary = Pick<Guide, 'slug' | 'title' | 'oneLine' | 'updatedAt' | 'status'>;
@@ -61,9 +99,28 @@ export type GuideSummary = Pick<Guide, 'slug' | 'title' | 'oneLine' | 'updatedAt
 export const SECTION_TITLES: Record<SectionId, string> = {
   basics: 'The basics',
   voices: 'What people in the job say',
-  start: 'How to start',
   interview: 'What the interviews ask',
+  start: 'How to start',
 };
+
+const keyOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+/** The steps of how to start that prepare for one interview format, with their place in the list. */
+export const stepsFor = (start: Start | null | undefined, format: string) =>
+  (start?.steps ?? []).map((step, i) => ({ step, i })).filter(({ step }) => (step.prepares ?? []).some((p) => keyOf(p) === keyOf(format)));
+
+/** Who is asking, so the backend shows each student only their own asks: the account, or a guest id kept here. */
+export function askerId(uid: string | null | undefined): string {
+  if (uid) return uid;
+  try {
+    const kept = localStorage.getItem('bearrok.discover.asker');
+    if (kept) return kept;
+    const made = `guest-${Math.random().toString(36).slice(2, 12)}`;
+    localStorage.setItem('bearrok.discover.asker', made);
+    return made;
+  } catch {
+    return 'guest';
+  }
+}
 
 export function slugFor(query: string): string {
   return query
@@ -122,7 +179,7 @@ const OFFLINE = 'Your agents cannot be reached right now. Try again in a moment.
  * The guide for one career. Asking for a career the backend already knows shows the kept guide;
  * a new one starts the research. While the agents work, the guide is fetched again every two seconds.
  */
-export function useCareerGuide(query: string | null) {
+export function useCareerGuide(query: string | null, by = 'guest', student: StudentContext | null = null) {
   const [state, setState] = useState<Load>({ guide: null, error: null, busy: false });
   const timer = useRef<number | null>(null);
   const active = useRef<string | null>(null);
@@ -137,7 +194,7 @@ export function useCareerGuide(query: string | null) {
     timer.current = window.setTimeout(async () => {
       if (active.current !== slug) return;
       try {
-        const res = await fetch(`${API_URL}/api/careers/guides/${slug}`);
+        const res = await fetch(`${API_URL}/api/careers/guides/${slug}?by=${encodeURIComponent(by)}`);
         if (!res.ok) throw new Error(await readError(res));
         const { guide } = (await res.json()) as { guide: Guide };
         if (active.current !== slug) return;
@@ -147,7 +204,7 @@ export function useCareerGuide(query: string | null) {
         if (active.current === slug) poll(slug);
       }
     }, 2000);
-  }, []);
+  }, [by]);
 
   const request = useCallback(
     async (career: string, refresh = false) => {
@@ -159,7 +216,7 @@ export function useCareerGuide(query: string | null) {
         const res = await fetch(`${API_URL}/api/careers/guides`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ career, refresh }),
+          body: JSON.stringify({ career, refresh, by }),
         });
         if (!res.ok) throw new Error(await readError(res));
         const { guide } = (await res.json()) as { guide: Guide };
@@ -172,7 +229,7 @@ export function useCareerGuide(query: string | null) {
         setState({ guide: null, error: message, busy: false });
       }
     },
-    [poll],
+    [poll, by],
   );
 
   useEffect(() => {
@@ -184,29 +241,50 @@ export function useCareerGuide(query: string | null) {
     return stopPolling;
   }, [query, request]);
 
-  /** "Add more" on one part. A refusal (still researching, agents offline) is shown on that part. */
+  /** "Add more" on one part with what the student asked. Resolves to an error line, or null once the agents have started. */
   const addMore = useCallback(
-    async (section: SectionId) => {
+    async (section: SectionId, prompt: string): Promise<string | null> => {
       const slug = state.guide?.slug;
-      if (!slug) return;
+      if (!slug) return 'Open a guide first.';
       try {
-        const res = await fetch(`${API_URL}/api/careers/guides/${slug}/sections/${section}/more`, { method: 'POST' });
+        const res = await fetch(`${API_URL}/api/careers/guides/${slug}/sections/${section}/more`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ prompt, by, student }),
+        });
         if (!res.ok) throw new Error(await readError(res));
         const { guide } = (await res.json()) as { guide: Guide };
-        if (active.current !== slug) return;
+        if (active.current !== slug) return null;
         setState({ guide, error: null, busy: false });
         poll(slug);
+        return null;
       } catch (e) {
-        const message = e instanceof TypeError ? OFFLINE : e instanceof Error ? e.message : OFFLINE;
-        setState((s) =>
-          s.guide?.slug === slug ? { ...s, guide: { ...s.guide, sections: { ...s.guide.sections, [section]: { ...s.guide.sections[section], error: message } } } } : s,
-        );
+        return e instanceof TypeError ? OFFLINE : e instanceof Error ? e.message : OFFLINE;
       }
     },
-    [state.guide?.slug, poll],
+    [state.guide?.slug, poll, by, student],
   );
 
-  return { ...state, searchAgain: () => query && request(query, true), retry: () => query && request(query), addMore };
+  /** Requests to offer for one part, written by the agents from the part and this student. Empty when they cannot answer. */
+  const suggest = useCallback(
+    async (section: SectionId): Promise<string[]> => {
+      const slug = state.guide?.slug;
+      if (!slug) return [];
+      try {
+        const res = await fetch(`${API_URL}/api/careers/guides/${slug}/sections/${section}/suggest`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ by, student }),
+        });
+        return res.ok ? (((await res.json()) as { prompts?: string[] }).prompts ?? []) : [];
+      } catch {
+        return [];
+      }
+    },
+    [state.guide?.slug, by, student],
+  );
+
+  return { ...state, searchAgain: () => query && request(query, true), retry: () => query && request(query), addMore, suggest };
 }
 
 /** Guides the agents have already researched, for quick picks. Empty when the backend is away. */

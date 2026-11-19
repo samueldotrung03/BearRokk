@@ -1735,6 +1735,185 @@
   }
 }
 
+/* Technical skills: one row per kind, the keywords as tags. */
+.dc-skills {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dc-skills > div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.dc-skills dt {
+  padding-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-3);
+}
+
+.dc-skills dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* The two sentences over every post. */
+.dc-overall {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--color-brand-soft);
+}
+
+.dc-overall p {
+  margin-top: 4px;
+  max-width: 68ch;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-ink);
+}
+
+.dc-prepares {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-ink-3);
+}
+
+/* A step reached from an interview format. */
+.dc-steps-list li {
+  margin: -6px -8px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  transition: background 0.3s;
+}
+
+.dc-steps-list li.is-target {
+  background: var(--color-brand-soft);
+}
+
+.dc-steps-list li:focus {
+  outline: none;
+}
+
+/* The "Add more" window. */
+.dc-ask {
+  margin: auto;
+  width: min(560px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  overflow-y: auto;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-lift);
+  animation: panel-in 0.2s ease-out;
+}
+
+.dc-ask::backdrop {
+  background: rgb(21 43 67 / 0.45);
+}
+
+.dc-ask-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px 0;
+}
+
+.dc-ask-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: var(--color-ink-3);
+}
+
+.dc-ask-close:hover {
+  background: var(--surface-2);
+  color: var(--color-ink);
+}
+
+.dc-ask-body {
+  display: grid;
+  gap: 20px;
+  padding: 16px 24px 24px;
+}
+
+.dc-ask-field {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  background: var(--surface);
+  resize: vertical;
+}
+
+.dc-ask-progress {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.dc-ask-log {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+
+.dc-ask-log .is-good {
+  color: var(--ok);
+}
+
+.dc-ask-log .is-bad {
+  color: var(--danger);
+}
+
+.dc-ask-history {
+  display: grid;
+  margin-top: 8px;
+}
+
+.dc-ask-history > li {
+  padding: 8px 0;
+}
+
+.dc-ask-history > li + li {
+  border-top: 1px solid var(--color-line);
+}
+
+@media (max-width: 640px) {
+  .dc-skills > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-ask {
+    animation: none;
+  }
+
+  .dc-steps-list li {
+    transition: none;
+  }
+}
+
 /* ---------- Dark theme ---------- */
 
 :root[data-theme='dark'] :is(.dc-panel, .dc-quiz, .dc-detail, .dc-chat) {
@@ -1862,4 +2041,10 @@
 }
 :root[data-theme='dark'] .dc-step.is-on {
   background: var(--surface-2);
+}
+:root[data-theme='dark'] .dc-ask-field {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .dc-ask::backdrop {
+  background: rgb(0 0 0 / 0.6);
 }
