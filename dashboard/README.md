@@ -16,43 +16,84 @@ today, and placeholder photos hotlinked from Unsplash (a card shows an icon pane
 does not load). The header shows a
 "Sample data" label on every page. Nothing calls the backend yet.
 
+## Desktop app
+
+The same dashboard runs as an Electron app (`electron/main.cjs`).
+
+```
+npm run app            # build, then open it in an Electron window
+npm run app:dev        # Electron window on the dev server; run `npm run dev` first
+npm run app:package    # build release/BearRok-darwin-arm64/BearRok.app
+```
+
+The window gives the page no Node access, and links to outside sites open in the system
+browser. Loaded from a file, the app uses hash routes (`#/roadmap`); in the browser it keeps
+normal paths. The packaged app is unsigned and uses Electron's default icon; `release/` is not
+committed.
+
 ## Pages
 
 | Route | Page | What it shows |
 |---|---|---|
-| `/` | Feed | Pinterest-style grid of photo tiles with the reason for each, save and dismiss, filters; a tile opens its details. Roadmap, deadline and agent tiles are mixed in |
+| `/` | Feed | TikTok-style reel: one opportunity per screen with its photo, the reason it was recommended, and Save, Not for me, Details and Open on the side. Scroll, swipe, or use the arrow keys (or J and K). Choosing a type (Internships, Events, ...) switches to an ordinary scrolling grid of cards |
 | `/roadmap` | Roadmap | Phases and steps toward the chosen goal, each linked to a feed opportunity when there is one |
 | `/discover` | Career discovery | Paths that fit the student, what each expects, "Make this my goal" |
 | `/saved` | Saved | Saved tiles in the same grid, soonest deadline first |
 | `/agents` | Agents | Master, manager and worker agents with status, and an activity log |
 | `/profile` | Profile | The persona, class year, interests, skills, location, and the history the agents read |
+| `/signin` | Sign in | Mock sign-in screen. Nothing typed is sent or saved; any button goes to the feed |
 
 ## Navigation dock
 
 `src/components/Dock.tsx`, styled in `src/index.css` (`.dock-*`, `.glass`).
 
-- Hidden by default. It slides in when the pointer reaches the left edge of the window and
-  slides out shortly after the pointer leaves it. A small handle on the edge marks the spot.
+- A liquid-glass sidebar that runs the full height of the window on the left. It is hidden by
+  default, slides in over the page when the pointer reaches the left edge, and slides out
+  shortly after the pointer leaves. A small handle on the edge marks the spot.
+- It always shows the name beside each icon. A line separates the BearRok name from the pages.
+  Each icon is a white Phosphor glyph on a glowing orb of three colors (set per page in
+  `dockItems`); the colors swirl on hover and on the current page.
+- The space between the pages and Profile holds a live panel: pages the agents read this week,
+  today's Grok budget, and counts for the feed, saved cards and roadmap progress. The agent
+  numbers are sample values from `agentUsage` in `src/data/sample.ts`; the three counts are
+  real app state. The panel is hidden in windows under 700 px tall.
 - It shows for a moment on first load, opens when a link inside it gets keyboard focus, and
   closes on Escape.
-- The pin at the bottom of the dock, or the button next to the logo, keeps it open. The page
-  moves over to make room, and the choice is remembered in `localStorage`.
-- Icons grow under the pointer, as in the macOS Dock. This is off when the system asks for
-  reduced motion.
-- On touch screens it stays visible; under 640 px wide it becomes a bar along the bottom.
+- The pin at the bottom, or the button next to the logo, keeps it open. Pinned, the page moves
+  over to make room, and the choice is remembered in `localStorage`.
+- On touch screens it stays visible; under 640 px wide it becomes a bar of icons along the bottom.
 
 ## Design
 
-Visual direction follows cluely.com: a blue sky header fading into a pale canvas, EB Garamond
-for page titles, Geist for everything else, white rounded cards, a glossy blue primary button.
-Tokens (colors, fonts, shadows) are in the `@theme` block at the top of `src/index.css`.
+Type, colors, the primary button and the "b." logo match the pitch site: Instrument Serif for
+page titles, DM Sans for everything else, navy ink `#152b43`, and a flat blue `#245bd8` button
+with a 9 px radius. The blue sky header and white rounded cards follow cluely.com. Tokens are
+in the `@theme` block at the top of `src/index.css`.
 
 ## State
 
 `src/state/store.ts` holds what the student did: saved, dismissed and opened cards, finished
 roadmap steps, the goal, and the profile. It is kept in `localStorage` under
-`bearrok.dashboard.v2`. `rankFeed` orders the feed by the agent's score, raised for types the
-student saves or opens and lowered for types they dismiss.
+`bearrok.dashboard.v2`.
+
+## Feed ranking
+
+`src/state/ranking.ts` orders the feed. It follows the stages of the open-source X/Twitter
+recommendation algorithm (github.com/twitter/the-algorithm) at a size that fits in one file.
+None of that repository's code is used: it is Scala behind trained models, and it is licensed
+AGPL-3.0, which would put the same license on this project.
+
+| Twitter stage | Here |
+|---|---|
+| Candidate sources, in-network and out-of-network | A card is in-network when the student saved or opened its type, or the roadmap needs it. The rest are out-of-network and scaled by 0.75 |
+| Visibility filtering | Dismissed cards and passed deadlines are dropped |
+| Heavy ranker: weighted sum of predicted actions | `0.5 * P(open) + 1 * P(save) - 1.6 * P(dismiss)`, estimated from the agent's fit score and the student's history with that type |
+| Heuristics | Boosts for the next roadmap step, deadlines within 7 and 14 days, and recent finds |
+| Author diversity | Each card of a type already placed lowers the next one of that type |
+
+The feed keeps its order while the student scrolls. "Refresh feed" on the last screen ranks it
+again with what they saved and skipped. Each card shows up to two of the ranker's reasons, such
+as "On your roadmap" or "Closing soon".
 
 ## Connecting the backend
 

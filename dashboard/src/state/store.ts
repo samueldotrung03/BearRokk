@@ -1,6 +1,6 @@
 // What the student has done in the app. This is the "memory" the master agent reads on its
 // next run; until the backend stores it, it lives in localStorage.
-import type { ClassYear, Opportunity, OpportunityType, Profile } from '../types.ts';
+import type { ClassYear, Profile } from '../types.ts';
 
 export interface AppState {
   saved: string[];
@@ -57,33 +57,6 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'resetHistory':
       return { ...state, saved: [], dismissed: [], opened: [] };
   }
-}
-
-const SAVE_BOOST = 0.12;
-const OPEN_BOOST = 0.04;
-const DISMISS_PENALTY = 0.15;
-
-/**
- * Feed order: the agent's score, nudged by history. Each save or open of a type lifts the other
- * cards of that type; each dismissal lowers them. Dismissed cards are removed.
- */
-export function rankFeed(opportunities: Opportunity[], state: AppState): Opportunity[] {
-  const byId = new Map(opportunities.map((o) => [o.id, o]));
-  const nudge = new Map<OpportunityType, number>();
-  const add = (ids: string[], amount: number) => {
-    for (const id of ids) {
-      const type = byId.get(id)?.type;
-      if (type) nudge.set(type, (nudge.get(type) ?? 0) + amount);
-    }
-  };
-  add(state.saved, SAVE_BOOST);
-  add(state.opened, OPEN_BOOST);
-  add(state.dismissed, -DISMISS_PENALTY);
-
-  const score = (o: Opportunity) => o.baseScore + (nudge.get(o.type) ?? 0);
-  return opportunities
-    .filter((o) => !state.dismissed.includes(o.id))
-    .sort((a, b) => score(b) - score(a));
 }
 
 const STORAGE_KEY = 'bearrok.dashboard.v2';

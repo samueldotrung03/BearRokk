@@ -2,17 +2,14 @@ import { PanelLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useStore } from '../state/StoreProvider.tsx';
+import { BrandMark } from './Brand.tsx';
 import { toggleDock } from './Dock.tsx';
 
 function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-2 text-white">
-      <svg viewBox="0 0 32 32" className="size-7" aria-hidden="true">
-        <rect width="32" height="32" rx="9" fill="rgb(255 255 255 / 0.22)" />
-        <path d="M7 22l6-9 4 5 3-4 5 8z" fill="#fff" />
-        <circle cx="23" cy="10" r="2.5" fill="#fff" />
-      </svg>
-      <span className="text-[17px] font-semibold tracking-tight">BearRok</span>
+    <Link to="/" className="flex items-center gap-2.5 text-white">
+      <BrandMark light />
+      <span className="text-[19px] font-bold tracking-tight">BearRok</span>
     </Link>
   );
 }

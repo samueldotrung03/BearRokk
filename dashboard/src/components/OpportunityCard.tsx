@@ -6,7 +6,7 @@ import type { Opportunity } from '../types.ts';
 import { formatLabel, typeMeta } from './meta.ts';
 
 /** Cover photo, with a tinted icon panel when there is no photo or it fails to load. */
-function Cover({ opportunity: o, className = '' }: { opportunity: Opportunity; className?: string }) {
+export function Cover({ opportunity: o, className = '' }: { opportunity: Opportunity; className?: string }) {
   const [failed, setFailed] = useState(false);
   const meta = typeMeta[o.type];
   if (!o.image || failed) {
@@ -69,7 +69,7 @@ function OfficialLink({ opportunity: o }: { opportunity: Opportunity }) {
   );
 }
 
-function Details({ opportunity: o, onClose }: { opportunity: Opportunity; onClose: () => void }) {
+export function Details({ opportunity: o, onClose }: { opportunity: Opportunity; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const meta = typeMeta[o.type];
   const place = [o.format ? formatLabel[o.format] : null, o.location].filter(Boolean).join(' · ');

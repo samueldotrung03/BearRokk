@@ -7,6 +7,7 @@ import { Feed } from './pages/Feed.tsx';
 import { Profile } from './pages/Profile.tsx';
 import { Roadmap } from './pages/Roadmap.tsx';
 import { Saved } from './pages/Saved.tsx';
+import { SignIn } from './pages/SignIn.tsx';
 
 export function App() {
   const { pathname } = useLocation();
@@ -16,7 +17,7 @@ export function App() {
 
   return (
     <>
-      <Dock />
+      {pathname !== '/signin' && <Dock />}
       <Routes>
         <Route path="/" element={<Feed />} />
         <Route path="/roadmap" element={<Roadmap />} />
@@ -24,6 +25,7 @@ export function App() {
         <Route path="/saved" element={<Saved />} />
         <Route path="/agents" element={<Agents />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/signin" element={<SignIn />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

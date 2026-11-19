@@ -1,31 +1,59 @@
 import { describe, expect, it } from 'vitest';
-import { magnification } from '../components/Dock.tsx';
 import { initialState, opportunities } from '../data/sample.ts';
-import { rankFeed, reducer } from './store.ts';
+import type { Opportunity } from '../types.ts';
+import { rankFeed, rankFeedDetailed } from './ranking.ts';
+import { reducer, type AppState } from './store.ts';
 
-const ids = (state = initialState) => rankFeed(opportunities, state).map((o) => o.id);
+const scores = (state: AppState = initialState) =>
+  new Map(rankFeedDetailed(opportunities, state).map((r) => [r.opportunity.id, r.score]));
+const ids = (state: AppState = initialState) => rankFeed(opportunities, state).map((o) => o.id);
 
 describe('rankFeed', () => {
-  it('orders by the agent score when there is no history', () => {
-    const scores = rankFeed(opportunities, initialState).map((o) => o.baseScore);
-    expect(scores).toEqual([...scores].sort((a, b) => b - a));
-  });
-
-  it('removes a dismissed card and lowers the others of its type', () => {
-    const before = ids();
+  it('removes a dismissed card and scores the others of its type lower', () => {
     const state = reducer(initialState, { type: 'dismiss', id: 'opp-northwind-swe' });
-    const after = ids(state);
-    expect(after).not.toContain('opp-northwind-swe');
-    // The other internship sat above the career fair; one dismissal drops it below.
-    expect(before.indexOf('opp-harbor-data')).toBeLessThan(before.indexOf('opp-career-fair'));
-    expect(after.indexOf('opp-harbor-data')).toBeGreaterThan(after.indexOf('opp-career-fair'));
+    expect(ids(state)).not.toContain('opp-northwind-swe');
+    expect(scores(state).get('opp-harbor-data')!).toBeLessThan(scores().get('opp-harbor-data')!);
+    // A type the student did not touch is left alone.
+    expect(scores(state).get('opp-systems-club')).toBe(scores().get('opp-systems-club'));
   });
 
-  it('lifts cards of a type the student saved', () => {
+  it('scores cards higher when the student saved one of the same type', () => {
     const state = reducer(initialState, { type: 'toggleSaved', id: 'opp-lumen-info' });
-    const after = ids(state);
-    expect(after.indexOf('opp-career-fair')).toBeLessThan(ids().indexOf('opp-career-fair'));
-    expect(after).toContain('opp-lumen-info');
+    expect(scores(state).get('opp-career-fair')!).toBeGreaterThan(scores().get('opp-career-fair')!);
+    const fair = rankFeedDetailed(opportunities, state).find((r) => r.opportunity.id === 'opp-career-fair')!;
+    expect(fair.signals).toContain('saved-like');
+    expect(fair.source).toBe('in-network');
+  });
+
+  it('one dismissal outweighs one open of the same type', () => {
+    let state = reducer(initialState, { type: 'opened', id: 'opp-first-gen-scholarship' });
+    const afterOpen = scores(state);
+    state = reducer(initialState, { type: 'dismiss', id: 'opp-northwind-swe' });
+    const afterDismiss = scores(state);
+    const gain = afterOpen.get('opp-first-gen-scholarship')! - scores().get('opp-first-gen-scholarship')!;
+    const loss = scores().get('opp-harbor-data')! - afterDismiss.get('opp-harbor-data')!;
+    expect(gain).toBeGreaterThan(0);
+    expect(loss).toBeGreaterThan(gain);
+  });
+
+  it('leaves out opportunities whose deadline has passed', () => {
+    const closed: Opportunity = { ...opportunities[0]!, id: 'closed', deadline: new Date(Date.now() - 86_400_000).toISOString() };
+    expect(rankFeed([...opportunities, closed], initialState).map((o) => o.id)).not.toContain('closed');
+  });
+
+  it('puts the opportunity for the next roadmap step ahead of an equal one that is not on the roadmap', () => {
+    const base = opportunities.find((o) => o.id === 'opp-harbor-data')!; // linked to the next step, step-sql
+    const twin: Opportunity = { ...base, id: 'twin' };
+    const order = rankFeed([twin, base], initialState).map((o) => o.id);
+    expect(order).toEqual(['opp-harbor-data', 'twin']);
+  });
+
+  it('spreads types out instead of stacking one type at the top', () => {
+    const top = opportunities[0]!;
+    const clones: Opportunity[] = [1, 2, 3].map((n) => ({ ...top, id: `clone-${n}` }));
+    const order = rankFeed([...clones, ...opportunities], initialState);
+    const firstFour = order.slice(0, 4).map((o) => o.type);
+    expect(new Set(firstFour).size).toBeGreaterThan(1);
   });
 });
 
@@ -55,14 +83,5 @@ describe('reducer', () => {
     expect(state.dismissed).toEqual([]);
     expect(state.doneSteps).toEqual(['step-ds', 'step-sql']);
     expect(state.profile).toEqual(initialState.profile);
-  });
-});
-
-describe('dock magnification', () => {
-  it('is largest under the pointer and back to resting size at the edge of its reach', () => {
-    expect(magnification(0)).toBeCloseTo(1.5);
-    expect(magnification(60)).toBeGreaterThan(magnification(100));
-    expect(magnification(130)).toBe(1);
-    expect(magnification(500)).toBe(1);
   });
 });

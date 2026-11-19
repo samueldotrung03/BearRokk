@@ -1,4 +1,5 @@
 import { RotateCcw } from 'lucide-react';
+import { Link } from 'react-router';
 import { Card, Page } from '../components/Page.tsx';
 import { interestOptions, skillOptions } from '../data/sample.ts';
 import { useStore } from '../state/StoreProvider.tsx';
@@ -121,6 +122,9 @@ export function Profile() {
               </div>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-ink-2">{profile.about}</p>
+            <Link to="/signin" className="mt-4 inline-block text-sm font-semibold text-brand">
+              Sign out
+            </Link>
           </Card>
           <Card className="p-6">
             <h2 className="font-semibold tracking-tight">What the agents remember</h2>

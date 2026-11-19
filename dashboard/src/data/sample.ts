@@ -381,6 +381,15 @@ export const agentEvents: AgentEvent[] = [
   { id: 'ev-6', at: minutesAgo(32), agent: 'Master agent', text: 'Read your memory: 2 saves in machine learning, 1 dismissal in finance.' },
 ];
 
+/** What the agents used this week. Shown in the dock; invented like the rest of this file. */
+export const agentUsage = {
+  /** Pages the workers read on each of the last seven days, oldest first; the last is today. */
+  pagesPerDay: [38, 52, 47, 61, 44, 70, 58],
+  /** Share of today's Grok budget already spent, 0 to 1. */
+  budgetUsed: 0.62,
+  searchesToday: 14,
+};
+
 export const interestOptions = [
   'Backend systems',
   'AI and machine learning',

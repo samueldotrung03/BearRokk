@@ -1,0 +1,110 @@
+.signin-hero {
+  position: relative;
+  isolation: isolate;
+}
+
+/* The shared sky fades to near-white low down; this tint keeps white text readable over it. */
+.signin-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, rgb(18 58 150 / 0.5) 0%, rgb(18 58 150 / 0.3) 55%, transparent 100%);
+  pointer-events: none;
+}
+
+.signin-hero-text {
+  text-shadow: 0 1px 14px rgb(14 46 120 / 0.28);
+}
+
+.signin-card {
+  animation: signin-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes signin-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.signin-provider {
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.signin-provider:hover {
+  background: var(--color-brand-soft);
+  border-color: #c3d0e2;
+}
+
+.signin-provider:active,
+.signin-submit:active {
+  transform: translateY(1px);
+}
+
+.signin-input {
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.signin-input:hover {
+  border-color: #a9b9cd;
+}
+
+.signin-input:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgb(36 91 216 / 0.16);
+  outline: none;
+}
+
+.signin-input::placeholder {
+  color: var(--color-ink-3);
+}
+
+.signin-check {
+  accent-color: var(--color-brand);
+}
+
+.signin-link {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s ease;
+}
+
+.signin-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.signin-submit .signin-arrow {
+  transition: transform 0.2s ease;
+}
+
+.signin-submit:hover .signin-arrow {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signin-card {
+    animation: none;
+  }
+
+  .signin-provider,
+  .signin-input,
+  .signin-link,
+  .signin-submit,
+  .signin-submit .signin-arrow {
+    transition: none;
+  }
+
+  .signin-provider:active,
+  .signin-submit:active,
+  .signin-submit:hover,
+  .signin-submit:hover .signin-arrow {
+    transform: none;
+  }
+}
