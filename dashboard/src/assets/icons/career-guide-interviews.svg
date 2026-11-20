@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="1em" height="1em" aria-hidden="true">
+  <!-- Career guide tab: What the interviews ask (a person and a question). Drawn in Figma, "BearRok career guide icons". -->
+  <circle fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" cx="96" cy="112" r="32"/>
+  <path fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" d="M40 208c8-32 32-48 56-48s48 16 56 48"/>
+  <path fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" d="M172 76a24 24 0 1 1 24 24v12"/>
+  <circle cx="196" cy="144" r="12" fill="currentColor"/>
+</svg>

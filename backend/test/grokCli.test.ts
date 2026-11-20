@@ -22,7 +22,7 @@ process.env.GROK_TRANSPORT = 'cli';
 process.env.GROK_CLI_BIN = bin;
 
 const { grokJson } = await import('../src/grok.ts');
-const { answerText, extractJson } = await import('../src/grokCli.ts');
+const { answerText, extractJson, structuredAnswer, fullestAnswer } = await import('../src/grokCli.ts');
 const { readFileSync, rmSync } = await import('node:fs');
 const Schema = z.object({ title: z.string(), url: z.string() });
 const reset = () => { for (const f of ['count', 'reply-1', 'reply-2', 'exit']) rmSync(join(dir, f), { force: true }); };
@@ -65,4 +65,18 @@ test('a failing CLI gives a readable error', async () => {
   writeFileSync(join(dir, 'reply'), 'not logged in');
   writeFileSync(join(dir, 'exit'), '1');
   await assert.rejects(grokJson({ name: 't', system: 's', user: 'u', schema: Schema }), /grok CLI exited 1: not logged in/);
+});
+
+test('the answer the CLI checked against the schema is used when it returns one', () => {
+  assert.deepEqual(structuredAnswer('{"text":"{\\"a\\":1}","structuredOutput":{"a":1}}'), { a: 1 });
+  assert.equal(structuredAnswer('{"text":"words only"}'), undefined);
+  assert.equal(structuredAnswer('not json'), undefined);
+});
+
+test('an empty placeholder written before the real answer does not win', () => {
+  const schema = z.object({ items: z.array(z.string()) });
+  const out = JSON.stringify({ text: '{"items":[]}\n\n{"items":["a","b"]}', structuredOutput: { items: [] } });
+  assert.deepEqual(fullestAnswer(out, schema), { items: ['a', 'b'] });
+  assert.deepEqual(fullestAnswer(JSON.stringify({ text: 'done', structuredOutput: { items: ['x'] } }), schema), { items: ['x'] });
+  assert.throws(() => fullestAnswer(JSON.stringify({ text: 'no answer here' }), schema));
 });

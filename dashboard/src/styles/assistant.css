@@ -1,0 +1,397 @@
+/* Ask BearRok: the launcher in the corner and the chat panel it opens. */
+.assistant-launch {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 18px 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: rgb(26 26 28 / 0.66);
+  -webkit-backdrop-filter: blur(30px) saturate(170%);
+  backdrop-filter: blur(30px) saturate(170%);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.25) inset,
+    0 14px 30px -12px rgb(0 0 0 / 0.55);
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s;
+}
+
+.assistant-launch:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.35) inset,
+    0 20px 36px -12px rgb(0 0 0 / 0.6);
+}
+
+.assistant-launch kbd {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 11px;
+  background: rgb(255 255 255 / 0.2);
+}
+
+.assistant {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  width: min(400px, calc(100vw - 24px));
+  height: min(600px, calc(100dvh - 44px));
+  overflow: hidden;
+  border-radius: 24px;
+  background: white;
+  box-shadow:
+    0 0 0 1px var(--color-line),
+    var(--shadow-lift);
+  animation: assistant-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes assistant-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+
+.assistant header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 14px 16px;
+  color: white;
+  background: linear-gradient(135deg, #1d3f9e 0%, #0f2147 100%);
+}
+
+.assistant-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.16);
+}
+
+.assistant-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.assistant-thread {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--color-canvas);
+}
+
+.assistant-empty {
+  margin: auto 0;
+  text-align: center;
+}
+
+.assistant-question {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 16px 16px 4px 16px;
+  font-size: 14px;
+  color: white;
+  background: var(--color-brand);
+}
+
+.assistant-answer {
+  align-self: flex-start;
+  max-width: 92%;
+  padding: 10px 12px;
+  border-radius: 16px 16px 16px 4px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-ink);
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.assistant-answer ul {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  color: var(--color-ink-2);
+}
+
+.assistant-answer li {
+  padding-left: 12px;
+  border-left: 2px solid var(--color-brand-soft);
+}
+
+.assistant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.assistant-actions button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+  transition: background 0.15s;
+}
+
+.assistant-actions button:first-child:not(:disabled) {
+  color: white;
+  background: var(--color-brand);
+}
+
+.assistant-actions button:disabled {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.assistant-thinking {
+  display: flex;
+  gap: 5px;
+  padding: 14px;
+}
+
+.assistant-thinking span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-ink-3);
+  animation: assistant-dot 1s infinite ease-in-out;
+}
+
+.assistant-thinking span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.assistant-thinking span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes assistant-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.assistant-chips {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.assistant-chips button {
+  height: 30px;
+  flex-shrink: 0;
+  padding: 0 11px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+  background: white;
+}
+
+.assistant-chips button:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.assistant-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 14px 0;
+  padding: 5px 5px 5px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+}
+
+.assistant-form:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgb(36 91 216 / 0.15);
+}
+
+.assistant-form input {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  outline: none;
+  background: transparent;
+}
+
+.assistant-form button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: white;
+  background: var(--color-brand);
+}
+
+.assistant-form button:disabled {
+  opacity: 0.35;
+}
+
+.assistant-note {
+  padding: 8px 16px 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant,
+  .assistant-thinking span {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .assistant-launch span,
+  .assistant-launch kbd {
+    display: none;
+  }
+
+  .assistant-launch {
+    bottom: 96px;
+    padding: 0 14px;
+  }
+}
+
+/* ---------- Dark glass ----------
+   The panel shares the sidebar's and the launcher's material: the page shows through, blurred
+   and dimmed, and the text on it is white. Only the student's own question and the primary
+   action keep the brand blue. */
+.assistant {
+  color: rgb(255 255 255 / 0.92);
+  background: rgb(24 24 26 / 0.74);
+  -webkit-backdrop-filter: blur(40px) saturate(170%);
+  backdrop-filter: blur(40px) saturate(170%);
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.24),
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 30px 70px -20px rgb(0 0 0 / 0.6);
+}
+
+.assistant header {
+  background: none;
+  border-bottom: 0.5px solid rgb(255 255 255 / 0.12);
+}
+
+.assistant-mark,
+.assistant-close {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.assistant-thread {
+  background: none;
+}
+
+.assistant .text-ink,
+.assistant .text-ink-2 {
+  color: rgb(255 255 255 / 0.92);
+}
+
+.assistant .text-ink-3,
+.assistant-note {
+  color: rgb(235 235 245 / 0.55);
+}
+
+.assistant .text-brand {
+  color: #8fb8ff;
+}
+
+.assistant-answer {
+  color: rgb(255 255 255 / 0.94);
+  background: rgb(255 255 255 / 0.09);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.1);
+}
+
+.assistant-answer ul {
+  color: rgb(235 235 245 / 0.8);
+}
+
+.assistant-answer li {
+  border-left-color: rgb(255 255 255 / 0.25);
+}
+
+.assistant-actions button {
+  color: white;
+  background: rgb(255 255 255 / 0.12);
+}
+
+.assistant-actions button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.2);
+}
+
+.assistant-actions button:disabled {
+  color: #6ee7b7;
+  background: rgb(52 211 153 / 0.14);
+}
+
+.assistant-thinking span {
+  background: rgb(235 235 245 / 0.6);
+}
+
+.assistant-chips button {
+  border-color: rgb(255 255 255 / 0.16);
+  color: rgb(255 255 255 / 0.86);
+  background: rgb(255 255 255 / 0.06);
+}
+
+.assistant-chips button:hover {
+  border-color: rgb(255 255 255 / 0.4);
+  color: white;
+}
+
+.assistant-form {
+  border-color: rgb(255 255 255 / 0.18);
+  background: rgb(255 255 255 / 0.06);
+}
+
+.assistant-form:focus-within {
+  border-color: rgb(255 255 255 / 0.5);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.1);
+}
+
+.assistant-form input {
+  color: white;
+}
+
+.assistant-form input::placeholder {
+  color: rgb(235 235 245 / 0.4);
+}

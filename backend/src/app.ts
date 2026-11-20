@@ -4,7 +4,7 @@ import { cors } from 'hono/cors';
 import { HttpError, mountAgents, type AgentsOptions } from './agents/api.ts';
 import { mountCareers } from './careers/api.ts';
 import type { CareerGuides } from './careers/guide.ts';
-import { config } from './config.ts';
+import { config, liveAvailable } from './config.ts';
 import { mountDesktopAuth } from './desktopAuth.ts';
 import { Engine, UserError, type Deps, type Mode } from './pipeline.ts';
 import type { Store } from './store/index.ts';
@@ -15,7 +15,7 @@ export function createApp(store: Store, deps: Partial<Deps> = {}, agents?: Agent
   app.use('/api/*', cors());
 
   app.get('/api/health', (c) =>
-    c.json({ ok: true, store: store.kind, live: (deps.liveAvailable ?? (() => config.xaiApiKey !== null))(), model: config.xaiModel }),
+    c.json({ ok: true, store: store.kind, live: (deps.liveAvailable ?? liveAvailable)(), model: config.xaiModel }),
   );
 
   app.post('/api/searches', async (c) => {

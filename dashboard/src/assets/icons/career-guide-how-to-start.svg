@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="1em" height="1em" aria-hidden="true">
+  <!-- Career guide tab: How to start (a flag). Drawn in Figma, "BearRok career guide icons". -->
+  <path fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" d="M64 224V32"/>
+  <path fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" d="M64 44l136 44-136 44"/>
+</svg>

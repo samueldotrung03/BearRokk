@@ -1,0 +1,74 @@
+// What the desktop shell exposes to the page (electron/preload.cjs). Undefined in a browser.
+export type PermissionKind = 'screen' | 'disk' | 'control';
+export type PermissionState = 'granted' | 'denied' | 'unknown';
+
+/** How this copy of the app reaches Grok. `managed` is false when the app did not start the backend itself. */
+export interface GrokConnection {
+  managed: boolean;
+  /** claude: a temporary test set-up, see backend/SWAP_TO_GROK.md. */
+  mode: 'cli' | 'api' | 'claude' | null;
+  /** The Grok app for the command line is installed on this computer. */
+  cliFound: boolean;
+  /** The Claude app for the command line is installed on this computer (test set-up only). */
+  claudeFound?: boolean;
+  canStoreKey: boolean;
+  error?: string;
+}
+
+/** What the menu bar menu shows. Paths are routes inside the app. */
+export interface MenuBarData {
+  signedIn: boolean;
+  searching: boolean;
+  deadlines: { label: string; path: string }[];
+  top: { label: string; path: string } | null;
+}
+
+export type MenuBarAction = { type: 'run' } | { type: 'stop' } | { type: 'open'; path: string };
+
+interface DesktopBridge {
+  platform: string;
+  /** Absent in a desktop shell older than the page. */
+  grok?: {
+    status: () => Promise<GrokConnection>;
+    connect: (choice: { mode: 'cli' } | { mode: 'api'; key: string } | { mode: 'claude' }) => Promise<GrokConnection>;
+    disconnect: () => Promise<GrokConnection>;
+  };
+  /** The menu bar icon at the top of the screen (macOS). Absent in an older desktop shell. */
+  menuBar?: {
+    update: (data: MenuBarData) => void;
+    onAction: (callback: (action: MenuBarAction) => void) => () => void;
+  };
+  /**
+   * The quick panel that drops down from the camera notch (route /quick). Actions go to the main
+   * window, which handles them like menu bar picks, and the panel hides. Absent in an older shell.
+   */
+  quick?: {
+    action: (action: MenuBarAction) => void;
+    hide: () => void;
+    /** The panel card's height in pixels, so the window fits it. */
+    resize: (height: number) => void;
+  };
+  permissions: () => Promise<Record<PermissionKind, PermissionState>>;
+  openPermission: (kind: PermissionKind) => Promise<boolean>;
+}
+
+export const desktopBridge: DesktopBridge | undefined = (window as unknown as { bearrokDesktop?: DesktopBridge }).bearrokDesktop;
+
+const KEY = 'bearrok.allowed';
+
+/** Which abilities the student has said agents may use. Separate from what macOS has granted. */
+export function loadAllowed(): Record<PermissionKind, boolean> {
+  try {
+    return { screen: false, disk: false, control: false, ...(JSON.parse(localStorage.getItem(KEY) ?? '{}') as object) };
+  } catch {
+    return { screen: false, disk: false, control: false };
+  }
+}
+
+export function saveAllowed(allowed: Record<PermissionKind, boolean>): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(allowed));
+  } catch {
+    // Not remembered.
+  }
+}

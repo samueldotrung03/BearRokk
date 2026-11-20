@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { config } from '../config.ts';
 import { grokJson, type GrokTool } from '../grok.ts';
 import { cleanDraft, sortByRules, type CalendarEventInput, type EventAsk, type EventVerdict } from './eventSorter.ts';
-import type { Brain, MasterInput } from './brain.ts';
+import type { Brain, DraftedApplication, DraftInput, MasterInput } from './brain.ts';
 import { CATEGORY_LABEL, type AgentGroup, type ReviewFocus, type Assignment, type Brief, type Candidate, type FoundDeadline, type MemorySummary, type Opportunity, type ScoutSpec } from './types.ts';
 
 /**
@@ -228,6 +228,32 @@ Read the notes before the rest of the profile. Put what they ask for at the top 
       tools: tools(),
       system: 'You are an application reader. Open the application page and list the questions or essay prompts it asks, and the materials it requires (résumé, transcript, references). Copy prompts as written. Return empty lists if the page needs a login or shows none.',
       user: `Posting: ${candidate.title} at ${candidate.organizer}\nApply at: ${candidate.actionUrl ?? candidate.sourceUrl}`,
+    });
+    return data;
+  }
+
+  async draftApplication(input: DraftInput): Promise<DraftedApplication> {
+    const Out = z.object({
+      found: z.boolean(),
+      note: z.string(),
+      questions: z.array(z.object({ title: z.string(), prompt: z.string(), wordLimit: z.number().nullable() })),
+      uploads: z.array(z.object({ title: z.string(), prompt: z.string() })),
+    });
+    const known = input.known && (input.known.prompts.length || input.known.materials.length) ? input.known : null;
+    const { data } = await grokJson({
+      name: 'application_drafter',
+      // A student waits on this one call, and a wrong question costs them an essay, so it gets the normal tier.
+      model: this.model('workers', TIER.normal),
+      schema: Out,
+      tools: tools(),
+      system: `You find the real application for one opportunity so a student can write it inside their app. Search the web and open the pages: the organizer's own application page or form first, then the program's FAQ or "how to apply" page, then reliable listings of the same opportunity for the current cycle (university career pages, well-known directories). Do not answer from search snippets alone.
+Return:
+- questions: every question or essay prompt the application asks, copied word for word as the organizer writes it in prompt. title is a short name for it of at most six words, for example "Why this company". wordLimit is the word limit the organizer states for that question, or null if none is stated (a character limit is not a word limit; mention it in the prompt instead).
+- uploads: every document the student must upload or send, such as a résumé, transcript, cover letter, portfolio, writing sample or recommendation. title is its usual short name ("Résumé", "Transcript", "Cover letter"); prompt says what the organizer asks for, with any rules they give (length, format, file type), in their words.
+- found: true only if you found the actual questions or required uploads for this opportunity on a page that states them.
+- note: one or two plain sentences for the student saying where the questions came from (name the page), or, when found is false, that they could not be found and why in a few words (for example the form needs a login). No emoji.
+Never invent, paraphrase into new questions, or fill in typical questions for this kind of application. If no page states them, return found false with empty lists. Basic form fields (name, email, school, graduation year, contact details) are not questions; leave them out.${known ? '\nThe posting reader already read some of the application; include those again only if the page still asks them, and add anything it missed.' : ''}`,
+      user: `Today is ${today()}.\nOpportunity: ${input.title}\nOrganizer: ${input.organizer || 'not known'}\nType: ${input.type ?? 'not known'}\nOrganizer's page: ${input.sourceUrl ?? 'not known'}\nApply at: ${input.actionUrl ?? 'not known'}\nAbout it: ${input.summary ?? 'nothing more known'}${known ? `\nAlready read from the application page: questions ${JSON.stringify(known.prompts)}; uploads ${JSON.stringify(known.materials)}` : ''}`,
     });
     return data;
   }

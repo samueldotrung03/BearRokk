@@ -44,6 +44,8 @@ export const config = {
     /** Let the CLI use its tools without asking. Needed for web search if the CLI asks for approval. */
     alwaysApprove: env.GROK_CLI_ALWAYS_APPROVE === '1',
     timeoutMs: Number(env.GROK_CLI_TIMEOUT_MS ?? 240_000),
+    /** How hard the CLI thinks between steps. Low keeps a search to well under a minute; set it empty for the CLI's own default. */
+    effort: env.GROK_CLI_EFFORT === undefined ? 'low' : env.GROK_CLI_EFFORT || undefined,
     /** CLI processes running at once. Each one is a full program, so far fewer than API calls. */
     concurrency: Number(env.GROK_CLI_CONCURRENCY ?? 3),
   },
