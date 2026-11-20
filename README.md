@@ -6,6 +6,8 @@ The student says what they want. A coordinating agent is meant to scope that req
 
 What you can open today is the BearRok pitch page in `site/`. It is the landing page imported from `website/dist` of the earlier [BearRok](https://github.com/samueldotrung03/BearRok) prototype. The page walks a fixed request through a prepared example. Its agent diagram is labeled as a simulated catalog, and the page says live Grok remains unverified.
 
+The tree also holds a prepared discovery app at the repository root, a dashboard in `dashboard/`, and the Grok agent service in `backend/`. The root discovery screens use the prepared examples in `src/data/opportunities.ts` and do not call that service. [`dashboard/README.md`](dashboard/README.md) describes the on-page explanations as local rules over sample data, each behind a function a Grok call can replace, and each page says so. Without `XAI_API_KEY`, the backend agents run on the labeled simulated catalog. [`backend/README.md`](backend/README.md) says the live Grok path has not been run against a real key yet.
+
 Project start date: November 19, 2026.
 
 **Start from a fresh clone.** You need Git and Python 3. No API key, database, or package install.
@@ -110,7 +112,7 @@ The visit uses the request above and the Cosmo Hacks records already in the pitc
 
 **What needs the student.** Read the source notes, open the organizer pages, and decide whether to register. Answer the club-format question only as a reading of the fixed follow-up. The page does not store the answer.
 
-**What comes out.** A prepared event example with the dates above, the unknown deadline, and the two organizer links. A club listing for this request is not in the repository yet.
+**What comes out.** From the pitch page, a prepared event example with the dates above, the unknown deadline, and the two organizer links. The pitch page has no named club card for this request. The root discovery data does: `src/data/opportunities.ts` includes a prepared CodePath Spring 2027 card, and its notes say the enrollment deadline is unknown.
 
 ## A look inside
 
@@ -160,9 +162,11 @@ Run it from the repository root. Exit 0 means the checks in that file passed. De
 
 Two descriptions live side by side.
 
-The pitch page, for the Cosmo visit, is static. `route` in [`site/app.js`](site/app.js) chooses Home, Demo, or About from the hash. The Check panel is HTML. The source-notes dialog is a string written by `openSourceNotes` when the student clicks. Nothing in this repository writes a database row or calls Grok. The diagram links to the prototype note [`backend/AGENT_SYSTEM.md`](https://github.com/samueldotrung03/BearRok/blob/1b9d2f965b93b600dc6afa7775732e22bd875ee1/backend/AGENT_SYSTEM.md) at commit `1b9d2f9`. That backend is not in this repository.
+The pitch page, for the Cosmo visit, is static. `route` in [`site/app.js`](site/app.js) chooses Home, Demo, or About from the hash. The Check panel is HTML. The source-notes dialog is a string written by `openSourceNotes` when the student clicks. That page does not write a database row or call Grok. The diagram on the page points at an earlier prototype note, [`backend/AGENT_SYSTEM.md` at commit `1b9d2f9`](https://github.com/samueldotrung03/BearRok/blob/1b9d2f965b93b600dc6afa7775732e22bd875ee1/backend/AGENT_SYSTEM.md). This repository has its own copy at [`backend/AGENT_SYSTEM.md`](backend/AGENT_SYSTEM.md).
 
-The hackathon handoff the plan still uses is the table below. [`AGENTS.md`](AGENTS.md) names the coordinator a manager Grok Bot and the workers Club Scout and Event Scout. Building that path is still ahead of this tree.
+The service in `backend/` is the Grok agent system, imported from the BearRok prototype. Without `XAI_API_KEY` the agents run on the labeled simulated catalog and the pages say so. With the key, the coordinator, search workers, and validator call Grok. [`backend/README.md`](backend/README.md) says that live path has not been run against a real key yet. The root discovery screens still use prepared examples and do not call the service. On the dashboard, the on-page explanations are local rules over sample data, each behind a function a Grok call can replace.
+
+[`AGENTS.md`](AGENTS.md) names the coordinator a manager Grok Bot and the workers Club Scout and Event Scout. Those worker names are not identifiers in `backend/`. The handoff the plan still uses is the table below.
 
 | Responsibility | Who decides | What changes | What the next stage receives |
 |---|---|---|---|
@@ -208,6 +212,9 @@ There is no separate unit, integration, or browser end-to-end suite, and no CI w
 .
 ├── AGENTS.md                 # Evidence, unknowns, and Club Scout / Event Scout rules
 ├── README.md                 # This file
+├── backend/                  # Grok agent service; simulated catalog unless XAI_API_KEY is set
+├── dashboard/                # Dashboard and Electron app; sample data and local rule-based explanations
+├── src/                      # Root discovery app and its prepared opportunities
 ├── GrokBot-session/          # GrokBot session folder
 │   ├── cursor-session-export.md
 │   ├── landing-page-chat.md
@@ -228,12 +235,15 @@ There is no separate unit, integration, or browser end-to-end suite, and no CI w
 - The written plan, project start date November 19, 2026.
 - Contributor rules in [`AGENTS.md`](AGENTS.md).
 - The static pitch page, including the prepared Cosmo Hacks example, the Feed image, and the walkthrough video.
+- The root discovery app, with prepared examples in `src/data/opportunities.ts`.
+- The dashboard in `dashboard/`, including the Electron app. Its README says the on-page explanations are local rules over sample data.
+- The Grok agent service in `backend/`. Without `XAI_API_KEY` it uses the simulated catalog.
 - Public chat exports in the GrokBot session folder, [`GrokBot-session/`](GrokBot-session/).
 
 **Still to build for the hackathon demo.**
 
-- A working manager-to-worker path: the request coordinator, Club Scout, Event Scout, validation, and persistence with source evidence. [`AGENTS.md`](AGENTS.md) puts that demo first.
-- A dashboard for the student’s question, follow-up, progress, cards, and organizer links, with prepared, live, empty, and failed searches each visible. The pitch page’s technology row calls dashboard connection a roadmap concept.
+- A live Grok run against a real key. [`backend/README.md`](backend/README.md) says that path has not been run yet. [`AGENTS.md`](AGENTS.md) still names the workers Club Scout and Event Scout; those names are not identifiers in `backend/`.
+- Wiring the root discovery screens to the search service. They still use prepared examples.
 - One manually checked club page to sit beside Cosmo Hacks, with source links and dates recorded.
 - One live student request traced through discovery, validation, storage, and display, once Grok account access is in hand.
 - Submission artifacts named in [`AGENTS.md`](AGENTS.md): a share link for each bot template, a public Grok Bot session export, a public workflow video of up to 2 minutes, and a public slideshow. Career roadmaps are marked on the pitch page as a later direction.
