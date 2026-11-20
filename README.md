@@ -223,6 +223,7 @@ There is no separate unit, integration, or browser end-to-end suite, and no CI w
 - The written plan, project start date November 19, 2026.
 - Contributor rules in [`AGENTS.md`](AGENTS.md).
 - The static pitch page, including the prepared Cosmo Hacks example, the Feed image, and the walkthrough video.
+- A redacted transcript of the Cursor cloud agent that imported the backend: [`docs/cursor-session-export.md`](docs/cursor-session-export.md). This is that agent’s session, not a Grok Bot export.
 
 **Still to build for the hackathon demo.**
 
@@ -230,7 +231,7 @@ There is no separate unit, integration, or browser end-to-end suite, and no CI w
 - A dashboard for the student’s question, follow-up, progress, cards, and organizer links, with prepared, live, empty, and failed searches each visible. The pitch page’s technology row calls dashboard connection a roadmap concept.
 - One manually checked club page to sit beside Cosmo Hacks, with source links and dates recorded.
 - One live student request traced through discovery, validation, storage, and display, once Grok account access is in hand.
-- Submission artifacts named in [`AGENTS.md`](AGENTS.md): a share link for each bot template, a public Grok Bot session export, a public workflow video of up to 2 minutes, and a public slideshow. Career roadmaps are marked on the pitch page as a later direction.
+- Submission artifacts named in [`AGENTS.md`](AGENTS.md) that are still open: a share link for each bot template, a public Grok Bot session export, a public workflow video of up to 2 minutes, and a public slideshow. Career roadmaps are marked on the pitch page as a later direction.
 
 The event is **Thursday, November 19, 2026**. Grok account access is expected around **2 p.m.** Pacific time is assumed for this draft. The exact submission time and the kind of access the team will receive still need confirmation. The windows below are proposed.
 
