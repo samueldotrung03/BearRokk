@@ -1,0 +1,163 @@
+{
+  "search": {
+    "id": "8da45bcc-cda2-4251-a9a0-15a5035d4d0d",
+    "request": "I want to join a beginner-friendly coding club and attend an online hackathon next month.",
+    "status": "complete",
+    "origin": "prepared",
+    "summary": "You are looking for an online club that is beginner-friendly, and an online event between 2026-12-01 and 2026-12-31.",
+    "followUp": {
+      "question": "Should the club also meet online, or do you want one near you?",
+      "answer": "online is fine"
+    },
+    "brief": {
+      "interests": [
+        "coding"
+      ],
+      "dateFrom": "2026-12-01",
+      "dateTo": "2026-12-31",
+      "context": [],
+      "workers": [
+        {
+          "type": "club",
+          "lookingFor": "I want to join a beginner-friendly coding club",
+          "requirements": [
+            "currently accepting new members",
+            "takes place online"
+          ],
+          "preferences": [
+            "beginner-friendly"
+          ],
+          "format": "online",
+          "location": null
+        },
+        {
+          "type": "event",
+          "lookingFor": "attend an online hackathon next month.",
+          "requirements": [
+            "takes place online",
+            "happens between 2026-12-01 and 2026-12-31",
+            "registration is open"
+          ],
+          "preferences": [],
+          "format": "online",
+          "location": null
+        }
+      ]
+    },
+    "workers": [
+      {
+        "type": "club",
+        "status": "done",
+        "candidateCount": 1,
+        "error": null
+      },
+      {
+        "type": "event",
+        "status": "done",
+        "candidateCount": 1,
+        "error": null
+      }
+    ],
+    "resultCount": 2,
+    "error": null,
+    "createdAt": "2026-11-19T00:21:14.472Z",
+    "updatedAt": "2026-11-19T00:21:15.176Z",
+    "durationMs": 616
+  },
+  "opportunities": [
+    {
+      "id": "6688b7a1-75fa-40fb-bdfd-60ed3afaad94",
+      "searchId": "8da45bcc-cda2-4251-a9a0-15a5035d4d0d",
+      "type": "club",
+      "origin": "prepared",
+      "title": "Placeholder Coding Club",
+      "organizer": "Placeholder University Computer Science Society",
+      "sourceUrl": "https://example.org/placeholder-coding-club",
+      "actionUrl": "https://example.org/placeholder-coding-club/join",
+      "format": "online",
+      "location": null,
+      "fitExplanation": "Beginner-friendly coding club that meets online and is taking new members this term.",
+      "lastCheckedAt": "2026-11-19T00:21:15.175Z",
+      "club": {
+        "meetingSchedule": "Wednesdays, 6:00 to 7:30 PM Pacific, on Discord",
+        "membershipIntake": "Fill in the interest form, then join the Discord server. No application or experience required.",
+        "acceptingMembers": true
+      },
+      "event": null,
+      "evidence": [
+        {
+          "field": "meetingSchedule",
+          "quote": "We meet every Wednesday 6-7:30pm PT in the #workshop voice channel.",
+          "url": "https://example.org/placeholder-coding-club"
+        },
+        {
+          "field": "membershipIntake",
+          "quote": "New here? Fill out the interest form and hop into our Discord. No experience needed.",
+          "url": "https://example.org/placeholder-coding-club/join"
+        },
+        {
+          "field": "fit",
+          "quote": "Our fall series starts from zero: variables, loops, then your first web page.",
+          "url": "https://example.org/placeholder-coding-club"
+        }
+      ],
+      "unknowns": [],
+      "uncertainties": [],
+      "alsoSeenAt": [],
+      "linkCheck": "skipped"
+    },
+    {
+      "id": "d355b461-bd2f-4197-971b-f9921b6b5a80",
+      "searchId": "8da45bcc-cda2-4251-a9a0-15a5035d4d0d",
+      "type": "event",
+      "origin": "prepared",
+      "title": "Placeholder Online Hackathon",
+      "organizer": "Placeholder Hack Collective",
+      "sourceUrl": "https://example.org/placeholder-hackathon",
+      "actionUrl": "https://example.org/placeholder-hackathon/register",
+      "format": "online",
+      "location": null,
+      "fitExplanation": "Online hackathon next month with a first-timer track.",
+      "lastCheckedAt": "2026-11-19T00:21:15.175Z",
+      "club": null,
+      "event": {
+        "startTime": "2026-12-12T09:00:00-08:00",
+        "endTime": "2026-12-13T17:00:00-08:00",
+        "timeZone": "America/Los_Angeles",
+        "registrationDeadline": null,
+        "registrationOpen": true
+      },
+      "evidence": [
+        {
+          "field": "startTime",
+          "quote": "Hacking begins Saturday, December 12 at 9:00 AM PT.",
+          "url": "https://example.org/placeholder-hackathon"
+        },
+        {
+          "field": "endTime",
+          "quote": "Submissions close Sunday, December 13 at 5:00 PM PT.",
+          "url": "https://example.org/placeholder-hackathon"
+        },
+        {
+          "field": "registrationOpen",
+          "quote": "Registration is open. Sign up free.",
+          "url": "https://example.org/placeholder-hackathon/register"
+        },
+        {
+          "field": "fit",
+          "quote": "First hackathon? Join the beginner track with mentors on call.",
+          "url": "https://example.org/placeholder-hackathon"
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "registrationDeadline",
+          "label": "Registration deadline unknown"
+        }
+      ],
+      "uncertainties": [],
+      "alsoSeenAt": [],
+      "linkCheck": "skipped"
+    }
+  ]
+}
