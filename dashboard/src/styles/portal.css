@@ -1,0 +1,922 @@
+/* Application portal (/applications/:id) and its read-only view. Plain CSS on the theme variables
+   from src/index.css and src/styles/theme.css, so it follows light and dark; every class starts
+   with pt- so nothing here can leak into another page. */
+
+/* ---------- Header ---------- */
+
+.pt-head {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pt-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pt-head-main {
+  align-items: flex-end;
+}
+
+.pt-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+
+.pt-back:hover {
+  text-decoration: underline;
+}
+
+.pt-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+}
+
+.pt-facts dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+.pt-facts dd {
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.pt-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--color-brand-soft);
+  color: var(--brand-text);
+}
+
+.pt-status[data-status='applied'] {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.pt-status[data-status='interested'] {
+  background: var(--surface-3);
+  color: var(--color-ink-2);
+}
+
+.pt-days {
+  color: var(--color-ink-3);
+}
+
+.pt-days[data-soon] {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.pt-ext {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--brand-text);
+}
+
+.pt-ext:hover {
+  text-decoration: underline;
+}
+
+.pt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--color-line);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.pt-btn:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.pt-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pt-btn-primary {
+  border-color: transparent;
+  background: var(--color-brand);
+  color: var(--on-brand);
+  box-shadow: 0 5px 12px rgb(36 91 216 / 0.18);
+}
+
+.pt-btn-primary:hover:not(:disabled) {
+  border-color: transparent;
+  background: #1d4fc4;
+}
+
+.pt-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-3);
+}
+
+.pt-save[data-state='saved'] {
+  color: var(--ok);
+}
+
+.pt-save[data-state='retrying'] {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.pt-applied-note {
+  font-size: 13px;
+  color: var(--ok);
+}
+
+.pt-problem {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* ---------- Layout: the left bar sticks while the part on the right scrolls ---------- */
+
+.pt-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .pt-layout {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .pt-side-card {
+    position: sticky;
+    top: 16px;
+    z-index: 5;
+  }
+
+  /* A long list scrolls inside the bar; the bar itself does not, so the add menu is never cut off. */
+  .pt-tabs {
+    max-height: calc(100dvh - 210px);
+    overflow-y: auto;
+  }
+}
+
+.pt-main {
+  min-height: 420px;
+}
+
+/* ---------- Left bar ---------- */
+
+.pt-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 8px 8px;
+}
+
+.pt-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 0;
+}
+
+.pt-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+}
+
+.pt-tab[data-dragging] {
+  opacity: 0.45;
+}
+
+/* The line where a dragged tab will land. */
+.pt-tab[data-drop]::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--color-brand);
+  pointer-events: none;
+}
+
+.pt-tab[data-drop='before']::before {
+  top: -2.5px;
+}
+
+.pt-tab[data-drop='after']::before {
+  bottom: -2.5px;
+}
+
+.pt-grip {
+  position: absolute;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--color-ink-3);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 0.15s;
+}
+
+.pt-tab:hover .pt-grip {
+  opacity: 0.7;
+}
+
+.pt-tab-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px 9px 16px;
+  border-radius: 12px;
+  text-align: left;
+  color: var(--color-ink-2);
+  transition: background 0.15s;
+}
+
+.pt-tab-main:hover {
+  background: var(--surface-2);
+}
+
+.pt-tab-main[aria-current='true'] {
+  background: var(--color-brand-soft);
+  color: var(--brand-text);
+}
+
+.pt-tab-title {
+  display: block;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-ink);
+}
+
+.pt-tab-main[aria-current='true'] .pt-tab-title {
+  color: var(--brand-text);
+}
+
+.pt-tab-words {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-tab-words[data-over] {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.pt-tick {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--ok);
+  color: var(--surface);
+}
+
+.pt-tick-empty {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-strong);
+}
+
+/* Move buttons show on hover or when the tab has keyboard focus. */
+.pt-moves {
+  position: absolute;
+  right: 32px;
+  display: none;
+  gap: 2px;
+}
+
+.pt-tab:hover .pt-moves,
+.pt-tab:focus-within .pt-moves {
+  display: flex;
+}
+
+.pt-move {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--color-line);
+  color: var(--color-ink-2);
+}
+
+.pt-move:hover:not(:disabled) {
+  color: var(--brand-text);
+  border-color: var(--line-strong);
+}
+
+.pt-move:disabled {
+  opacity: 0.35;
+}
+
+.pt-side-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 6px 4px;
+  border-top: 1px solid var(--color-line);
+}
+
+.pt-draft-note {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-ink-2);
+}
+
+.pt-find {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+
+.pt-find:disabled {
+  color: var(--color-ink-3);
+}
+
+/* ---------- Add menu ---------- */
+
+.pt-add {
+  position: relative;
+}
+
+.pt-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--color-brand);
+  color: var(--on-brand);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pt-add-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pt-add-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 250px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--color-line);
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+}
+
+.pt-add-item {
+  display: flex;
+  width: 100%;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.pt-add-item:hover,
+.pt-add-item:focus-visible {
+  background: var(--surface-2);
+}
+
+/* ---------- Editor ---------- */
+
+.pt-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 760px;
+}
+
+.pt-editor-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pt-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+
+.pt-done-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+
+.pt-done-btn:hover {
+  border-color: var(--line-strong);
+}
+
+.pt-done-btn[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.pt-icon-btn {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: var(--color-ink-3);
+}
+
+.pt-icon-btn:hover {
+  background: var(--surface-3);
+  color: var(--color-ink);
+}
+
+.pt-title-input {
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+
+.pt-title-input:hover {
+  border-bottom-color: var(--color-line);
+}
+
+.pt-title-input:focus {
+  outline: none;
+  border-bottom-color: var(--color-brand);
+}
+
+.pt-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pt-field {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pt-field-narrow {
+  flex: 0 0 170px;
+}
+
+.pt-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+
+.pt-prompt-input,
+.pt-number {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-line);
+  background: var(--surface-2);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  resize: vertical;
+}
+
+.pt-prompt-input:focus,
+.pt-number:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  background: var(--surface);
+}
+
+.pt-prompt {
+  padding: 12px 16px;
+  border-left: 3px solid var(--color-brand);
+  border-radius: 0 10px 10px 0;
+  background: var(--surface-2);
+  font-size: 16px;
+  font-style: italic;
+  line-height: 1.55;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+.pt-prompt-missing {
+  color: var(--color-ink-3);
+}
+
+.pt-limit {
+  font-size: 13px;
+  color: var(--color-ink-3);
+}
+
+/* The writing area: a serif reading face at a comfortable measure, growing with the text. */
+.pt-writing {
+  display: block;
+  width: 100%;
+  max-width: 70ch;
+  min-height: 340px;
+  field-sizing: content;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid var(--color-line);
+  background: var(--surface);
+  font-family: 'Iowan Old Style', 'Charter', 'Palatino Linotype', Georgia, serif;
+  font-size: 17.5px;
+  line-height: 1.7;
+  color: var(--color-ink);
+  resize: none;
+  overflow: hidden;
+}
+
+.pt-writing:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-soft);
+}
+
+.pt-writing[data-over] {
+  border-color: var(--danger);
+}
+
+.pt-count {
+  font-size: 13px;
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-count[data-over] {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* ---------- Uploads ---------- */
+
+.pt-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pt-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 20px;
+  border-radius: 16px;
+  border: 2px dashed var(--line-strong);
+  background: var(--surface-2);
+  text-align: center;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.pt-drop[data-over] {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.pt-local-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+
+.pt-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pt-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  background: var(--surface);
+}
+
+/* ---------- Empty right pane ---------- */
+
+.pt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 560px;
+  padding: 24px 4px;
+}
+
+.pt-empty-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--color-ink);
+}
+
+.pt-empty-text {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-ink-2);
+}
+
+/* ---------- Undo toast ---------- */
+
+.pt-toast {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(440px, calc(100vw - 32px));
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  background: #152b43;
+  color: #ffffff;
+  font-size: 14px;
+  box-shadow: var(--shadow-lift);
+  transform: translateX(-50%);
+}
+
+.pt-toast-undo {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  color: #9cc0ff;
+}
+
+.pt-toast-undo:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.pt-toast-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: rgb(255 255 255 / 0.7);
+}
+
+/* ---------- View all ---------- */
+
+.pt-view-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  max-width: 820px;
+  margin: 0 auto 14px;
+}
+
+.pt-paper {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 48px 56px 64px;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  color: var(--color-ink);
+}
+
+@media (max-width: 640px) {
+  .pt-paper {
+    padding: 28px 22px 40px;
+  }
+}
+
+.pt-read-head {
+  padding-bottom: 22px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.pt-read-title {
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 1.1;
+}
+
+.pt-read-org {
+  margin-top: 6px;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+}
+
+.pt-read-meta {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--color-ink-3);
+}
+
+.pt-read-part {
+  padding: 26px 0 6px;
+  break-inside: avoid-page;
+}
+
+.pt-read-part + .pt-read-part {
+  border-top: 1px solid var(--color-line);
+}
+
+.pt-read-kicker {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+.pt-read-h2 {
+  margin-top: 4px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.pt-read-prompt {
+  margin-top: 10px;
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--color-ink-2);
+  white-space: pre-wrap;
+}
+
+.pt-read-body {
+  margin-top: 14px;
+  font-family: 'Iowan Old Style', 'Charter', 'Palatino Linotype', Georgia, serif;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.pt-read-body p {
+  white-space: pre-wrap;
+}
+
+.pt-read-body p + p {
+  margin-top: 0.9em;
+}
+
+.pt-read-count {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--color-ink-3);
+}
+
+.pt-read-count[data-over] {
+  color: var(--danger);
+}
+
+.pt-read-files {
+  margin-top: 12px;
+  padding-left: 20px;
+  list-style: disc;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.pt-read-size {
+  color: var(--color-ink-3);
+}
+
+.pt-read-empty {
+  margin-top: 12px;
+  font-style: italic;
+  color: var(--color-ink-3);
+}
+
+/* Printing shows the application alone: everything else on the screen (the dock, the header,
+   the assistant) is hidden, and the paper is printed in black on white. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .pt-print-root,
+  .pt-print-root * {
+    visibility: visible;
+  }
+
+  .pt-print-root {
+    position: absolute;
+    inset: 0 0 auto 0;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #ffffff;
+    color: #000000;
+  }
+
+  .pt-print-root * {
+    color: #000000 !important;
+  }
+
+  .pt-noprint {
+    display: none !important;
+  }
+
+  .sky {
+    display: none;
+  }
+}
+
+/* Where a narrow window scrolls to when a part is picked, clear of the top edge. */
+.pt-anchor {
+  display: block;
+  scroll-margin-top: 16px;
+}

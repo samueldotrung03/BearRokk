@@ -1,0 +1,119 @@
+/* Dark theme for the base calendar (cal-*) and application (status-select, app-*) classes that live
+   in src/index.css. Ordinary items are brand-blue text on a brand tint; must-do items are orange
+   text on an orange tint. */
+
+:root[data-theme='dark'] {
+  --cx-must: #fb923c;
+  --cx-must-text: #fdba74;
+  --cx-must-soft: rgb(251 146 60 / 0.13);
+  --cx-must-strong: rgb(251 146 60 / 0.22);
+  --cx-must-line: rgb(251 146 60 / 0.4);
+}
+
+/* ---------- Calendar ---------- */
+
+:root[data-theme='dark'] .cal-tile-count:is([data-tone='must'], [data-tone='late']) {
+  color: var(--cx-must-text);
+}
+:root[data-theme='dark'] .cal-tile-count[data-tone='should'] {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .cal-nav {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .cal-nav:hover {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .cal-item[data-priority='must'] .cal-dot {
+  background: var(--cx-must);
+}
+:root[data-theme='dark'] .cal-cell {
+  background: var(--surface);
+}
+:root[data-theme='dark'] .cal-cell:hover {
+  border-color: var(--line-strong);
+}
+:root[data-theme='dark'] .cal-cell[data-outside='true'] {
+  background: rgb(255 255 255 / 0.015);
+}
+:root[data-theme='dark'] .cal-cell[aria-selected='true'] {
+  border-color: var(--color-brand);
+}
+:root[data-theme='dark'] .cal-pill {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .cal-pill[data-priority='must'] {
+  border-left-color: var(--cx-must);
+  color: var(--cx-must-text);
+  background: var(--cx-must-soft);
+}
+:root[data-theme='dark'] .cal-group {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .cal-group[data-priority='must'] {
+  color: var(--cx-must-text);
+}
+:root[data-theme='dark'] .cal-group span {
+  color: var(--brand-text);
+  background: var(--color-brand-soft);
+}
+:root[data-theme='dark'] .cal-group[data-priority='must'] span {
+  color: var(--cx-must-text);
+  background: var(--cx-must-soft);
+}
+:root[data-theme='dark'] .cal-item {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .cal-item[data-priority='must'] {
+  border-left-color: var(--cx-must);
+  background: var(--cx-must-soft);
+}
+:root[data-theme='dark'] .cal-next[data-priority='must'] {
+  border-left-color: var(--cx-must);
+}
+:root[data-theme='dark'] .cal-next:hover {
+  background: var(--surface-3);
+}
+
+/* ---------- Applications ---------- */
+
+/* The arrow is redrawn in a light gray so it shows on the dark field. */
+:root[data-theme='dark'] .status-select select {
+  background: var(--surface-2)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12' fill='none' stroke='%23b4bbc9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  color-scheme: dark;
+}
+:root[data-theme='dark'] .status-select:not([data-status='none']) select {
+  border-color: rgb(110 155 255 / 0.4);
+  background-color: var(--color-brand-soft);
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .status-select[data-status='applied'] select {
+  border-color: rgb(52 211 153 / 0.4);
+  background-color: var(--ok-soft);
+  color: var(--ok);
+}
+:root[data-theme='dark'] .app-status {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .app-status button[aria-pressed='true'] {
+  background: var(--surface-3);
+  color: var(--color-ink);
+  box-shadow: 0 0 0 1px var(--color-line);
+}
+:root[data-theme='dark'] .app-reminder {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .app-link {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .app-tile {
+  border-color: var(--color-line);
+  background: var(--surface);
+  box-shadow: none;
+}
+:root[data-theme='dark'] .app-tile[aria-pressed='true'] {
+  border-color: var(--color-brand);
+  color: var(--brand-text);
+}

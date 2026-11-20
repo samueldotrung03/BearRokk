@@ -1,0 +1,1578 @@
+/* Agents page. The hero follows the dark navy "Agents live" window (.usage-hero in index.css);
+   the cards below it use the same white glass as the rest of the dashboard. */
+
+.ag-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 22px 24px 24px;
+  color: white;
+  background:
+    radial-gradient(70% 60% at 100% 0%, rgb(86 150 255 / 0.42), transparent 62%),
+    radial-gradient(60% 50% at 0% 100%, rgb(36 91 216 / 0.35), transparent 60%),
+    linear-gradient(165deg, #1d3a5c 0%, #152b43 55%, #0f2236 100%);
+  box-shadow: var(--shadow-lift);
+}
+
+/* A faint dot grid, the "map paper" the hierarchy sits on. */
+.ag-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(180deg, transparent, black 30%, black 80%, transparent);
+}
+
+.ag-hero > * {
+  position: relative;
+}
+
+.ag-honest {
+  color: rgb(255 255 255 / 0.62);
+  font-size: 12.5px;
+}
+
+/* Buttons on the dark hero. */
+.ag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: rgb(255 255 255 / 0.1);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.ag-btn:hover {
+  background: rgb(255 255 255 / 0.18);
+}
+
+.ag-btn:active {
+  transform: translateY(1px);
+}
+
+.ag-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ag-btn[data-primary='true'] {
+  background: var(--color-brand);
+  border-color: rgb(120 170 255 / 0.6);
+  box-shadow: 0 6px 20px -8px rgb(36 91 216 / 0.9);
+}
+
+.ag-btn[data-primary='true']:hover {
+  background: #2f69ea;
+}
+
+.ag-seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 11px;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.ag-seg button {
+  height: 26px;
+  min-width: 36px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.ag-seg button[aria-pressed='true'] {
+  color: var(--color-ink);
+  background: white;
+}
+
+.ag-chip-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: rgb(255 255 255 / 0.8);
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+
+button.ag-chip-dark:hover {
+  color: white;
+  background: rgb(255 255 255 / 0.16);
+}
+
+/* "Tell your agents": the command bar at the top of the hero. */
+.ag-command {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.96);
+  color: var(--color-ink);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.6),
+    0 10px 40px -12px rgb(86 150 255 / 0.75);
+  transition: box-shadow 0.2s ease;
+}
+
+.ag-command:focus-within {
+  box-shadow:
+    0 0 0 3px rgb(245 196 81 / 0.85),
+    0 10px 40px -10px rgb(245 196 81 / 0.55);
+}
+
+.ag-command input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  background: transparent;
+  font-size: 15px;
+  outline: none;
+}
+
+.ag-command input::placeholder {
+  color: var(--color-ink-3);
+}
+
+.ag-directive {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  animation: ag-pop 0.25s ease-out both;
+}
+
+.ag-directive[data-kind='focus'] {
+  color: #0c5b2a;
+  background: #dcf7e6;
+}
+
+.ag-directive[data-kind='avoid'] {
+  color: #8a1c2f;
+  background: #ffe1e6;
+}
+
+.ag-directive[data-kind='only'] {
+  color: #6b4a00;
+  background: #fff0c7;
+}
+
+.ag-directive[data-kind='unknown'] {
+  color: var(--color-ink-2);
+  background: var(--color-brand-soft);
+  font-weight: 500;
+}
+
+.ag-hero .ag-directive[data-kind='unknown'] {
+  color: rgb(255 255 255 / 0.75);
+  background: rgb(255 255 255 / 0.1);
+}
+
+/* Counters. */
+.ag-stat-num {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-stat-label {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgb(255 255 255 / 0.58);
+}
+
+/* The hierarchy map. */
+.ag-graph-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 22px;
+  background: rgb(8 20 34 / 0.35);
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.ag-graph {
+  position: relative;
+}
+
+.ag-graph svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.ag-edge {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.13);
+  stroke-width: 1.5;
+  transition: stroke 0.3s ease, opacity 0.3s ease;
+}
+
+.ag-edge[data-active] {
+  stroke-width: 2;
+  stroke-dasharray: 5 7;
+  animation: ag-dash 0.7s linear infinite;
+}
+
+.ag-edge[data-active='brief'] { stroke: #f5c451; }
+.ag-edge[data-active='job'] { stroke: #8ec5ff; }
+.ag-edge[data-active='result'] { stroke: #b6ecff; }
+.ag-edge[data-active='keep'] { stroke: #34c759; }
+.ag-edge[data-active='reject'] { stroke: #ff7a8f; }
+.ag-edge[data-active='feed'] { stroke: white; }
+
+.ag-row-label {
+  position: absolute;
+  left: 14px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.38);
+  pointer-events: none;
+}
+
+.ag-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+  padding: 6px 10px;
+  border-radius: 14px;
+  text-align: left;
+  color: white;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.3s ease;
+}
+
+.ag-node:hover {
+  background: rgb(255 255 255 / 0.11);
+}
+
+.ag-node[aria-pressed='true'] {
+  outline: 2px solid white;
+  outline-offset: 3px;
+}
+
+.ag-node[data-status='working'] {
+  background: rgb(86 150 255 / 0.18);
+  border-color: rgb(140 190 255 / 0.75);
+  box-shadow:
+    0 0 0 1px rgb(120 180 255 / 0.25),
+    0 0 26px -2px rgb(86 150 255 / 0.55);
+}
+
+.ag-node[data-status='waiting'] {
+  border-color: rgb(245 196 81 / 0.55);
+}
+
+.ag-node[data-status='done'] {
+  border-color: rgb(52 199 89 / 0.45);
+}
+
+/* A shimmer along the bottom edge while an agent works. */
+.ag-node[data-status='working']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgb(190 225 255 / 0.95), transparent);
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  animation: ag-shimmer 1.2s ease-in-out infinite;
+}
+
+.ag-node[data-level='master'] {
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgb(86 150 255 / 0.4), transparent 60%),
+    rgb(255 255 255 / 0.08);
+}
+
+.ag-node[data-level='presenter'] {
+  border-radius: 16px;
+}
+
+.ag-node-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ag-node[data-level='master'] .ag-node-title {
+  font-size: 15px;
+}
+
+.ag-node-sub {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.ag-node-count {
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.75);
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #6b7f96;
+}
+
+.ag-dot[data-status='working'] {
+  background: #34c759;
+  box-shadow: 0 0 0 0 rgb(52 199 89 / 0.6);
+  animation: ag-ping 1.4s ease-out infinite;
+}
+
+.ag-dot[data-status='waiting'] {
+  background: #f5c451;
+}
+
+.ag-dot[data-status='done'] {
+  background: #5aa0ff;
+}
+
+.ag-feed-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--color-ink);
+  background: white;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 8px 30px -10px rgb(255 255 255 / 0.6);
+  transition: transform 0.2s ease;
+}
+
+.ag-feed-node:hover {
+  transform: translate(-50%, -50%) scale(1.04);
+}
+
+.ag-feed-node[data-flash='true'] {
+  animation: ag-flash 0.9s ease-out;
+}
+
+/* Side cards on the master's row: what started the run, and the brief it produced. */
+.ag-side-card {
+  position: absolute;
+  top: 14px;
+  width: calc(50% - 140px);
+  max-width: 250px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  line-height: 1.35;
+  background: rgb(255 255 255 / 0.05);
+  border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.ag-side-card[data-fresh='true'] {
+  animation: ag-glow 1.6s ease-out;
+}
+
+.ag-side-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.45);
+}
+
+/* Pulses that travel along the connectors. The path comes from the inline offset-path. */
+.ag-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  offset-rotate: 0deg;
+  offset-anchor: center;
+  pointer-events: none;
+  animation: ag-travel var(--ag-ms, 900ms) cubic-bezier(0.45, 0, 0.25, 1) both;
+}
+
+.ag-pulse[data-reverse='true'] {
+  animation-name: ag-travel-back;
+}
+
+/* A backend pulse repeats for as long as the agent at its lower end is running. */
+.ag-pulse[data-loop='true'] {
+  animation-iteration-count: infinite;
+}
+
+/* Where connectors meet between rows, such as the backend's shared job queue. */
+.ag-hub {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  background: rgb(21 43 67 / 0.92);
+  color: rgb(255 255 255 / 0.7);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.ag-pulse-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 12px 3px currentColor;
+}
+
+.ag-pulse-pill {
+  display: block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #152b43;
+  background: currentColor;
+  box-shadow: 0 0 16px 2px currentColor;
+}
+
+.ag-pulse-pill > span {
+  color: #152b43;
+}
+
+.ag-pulse[data-kind='brief'] { color: #f5c451; }
+.ag-pulse[data-kind='job'] { color: #8ec5ff; }
+.ag-pulse[data-kind='result'] { color: #b6ecff; }
+.ag-pulse[data-kind='keep'] { color: #34c759; }
+.ag-pulse[data-kind='reject'] { color: #ff7a8f; }
+.ag-pulse[data-kind='feed'] { color: white; }
+
+/* Detail panel and activity stream inside the hero. */
+.ag-panel {
+  border-radius: 20px;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.ag-panel-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.45);
+}
+
+.ag-log {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.2) transparent;
+}
+
+.ag-log li {
+  animation: ag-slide 0.35s ease-out both;
+}
+
+.ag-log-bar {
+  flex-shrink: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.25);
+}
+
+.ag-log-bar[data-tone='brief'] { background: #f5c451; }
+.ag-log-bar[data-tone='keep'] { background: #34c759; }
+.ag-log-bar[data-tone='reject'] { background: #ff7a8f; }
+.ag-log-bar[data-tone='done'] { background: #5aa0ff; }
+
+/* The funnel. Bars are centered so the stack reads as a funnel. */
+.ag-funnel-bar {
+  height: 34px;
+  margin: 0 auto;
+  border-radius: 10px;
+  min-width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-family: var(--font-display);
+  font-size: 22px;
+  background: linear-gradient(90deg, var(--color-brand), #4f8bf0);
+  box-shadow: 0 8px 20px -12px rgb(36 91 216 / 0.8);
+  transition: width 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+
+.ag-funnel-row[data-stage='4'] .ag-funnel-bar {
+  background: linear-gradient(90deg, #1f9d55, #34c759);
+  box-shadow: 0 8px 20px -12px rgb(31 157 85 / 0.9);
+}
+
+.ag-funnel-track {
+  border-radius: 10px;
+  background: var(--color-brand-soft);
+}
+
+.ag-reason {
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: white;
+}
+
+.ag-reason summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.ag-reason summary::-webkit-details-marker {
+  display: none;
+}
+
+.ag-reason[open] .ag-caret {
+  transform: rotate(90deg);
+}
+
+.ag-caret {
+  transition: transform 0.2s ease;
+}
+
+/* Brief card on white. */
+.ag-slot {
+  border-radius: 14px;
+  border: 1px solid var(--color-line);
+  background: linear-gradient(180deg, white, var(--color-canvas));
+  animation: ag-pop 0.3s ease-out both;
+}
+
+.ag-from {
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.ag-from[data-from='you'] { color: #6b4a00; background: #fff0c7; }
+.ag-from[data-from='profile'] { color: var(--color-brand); background: var(--color-brand-soft); }
+.ag-from[data-from='memory'] { color: #5b3fb5; background: #efe9ff; }
+
+/* Small bars for usage and the week chart. */
+.ag-meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  display: flex;
+}
+
+.ag-meter > span {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.ag-week {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: end;
+  gap: 8px;
+  height: 96px;
+}
+
+.ag-week-bar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 7px 7px 3px 3px;
+  background: #c9daf6;
+  transition: height 0.5s ease;
+}
+
+.ag-week-bar[data-today='true'] {
+  background: var(--color-brand);
+}
+
+.ag-week-bar > span {
+  background: #f5c451;
+  transition: height 0.5s ease;
+}
+
+@keyframes ag-travel {
+  from { offset-distance: 0%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  to { offset-distance: 100%; opacity: 0; }
+}
+
+@keyframes ag-travel-back {
+  from { offset-distance: 100%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  to { offset-distance: 0%; opacity: 0; }
+}
+
+@keyframes ag-dash {
+  to { stroke-dashoffset: -24; }
+}
+
+@keyframes ag-shimmer {
+  from { background-position: -50% 0; }
+  to { background-position: 150% 0; }
+}
+
+@keyframes ag-ping {
+  0% { box-shadow: 0 0 0 0 rgb(52 199 89 / 0.6); }
+  100% { box-shadow: 0 0 0 7px rgb(52 199 89 / 0); }
+}
+
+@keyframes ag-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ag-slide {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ag-glow {
+  0% { border-color: rgb(245 196 81 / 0.9); box-shadow: 0 0 0 3px rgb(245 196 81 / 0.25); }
+  100% { border-color: rgb(255 255 255 / 0.1); box-shadow: none; }
+}
+
+@keyframes ag-flash {
+  0% { box-shadow: 0 0 0 0 rgb(255 255 255 / 0.9); }
+  100% { box-shadow: 0 0 0 16px rgb(255 255 255 / 0); }
+}
+
+/* With reduced motion nothing travels or pulses; the states and counts still update. */
+@media (prefers-reduced-motion: reduce) {
+  .ag-pulse {
+    display: none;
+  }
+
+  .ag-edge[data-active],
+  .ag-node[data-status='working']::after,
+  .ag-dot[data-status='working'],
+  .ag-log li,
+  .ag-directive,
+  .ag-slot,
+  .ag-side-card[data-fresh='true'],
+  .ag-feed-node[data-flash='true'] {
+    animation: none;
+  }
+
+  .ag-funnel-bar,
+  .ag-meter > span,
+  .ag-week-bar,
+  .ag-week-bar > span,
+  .ag-node {
+    transition: none;
+  }
+}
+
+/* ---------- Dark theme ---------- */
+
+/* The run panel becomes a quiet raised surface instead of navy; everything inside it already uses
+   white at low opacity, so it reads the same. */
+:root[data-theme='dark'] .ag-hero {
+  background:
+    radial-gradient(70% 60% at 100% 0%, rgb(110 155 255 / 0.13), transparent 62%),
+    radial-gradient(60% 50% at 0% 100%, rgb(132 96 255 / 0.08), transparent 60%),
+    var(--surface);
+  box-shadow:
+    inset 0 0 0 1px var(--color-line),
+    var(--shadow-card);
+}
+:root[data-theme='dark'] .ag-btn {
+  background: var(--surface-2);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-btn:hover {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .ag-btn[data-primary='true'] {
+  color: #0a0b0f;
+  background: #fff;
+  border-color: transparent;
+  box-shadow: none;
+}
+:root[data-theme='dark'] .ag-btn[data-primary='true']:hover {
+  background: #e6e9ef;
+}
+:root[data-theme='dark'] .ag-seg {
+  background: var(--surface-2);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-seg button[aria-pressed='true'] {
+  color: #0a0b0f;
+  background: #fff;
+}
+:root[data-theme='dark'] .ag-chip-dark {
+  background: var(--surface-2);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] button.ag-chip-dark:hover {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .ag-command {
+  color: var(--color-ink);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+:root[data-theme='dark'] .ag-command:focus-within {
+  box-shadow:
+    0 0 0 1px var(--color-brand),
+    0 0 0 4px rgb(110 155 255 / 0.22);
+}
+:root[data-theme='dark'] .ag-directive[data-kind='focus'] {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+:root[data-theme='dark'] .ag-directive[data-kind='avoid'] {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+:root[data-theme='dark'] .ag-directive[data-kind='only'] {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+:root[data-theme='dark'] .ag-graph-scroll {
+  background: rgb(0 0 0 / 0.28);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-node[data-level='master'] {
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgb(110 155 255 / 0.26), transparent 60%),
+    rgb(255 255 255 / 0.06);
+}
+:root[data-theme='dark'] .ag-dot {
+  background: #5d6577;
+}
+:root[data-theme='dark'] .ag-feed-node {
+  color: #0a0b0f;
+  background: #fff;
+  box-shadow: 0 8px 30px -12px rgb(255 255 255 / 0.35);
+}
+:root[data-theme='dark'] .ag-hub {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+:root[data-theme='dark'] :is(.ag-pulse-pill, .ag-pulse-pill > span) {
+  color: #0a0b0f;
+}
+:root[data-theme='dark'] .ag-panel {
+  background: rgb(255 255 255 / 0.03);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-side-card {
+  background: rgb(255 255 255 / 0.03);
+  border-color: var(--color-line);
+}
+:root[data-theme='dark'] .ag-funnel-bar {
+  background: linear-gradient(90deg, var(--color-brand), #6e9bff);
+  box-shadow: none;
+}
+:root[data-theme='dark'] .ag-funnel-row[data-stage='4'] .ag-funnel-bar {
+  background: linear-gradient(90deg, #059669, #34d399);
+  box-shadow: none;
+}
+:root[data-theme='dark'] :is(.ag-funnel-track, .ag-meter) {
+  background: var(--surface-3);
+}
+:root[data-theme='dark'] .ag-reason {
+  background: var(--surface-2);
+}
+:root[data-theme='dark'] .ag-slot {
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+}
+:root[data-theme='dark'] .ag-from[data-from='you'] {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+:root[data-theme='dark'] .ag-from[data-from='profile'] {
+  color: var(--brand-text);
+}
+:root[data-theme='dark'] .ag-from[data-from='memory'] {
+  color: #c4b5fd;
+  background: rgb(167 139 250 / 0.14);
+}
+:root[data-theme='dark'] .ag-week-bar {
+  background: rgb(110 155 255 / 0.22);
+}
+:root[data-theme='dark'] .ag-week-bar[data-today='true'] {
+  background: var(--color-brand);
+}
+
+/* ---------- xAI type and buttons ----------
+   The page keeps its layout and colours; only type and buttons follow xAI's style: a neutral
+   grotesk (Geist), monospace uppercase labels and numbers (Geist Mono), and pill buttons, white
+   on the dark run panel and black on the white cards. */
+
+.ag-xai {
+  --font-sans: 'Geist Variable', 'DM Sans Variable', Arial, sans-serif;
+  --ag-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-family: var(--font-sans);
+  letter-spacing: -0.005em;
+}
+
+.ag-xai h1.font-display {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.ag-xai :is(h2, h3).font-display,
+.ag-xai #ag-run-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.ag-xai :is(.ag-stat-num, .ag-funnel-bar, .ag-node-count, .tabular-nums) {
+  font-family: var(--ag-mono);
+  letter-spacing: -0.03em;
+}
+
+.ag-xai .font-display {
+  font-family: var(--ag-mono);
+  letter-spacing: -0.03em;
+}
+
+.ag-xai :is(.ag-stat-label, .ag-panel-label, .ag-side-label, .ag-row-label) {
+  font-family: var(--ag-mono);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+/* Buttons on the dark run panel: a white pill for the main action, outlined pills for the rest. */
+:root .ag-xai .ag-btn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: white;
+  background: transparent;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  box-shadow: none;
+}
+
+:root .ag-xai .ag-btn[aria-label] {
+  width: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
+:root .ag-xai .ag-btn:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.1);
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+:root .ag-xai .ag-btn[data-primary='true'] {
+  color: #000;
+  background: #fff;
+  border-color: #fff;
+  box-shadow: none;
+}
+
+:root .ag-xai .ag-btn[data-primary='true']:hover {
+  background: #e6e6e6;
+  border-color: #e6e6e6;
+}
+
+:root .ag-xai .ag-seg {
+  padding: 3px;
+  border-radius: 999px;
+  background: transparent;
+  border-color: rgb(255 255 255 / 0.22);
+}
+
+:root .ag-xai .ag-seg button {
+  height: 28px;
+  border-radius: 999px;
+  font-family: var(--ag-mono);
+  font-weight: 500;
+}
+
+:root .ag-xai .ag-seg button[aria-pressed='true'] {
+  color: #000;
+  background: #fff;
+}
+
+:root .ag-xai .ag-chip-dark {
+  font-weight: 500;
+  background: transparent;
+  border-color: rgb(255 255 255 / 0.2);
+}
+
+:root .ag-xai button.ag-chip-dark:hover {
+  background: rgb(255 255 255 / 0.1);
+  border-color: rgb(255 255 255 / 0.4);
+}
+
+/* The command bar keeps its white field; it and its send button become pills. */
+:root .ag-xai .ag-command {
+  border-radius: 999px;
+  padding-left: 20px;
+}
+
+:root .ag-xai .ag-command .btn-primary {
+  border-radius: 999px;
+  color: white;
+  background: #000;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+:root .ag-xai .ag-command .btn-primary:hover:not(:disabled) {
+  background: #262626;
+  transform: none;
+}
+
+/* Buttons on the white cards: black pills. */
+:root .ag-xai .btn-primary {
+  border-radius: 999px;
+  color: white;
+  background: #000;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+:root .ag-xai .btn-primary:hover {
+  background: #262626;
+  transform: none;
+}
+
+/* ---------- The map: each agent is a Grok bot with its name under it ---------- */
+
+:root .ag-xai .ag-node {
+  align-items: center;
+  gap: 1px;
+  padding: 0 2px;
+  overflow: visible;
+  text-align: center;
+  background: none;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root .ag-xai .ag-node:hover,
+:root .ag-xai .ag-node[data-status],
+:root .ag-xai .ag-node[data-level='master'] {
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+:root .ag-xai .ag-node[data-status='working']::after {
+  display: none;
+}
+
+:root .ag-xai .ag-node[aria-pressed='true'] {
+  outline: none;
+}
+
+:root .ag-xai .ag-node-title {
+  max-width: 100%;
+  justify-content: center;
+}
+
+:root .ag-xai .ag-node-sub {
+  max-width: 100%;
+}
+
+/* Bots are SVGs inside the map; keep them out of the map's own absolutely placed SVG rule. */
+.ag-graph .gk-bot {
+  position: static;
+  inset: auto;
+}
+
+/* The bot itself, with a ring only when its agent is selected. */
+.ag-bot {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 999px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ag-node:hover .ag-bot {
+  transform: translateY(-1px) scale(1.05);
+}
+
+.ag-node[aria-pressed='true'] .ag-bot {
+  box-shadow:
+    0 0 0 3px #152b43,
+    0 0 0 5px white;
+}
+
+:root[data-theme='dark'] .ag-node[aria-pressed='true'] .ag-bot {
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 5px white;
+}
+
+/* ---------- Grok bots (src/components/agents/GrokBot.tsx) ---------- */
+
+.gk-bot {
+  display: block;
+  overflow: visible;
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+.gk-bot .gk-eye {
+  fill: none;
+  stroke: white;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+.gk-bot :is(.gk-eye, .gk-eyes, .gk-bot-body) {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Idle: blinks now and then. */
+.gk-bot[data-status='idle'] .gk-eye {
+  animation: gk-blink 5s var(--gk-delay, 0s) infinite;
+}
+
+/* Working: glows in its own colour, bounces and glances around. */
+.gk-bot[data-status='working'] {
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+.gk-bot[data-status='working'] .gk-bot-body {
+  animation: gk-bounce 1.2s var(--gk-delay, 0s) ease-in-out infinite;
+}
+
+.gk-bot[data-status='working'] .gk-eyes {
+  animation: gk-glance 2.4s var(--gk-delay, 0s) ease-in-out infinite;
+}
+
+/* Waiting: eyes half shut. */
+.gk-bot[data-status='waiting'] .gk-eye {
+  transform: scaleY(0.45);
+}
+
+/* Done: one small hop. */
+.gk-bot[data-status='done'] .gk-bot-body {
+  animation: gk-hop 0.5s ease-out both;
+}
+
+@keyframes gk-blink {
+  0%, 93%, 100% { transform: scaleY(1); }
+  95.5% { transform: scaleY(0.1); }
+}
+
+@keyframes gk-bounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30% { transform: translateY(-2px) rotate(-4deg); }
+  60% { transform: translateY(0) rotate(3deg); }
+}
+
+@keyframes gk-glance {
+  0%, 20% { transform: translateX(0); }
+  35%, 55% { transform: translateX(1.6px); }
+  70%, 90% { transform: translateX(-1.6px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes gk-hop {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gk-bot *,
+  .gk-bot[data-status] .gk-bot-body {
+    animation: none !important;
+  }
+
+  .ag-bot {
+    transition: none;
+  }
+}
+
+/* ---------- Agent settings ---------- */
+
+.ags-dialog {
+  margin: auto;
+  width: min(640px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 24px;
+  background: white;
+  color: var(--color-ink);
+  box-shadow: var(--shadow-lift);
+}
+
+.ags-dialog:not([open]) {
+  display: none;
+}
+
+.ags-dialog::backdrop {
+  background: rgb(21 43 67 / 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.ags-head,
+.ags-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 24px;
+}
+
+.ags-head {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.ags-foot {
+  justify-content: flex-end;
+  border-top: 1px solid var(--color-line);
+}
+
+.ags-foot > span {
+  margin-right: auto;
+}
+
+.ags-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 24px 20px;
+}
+
+.ags-section {
+  padding-top: 18px;
+}
+
+.ags-section + .ags-section {
+  margin-top: 18px;
+  border-top: 1px solid var(--color-line);
+}
+
+.ags-section h3 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+
+.ags-note {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-ink-3);
+}
+
+.ags-check,
+.ags-min {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ags-check:has(input:checked) {
+  border-color: var(--color-brand);
+  background: rgb(36 91 216 / 0.05);
+}
+
+.ags-check-all {
+  font-weight: 650;
+}
+
+.ags-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand);
+}
+
+.ags-min-total {
+  min-height: 52px;
+  border-color: var(--color-brand);
+  background: rgb(36 91 216 / 0.04);
+}
+
+.ags-min-total > span {
+  display: grid;
+}
+
+.ags-min-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-ink-3);
+}
+
+.ags-min input {
+  width: 56px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.ags-model {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ags-model select {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: white;
+  font-size: 14px;
+}
+
+.ags-primary,
+.ags-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ags-primary {
+  color: white;
+  background: var(--color-brand);
+}
+
+.ags-primary:disabled {
+  opacity: 0.6;
+}
+
+.ags-secondary {
+  border: 1px solid var(--color-line);
+  background: white;
+  color: var(--color-ink);
+}
+
+.ags-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-line);
+  transition: background 0.15s;
+}
+
+.ags-switch > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: white;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  transition: transform 0.15s;
+}
+
+.ags-switch[aria-checked='true'] {
+  background: var(--color-brand);
+}
+
+.ags-switch[aria-checked='true'] > span {
+  transform: translateX(18px);
+}
+
+.ags-min input.ags-time {
+  width: auto;
+  min-width: 110px;
+}
+
+.ag-auto-note {
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+
+/* ---------- The agent team picture: one manager, four workers, one goal ---------- */
+
+.ag-team {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 420px;
+  padding: 22px 16px 20px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 30%, rgb(63 123 245 / 0.16), transparent 60%),
+    rgb(255 255 255 / 0.04);
+  border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+@media (min-width: 1280px) {
+  .ag-team {
+    height: 540px;
+    justify-content: center;
+  }
+}
+
+.ag-team-goal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 520px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  background: rgb(255 255 255 / 0.08);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+}
+
+.ag-team-goal > span {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #f5c451;
+}
+
+.ag-team-line {
+  display: block;
+  width: 2px;
+  height: 26px;
+  background: rgb(255 255 255 / 0.18);
+}
+
+.ag-team-line[data-active='true'] {
+  background: linear-gradient(to bottom, #5aa0ff, #34c759, #5aa0ff);
+  background-size: 100% 200%;
+  animation: ag-team-flow 1.2s linear infinite;
+}
+
+@keyframes ag-team-flow {
+  to {
+    background-position: 0 200%;
+  }
+}
+
+.ag-team-coord {
+  margin: 2px 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.45);
+}
+
+/* The chain: scout -> readers -> validator and presenter -> feed, under a bracket from the manager. */
+.ag-chain {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 16px 10px 12px;
+  border-top: 2px solid rgb(255 255 255 / 0.18);
+  border-radius: 18px 18px 0 0;
+  list-style: none;
+}
+
+.ag-chain-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.ag-chain-pair {
+  padding: 4px;
+  border-radius: 18px;
+  border: 1px dashed rgb(255 255 255 / 0.16);
+}
+
+.ag-chain-link {
+  flex: 0 1 46px;
+  min-width: 22px;
+}
+
+.ag-team-arrow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 2px;
+  background: rgb(255 255 255 / 0.22);
+  color: rgb(255 255 255 / 0.5);
+}
+
+.ag-team-arrow > svg {
+  position: absolute;
+  right: -6px;
+}
+
+.ag-team-arrow[data-active='true'] {
+  background: linear-gradient(to right, #5aa0ff, #34c759, #5aa0ff);
+  background-size: 200% 100%;
+  color: #34c759;
+  animation: ag-team-flow-x 1.2s linear infinite;
+}
+
+@keyframes ag-team-flow-x {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.ag-team-bot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  color: white;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ag-team-bot:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+
+.ag-team-bot[aria-pressed='true'] {
+  border-color: rgb(255 255 255 / 0.28);
+  background: rgb(255 255 255 / 0.08);
+}
+
+.ag-team-name {
+  display: block;
+  max-width: 120px;
+  margin-top: 4px;
+  line-height: 1.3;
+  text-wrap: balance;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ag-team-name > .ag-dot {
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: 2px;
+}
+
+.ag-team-role {
+  font-size: 11.5px;
+  color: rgb(255 255 255 / 0.55);
+}
+
+.ag-team-feed {
+  padding: 8px 18px;
+  border-radius: 14px;
+  background: white;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ag-team-card {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.03);
+  text-align: left;
+}
+
+.ag-team-card[aria-pressed='true'] {
+  border-color: rgb(255 255 255 / 0.3);
+  background: rgb(255 255 255 / 0.09);
+}
+
+@media (max-width: 640px) {
+  .ag-chain {
+    flex-direction: column;
+  }
+  .ag-chain-link {
+    flex: 0 0 22px;
+    transform: rotate(90deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-team-line[data-active='true'],
+  .ag-team-arrow[data-active='true'] {
+    animation: none;
+  }
+}

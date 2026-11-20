@@ -1,0 +1,2686 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'DM Sans Variable', Arial, sans-serif;
+  --font-display: 'Instrument Serif', Georgia, serif;
+
+  --color-ink: #152b43;
+  --color-ink-2: #46617d;
+  --color-ink-3: #71849a;
+  --color-canvas: #f3f7fc;
+  --color-line: #e2e9f3;
+  --color-brand: #245bd8;
+  --color-brand-soft: #eef3fa;
+  --color-sky-1: #2f86e0;
+  --color-sky-2: #6fb1f0;
+  --color-sky-3: #b9dbf8;
+
+  --shadow-card: 0 1px 2px rgb(24 52 110 / 0.05), 0 12px 32px -16px rgb(24 52 110 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(24 52 110 / 0.06), 0 22px 44px -18px rgb(24 52 110 / 0.28);
+}
+
+html {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* The sky behind every page header: deep blue at the top, washing out to the canvas. */
+.sky {
+  background:
+    radial-gradient(520px 260px at 84% 62%, rgb(255 255 255 / 0.55), transparent 70%),
+    radial-gradient(900px 380px at 12% 8%, rgb(28 92 214 / 0.55), transparent 70%),
+    linear-gradient(180deg, var(--color-sky-1) 0%, var(--color-sky-2) 42%, var(--color-sky-3) 74%, var(--color-canvas) 100%);
+}
+
+.btn-primary {
+  border-radius: 9px;
+  background: var(--color-brand);
+  font-weight: 600;
+  box-shadow: 0 5px 12px rgb(36 91 216 / 0.18);
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+
+.btn-primary:hover {
+  background: #1d4fc4;
+  transform: translateY(-1px);
+}
+
+/* Instrument Serif has one weight; keep the browser from faking a bolder one. */
+.font-display {
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.brand-mark {
+  flex-shrink: 0;
+  width: 38px;
+  height: 36px;
+  object-fit: contain;
+}
+
+/* ---------- Liquid glass ---------- */
+
+.glass {
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 0.5) 0%,
+    rgb(255 255 255 / 0.16) 42%,
+    rgb(255 255 255 / 0.1) 60%,
+    rgb(255 255 255 / 0.32) 100%
+  );
+  -webkit-backdrop-filter: blur(16px) saturate(190%) brightness(1.06);
+  backdrop-filter: blur(16px) saturate(190%) brightness(1.06);
+  border: 1px solid rgb(255 255 255 / 0.6);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 1px 0 0 rgb(255 255 255 / 0.55),
+    inset 0 -1px 0 rgb(255 255 255 / 0.3),
+    inset 0 0 18px rgb(255 255 255 / 0.3),
+    0 0 0 0.5px rgb(20 44 96 / 0.14),
+    0 24px 48px -14px rgb(20 44 96 / 0.4),
+    0 4px 10px rgb(20 44 96 / 0.1);
+}
+
+/* Specular sheen: a soft light falling across the top-left of the glass. */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 60% at 0% 0%, rgb(255 255 255 / 0.55), transparent 60%),
+    radial-gradient(90% 40% at 100% 100%, rgb(255 255 255 / 0.28), transparent 70%);
+  pointer-events: none;
+}
+
+/* ---------- Dock ---------- */
+
+.dock-edge {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 14px;
+  z-index: 40;
+}
+
+.dock-handle {
+  position: fixed;
+  left: 5px;
+  top: 50%;
+  width: 5px;
+  height: 52px;
+  margin-top: -26px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.8);
+  box-shadow:
+    0 0 0 0.5px rgb(20 44 96 / 0.2),
+    0 4px 12px rgb(20 44 96 / 0.25);
+  z-index: 40;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+/* Runs the full height of the window. The right padding is an invisible margin, so the pointer
+   can travel from the edge to the dock without closing it. */
+.dock-zone {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 50;
+  padding: 10px 40px 10px 10px;
+  transform: translateX(calc(-100% - 8px)) scale(0.985);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+  /* Only the slide is animated. A fading element cannot blur the page behind it, so the glass
+     would show the content through; it stays fully there until it is off screen. */
+  will-change: transform;
+  /* Leaving: an even glide out, hidden only once it is off screen. */
+  transition:
+    transform 0.6s cubic-bezier(0.5, 0, 0.2, 1),
+    opacity 0s linear 0.6s;
+}
+
+.dock-zone[data-open='true'] {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+  /* Arriving: quick at first, then a long, soft settle. It is solid glass from the first frame. */
+  transition:
+    transform 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0s;
+}
+
+/* The contents follow the glass in, one row after another. */
+@media (min-width: 640px) {
+  .dock > :not(.dock-glass) {
+    opacity: 0;
+    translate: -14px 0;
+    transition:
+      opacity 0.25s ease,
+      translate 0.4s ease,
+      background 0.15s ease;
+  }
+
+  .dock-zone[data-open='true'] .dock > :not(.dock-glass) {
+    opacity: 1;
+    translate: 0 0;
+    transition:
+      opacity 0.5s ease calc(60ms + var(--row, 0) * 32ms),
+      translate 0.75s cubic-bezier(0.16, 1, 0.3, 1) calc(60ms + var(--row, 0) * 32ms),
+      background 0.15s ease;
+  }
+
+  .dock > :nth-child(3) { --row: 1; }
+  .dock > :nth-child(4) { --row: 2; }
+  .dock > :nth-child(5) { --row: 3; }
+  .dock > :nth-child(6) { --row: 4; }
+  .dock > :nth-child(7) { --row: 5; }
+  .dock > :nth-child(8) { --row: 6; }
+  .dock > :nth-child(9) { --row: 7; }
+  .dock > :nth-child(10) { --row: 8; }
+  .dock > :nth-child(11) { --row: 9; }
+  .dock > :nth-child(12) { --row: 10; }
+  .dock > :nth-child(13) { --row: 11; }
+  .dock > :nth-child(14) { --row: 12; }
+}
+
+.dock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 236px;
+  height: 100%;
+  padding: 16px 10px 10px;
+}
+
+.dock-glass {
+  position: absolute;
+  inset: 0;
+  border-radius: 26px;
+}
+
+/* Dark frosted glass, like the macOS launcher: the page shows through, blurred and dimmed, and
+   everything on it is white. Colour is left to the pages. */
+.dock-zone .dock-glass {
+  background: linear-gradient(180deg, rgb(20 20 22 / 0.66) 0%, rgb(54 54 58 / 0.54) 100%);
+  -webkit-backdrop-filter: blur(40px) saturate(170%);
+  backdrop-filter: blur(40px) saturate(170%);
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.24),
+    inset 0 1px 0 rgb(255 255 255 / 0.16),
+    0 24px 60px -18px rgb(0 0 0 / 0.55);
+}
+
+/* Sliding out over the page, the sidebar is the same frosted glass with a wider blur, so what
+   is under it comes through as soft colour and never as shapes or text. */
+.dock-zone[data-pinned='false'] .dock-glass {
+  -webkit-backdrop-filter: blur(64px) saturate(170%);
+  backdrop-filter: blur(64px) saturate(170%);
+}
+
+.dock-spacer {
+  flex: 1;
+  min-height: 8px;
+}
+
+.dock-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  color: rgb(255 255 255 / 0.9);
+  text-align: left;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dock-item:hover {
+  color: white;
+  background: rgb(255 255 255 / 0.08);
+}
+
+.dock-item[aria-current='page'] {
+  color: white;
+  background: rgb(255 255 255 / 0.16);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.12);
+}
+
+.dock-item:focus-visible,
+.dock-usage:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 0.8);
+  outline-offset: 1px;
+}
+
+.dock-brand,
+.dock-brand:hover {
+  background: none;
+  padding: 4px 10px;
+  color: white;
+}
+
+.dock-brand .dock-name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.dock-divider {
+  position: relative;
+  height: 1px;
+  margin: 10px 8px 8px;
+  background: rgb(255 255 255 / 0.12);
+}
+
+.dock-heading {
+  position: relative;
+  padding: 0 12px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.45);
+}
+
+/* A plain line glyph in the text colour: no tile, no fill. */
+.dock-tile,
+.dock-pin-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: inherit;
+}
+
+.dock-tile svg,
+.dock-pin-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.dock-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.dock-dot {
+  display: none;
+}
+
+.dock-pin {
+  color: rgb(255 255 255 / 0.6);
+}
+
+/* The agent summary: a slightly lighter pane of the same glass. */
+.dock-usage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  color: white;
+  text-align: left;
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.14);
+  transition: background 0.15s ease;
+}
+
+.dock-usage:hover {
+  background: rgb(255 255 255 / 0.13);
+}
+
+.dock-bars-mini {
+  width: 54px;
+  height: 24px;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+/* The agent report window. */
+.usage-window {
+  margin: auto;
+  width: min(620px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  overflow-y: auto;
+  border-radius: 24px;
+  background: white;
+  color: var(--color-ink);
+  box-shadow: var(--shadow-lift);
+  animation: panel-in 0.2s ease-out;
+}
+
+.usage-window::backdrop {
+  background: rgb(21 43 67 / 0.45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.usage-hero {
+  padding: 22px 24px 20px;
+  color: white;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgb(86 150 255 / 0.55), transparent 60%),
+    linear-gradient(165deg, #1d3a5c 0%, #152b43 100%);
+}
+
+.usage-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.usage-close:hover {
+  background: rgb(255 255 255 / 0.25);
+}
+
+.dock-bars {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: end;
+  gap: 5px;
+  height: 46px;
+}
+
+.dock-bar {
+  border-radius: 4px 4px 2px 2px;
+  background: rgb(255 255 255 / 0.28);
+  transform-origin: bottom;
+  animation: bar-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.dock-bar[data-today='true'] {
+  background: linear-gradient(180deg, #8fc0ff, #4f8dff);
+  box-shadow: 0 0 12px rgb(110 170 255 / 0.7);
+}
+
+@keyframes bar-rise {
+  from {
+    transform: scaleY(0.1);
+    opacity: 0;
+  }
+}
+
+.dock-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.18);
+  overflow: hidden;
+}
+
+.dock-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6fb1f0, #a8d4ff);
+}
+
+/* A pinned dock, or one on a touch screen, is always there: move the page out from under it. */
+.page-outer {
+  transition: padding-left 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 640px) {
+  html[data-dock-pinned='true'] .page-outer {
+    padding-left: 246px;
+  }
+
+  .dock-zone[data-pinned='true'] {
+    padding-right: 10px;
+  }
+}
+
+@media (min-width: 640px) and (hover: none) {
+  .page-outer {
+    padding-left: 246px;
+  }
+}
+
+/* Short windows: drop the live panel before the navigation gets squeezed. */
+@media (max-height: 700px) {
+  .dock-usage {
+    display: none;
+  }
+}
+
+/* Phones: the dock becomes a bar of icons along the bottom and stays visible. */
+@media (max-width: 639px) {
+  .dock-zone {
+    inset: auto auto 0 50%;
+    padding: 12px;
+    transform: translate(-50%, calc(100% + 8px));
+  }
+
+  .dock-zone[data-open='true'] {
+    transform: translate(-50%, 0);
+  }
+
+  .dock {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    height: auto;
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .dock-item {
+    width: auto;
+  }
+
+  .dock-item[aria-current='page'] {
+    background: none;
+    box-shadow: none;
+  }
+
+  .dock-item[aria-current='page'] .dock-dot {
+    display: block;
+    position: absolute;
+    left: 50%;
+    bottom: -3px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 999px;
+    background: white;
+  }
+
+  .dock-name,
+  .dock-edge,
+  .dock-handle,
+  .dock-pin,
+  .dock-brand,
+  .dock-divider,
+  .dock-heading,
+  .dock-usage,
+  .dock-spacer {
+    display: none;
+  }
+}
+
+/* ---------- Reel: the full-screen, one-at-a-time feed ---------- */
+
+.reel {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.reel-header {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px;
+  pointer-events: none;
+  transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reel-header > * {
+  pointer-events: auto;
+}
+
+/* The header is positioned, so it has to step aside for a pinned dock on its own. */
+@media (min-width: 640px) {
+  html[data-dock-pinned='true'] .reel-header {
+    left: 246px;
+  }
+}
+
+.reel-filters {
+  display: flex;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.22);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.4);
+}
+
+.reel-filter {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.reel-filter:hover {
+  background: rgb(255 255 255 / 0.2);
+}
+
+.reel-filter[aria-pressed='true'] {
+  background: white;
+  color: var(--color-ink);
+  box-shadow: 0 2px 8px rgb(20 44 96 / 0.2);
+}
+
+.reel-scroller {
+  height: 100%;
+  overflow-y: auto;
+  /* Cards arrive after the page opens, above the end card. Without this the browser keeps the
+     end card in view as they are inserted, so the feed opens on "Nothing here" with cards above. */
+  overflow-anchor: none;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  outline: none;
+  /* When the cards arrive, the reel stays at the top instead of following whatever was on screen before them. */
+  overflow-anchor: none;
+}
+
+/* A type filter shows an ordinary scrolling grid below the header. */
+.feed-scroller {
+  overflow-anchor: none;
+  position: absolute;
+  inset: 68px 0 0 0;
+  overflow-y: auto;
+  padding: 12px 24px 24px;
+}
+
+/* The feed board: toolbar on top, then the cards and the roadmap side by side. */
+.feed-board {
+  display: flex;
+  flex-direction: column;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.feed-active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.feed-active:empty {
+  display: none;
+}
+
+.feed-main {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+/* Every card is the same fixed size. A wider window fits more per row; it never stretches them. */
+.feed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 216px);
+  grid-auto-rows: 288px;
+  align-content: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.feed-tile {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 22px;
+  background: var(--color-ink);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.45),
+    0 14px 30px -16px rgb(20 44 96 / 0.6);
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s;
+}
+
+.feed-tile img {
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The blurred copy that fills a cover around the whole picture. Scaled up so its soft edges stay
+   outside the card. */
+.cover-fill {
+  filter: blur(28px) saturate(1.15);
+  transform: scale(1.25);
+}
+
+.feed-tile:hover .cover-fill {
+  transform: scale(1.3);
+}
+
+.feed-tile:hover,
+.feed-tile[data-lit='true'] {
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 2px white,
+    0 22px 40px -16px rgb(20 44 96 / 0.75);
+}
+
+.feed-tile[data-lit='true'] {
+  box-shadow:
+    0 0 0 3px var(--color-brand),
+    0 22px 40px -16px rgb(20 44 96 / 0.75);
+}
+
+.feed-tile:hover .cover-whole {
+  transform: scale(1.04);
+}
+
+.feed-tile-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgb(8 16 32 / 0.92) 0%, rgb(8 16 32 / 0.55) 38%, transparent 68%);
+}
+
+.feed-tile-actions {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+}
+
+.feed-tile-actions button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.18);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: background 0.15s;
+}
+
+.feed-tile-actions button:hover {
+  background: rgb(255 255 255 / 0.35);
+}
+
+.feed-tile-actions button[aria-pressed='true'] {
+  background: white;
+  color: #e11d48;
+}
+
+.feed-roadmap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  /* Room at the bottom so the Ask BearRok button never covers the last row. */
+  padding: 20px 20px 72px;
+  border-radius: 24px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.feed-roadmap-next {
+  padding: 14px;
+  border-radius: 16px;
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.feed-coach {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(140deg, rgb(255 255 255 / 0.85), rgb(227 237 255 / 0.9));
+  box-shadow: inset 0 0 0 1px rgb(36 91 216 / 0.14);
+}
+
+.feed-coach-chips {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.feed-coach-chips button {
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-brand);
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.feed-coach-chips button:hover {
+  color: white;
+  background: var(--color-brand);
+}
+
+/* The matched cards. The panel scrolls as a whole when the window is short. */
+.feed-roadmap-matches {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  margin: 8px -8px 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.feed-roadmap-matches li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 14px;
+  transition: background 0.15s;
+}
+
+.feed-roadmap-matches li:hover {
+  background: rgb(255 255 255 / 0.75);
+}
+
+.feed-match {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  padding: 6px 0 6px 8px;
+}
+
+.feed-match-thumb {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  color: var(--color-brand);
+  background: white;
+}
+
+.feed-match-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feed-match-tag {
+  padding: 0 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.feed-match-save {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  margin-right: 6px;
+  border-radius: 999px;
+  color: var(--color-ink-3);
+}
+
+.feed-match-save:hover,
+.feed-match-save[aria-pressed='true'] {
+  color: var(--color-brand);
+  background: white;
+}
+
+.feed-roadmap-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid rgb(21 43 67 / 0.1);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-brand);
+}
+
+/* On a laptop or larger the board fills the window exactly: the page does not scroll, the cards
+   share the height between them, and only a long list scrolls, inside its own area. */
+@media (min-width: 1024px) and (min-height: 620px) {
+  .feed-scroller {
+    overflow: hidden;
+  }
+
+  .feed-board {
+    height: 100%;
+  }
+
+  .feed-main {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+
+  .feed-grid {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+    padding: 4px;
+    margin: -4px;
+  }
+}
+
+@media (max-width: 520px) {
+  .feed-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Saved: the two views, the expanded details under a row, and the spreadsheet. */
+.saved-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.25);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.saved-tab {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+}
+
+.saved-tab[aria-selected='true'] {
+  background: white;
+  color: var(--color-ink);
+  box-shadow: var(--shadow-card);
+}
+
+.saved-item[data-open='true'] .feed-row {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.saved-item[data-open='true'] .feed-row:hover {
+  transform: none;
+}
+
+.saved-details {
+  padding: 18px 20px;
+  border-radius: 0 0 24px 24px;
+  border-top: 1px solid var(--color-line);
+  background: rgb(255 255 255 / 0.97);
+  box-shadow: var(--shadow-card);
+}
+
+.saved-sheet {
+  overflow: hidden;
+  border-radius: 22px;
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: var(--shadow-card);
+}
+
+.saved-sheet-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.saved-sheet-scroll {
+  max-height: calc(100dvh - 300px);
+  min-height: 240px;
+  overflow: auto;
+}
+
+.saved-sheet-table {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+
+.saved-sheet-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--color-ink);
+  background: #f3f6fb;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.saved-sheet-table td {
+  padding: 10px 14px;
+  vertical-align: top;
+  line-height: 1.5;
+  border-bottom: 1px solid rgb(21 43 67 / 0.07);
+  border-right: 1px solid rgb(21 43 67 / 0.05);
+  /* Long words and links break only when they must, so text is not split mid-word. */
+  overflow-wrap: break-word;
+}
+
+/* Each column gets room for what it holds: wide ones for sentences, narrow ones for dates and
+   short labels. The sheet scrolls sideways instead of squeezing them. */
+.saved-sheet-table th {
+  min-width: 120px;
+}
+
+.saved-sheet-table th[data-column='Opportunity'] {
+  min-width: 300px;
+}
+
+.saved-sheet-table th[data-column='Organizer'],
+.saved-sheet-table th[data-column='Location'],
+.saved-sheet-table th[data-column='Next reminder'] {
+  min-width: 210px;
+}
+
+.saved-sheet-table th[data-column='Deadline from'] {
+  min-width: 190px;
+}
+
+.saved-sheet-table th[data-column='Who can apply'],
+.saved-sheet-table th[data-column='Materials needed'] {
+  min-width: 320px;
+}
+
+.saved-sheet-table th[data-column='Application questions'] {
+  min-width: 420px;
+}
+
+.saved-sheet-table th[data-column='Days left'],
+.saved-sheet-table th[data-column='Fit'] {
+  min-width: 90px;
+}
+
+/* Short values stay on one line. */
+.saved-sheet-table td:is([data-column='Type'], [data-column='Status'], [data-column='Deadline'], [data-column='Days left'], [data-column='Starts'], [data-column='Format'], [data-column='Apply link'], [data-column='Official page'], [data-column='Calendar'], [data-column='Saved on'], [data-column='Fit']) {
+  white-space: nowrap;
+}
+
+.saved-sheet-table tbody tr:hover td {
+  background: #f8fafd;
+}
+
+.saved-sheet-blank td {
+  height: 34px;
+}
+
+.saved-sheet-blank:hover td {
+  background: transparent !important;
+}
+
+.saved-sheet-num {
+  width: 40px;
+  text-align: right;
+  color: var(--color-ink-3);
+}
+
+/* The feed list: categories on the left, then the search bar and one column of wide rows. */
+.feed-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+  margin-top: 14px;
+}
+
+.feed-cats {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 22px;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: var(--shadow-card);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.feed-cat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.feed-cat:hover {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+.feed-cat[aria-pressed='true'] {
+  background: var(--color-brand);
+  color: white;
+}
+
+.feed-cat-count {
+  min-width: 26px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  text-align: center;
+  background: rgb(21 43 67 / 0.07);
+}
+
+.feed-cat[aria-pressed='true'] .feed-cat-count {
+  background: rgb(255 255 255 / 0.22);
+}
+
+.feed-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.feed-list-empty {
+  display: grid;
+  place-items: center;
+  margin-top: 14px;
+}
+
+.feed-row {
+  position: relative;
+  display: flex;
+  gap: 18px;
+  min-height: 180px;
+  padding: 12px;
+  border-radius: 24px;
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: var(--shadow-card);
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.feed-row:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 2px white,
+    0 22px 40px -18px rgb(20 44 96 / 0.55);
+}
+
+.feed-row-media {
+  position: relative;
+  flex: 0 0 260px;
+  align-self: stretch;
+  min-height: 156px;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.feed-row-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  padding: 4px 6px 0 0;
+}
+
+/* On a laptop or larger the page itself stays put and only the list scrolls, beside the categories. */
+@media (min-width: 1024px) and (min-height: 620px) {
+  .feed-board-list .feed-layout {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .feed-board-list .feed-cats {
+    align-self: start;
+  }
+
+  .feed-board-list .feed-column {
+    min-height: 0;
+  }
+
+  .feed-board-list .feed-list,
+  .feed-board-list .feed-list-empty {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    padding: 4px 6px 24px 4px;
+    margin: 10px -6px 0 -4px;
+  }
+}
+
+/* A narrow window: categories become one row that scrolls sideways, above the list. */
+@media (max-width: 860px) {
+  .feed-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .feed-cats {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 6px;
+    border-radius: 18px;
+  }
+
+  .feed-cat {
+    flex: 0 0 auto;
+    height: 38px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .feed-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .feed-row-media {
+    flex-basis: auto;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+  }
+}
+
+.feed-toolbar {
+  /* Raised above the cards: its blur makes it a layer of its own, and without this the cards
+     that come after it are drawn over the Filters panel that drops down from it. */
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: var(--shadow-card);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.feed-search {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--color-canvas);
+  border: 1px solid transparent;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.feed-search:focus-within {
+  background: white;
+  border-color: var(--color-brand);
+}
+
+.feed-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: 15px;
+  color: var(--color-ink);
+  background: none;
+  outline: none;
+}
+
+.feed-search input::placeholder {
+  color: var(--color-ink-3);
+}
+
+.feed-select select {
+  height: 44px;
+  padding: 0 36px 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  appearance: none;
+  background: white
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%2346617d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E")
+    no-repeat right 14px center;
+  cursor: pointer;
+}
+
+.feed-filter-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  background: white;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.feed-filter-button:hover,
+.feed-filter-button[aria-expanded='true'] {
+  border-color: var(--color-brand);
+}
+
+.feed-filter-button[data-active='true'] {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.feed-filter-count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: white;
+  background: var(--color-brand);
+}
+
+.feed-filter-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 30;
+  display: grid;
+  gap: 14px;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 170px);
+  overflow-y: auto;
+  padding: 20px 20px 0;
+  border-radius: 18px;
+  background: white;
+  box-shadow:
+    0 0 0 1px var(--color-line),
+    var(--shadow-lift);
+  animation: panel-in 0.18s ease-out;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.feed-filter-panel legend {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+/* Stays in view while a short window makes the choices above it scroll. */
+.filter-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 16px;
+  border-top: 1px solid var(--color-line);
+  background: white;
+}
+
+/* A choice you can switch on, with the number of cards it would leave. */
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+  background: white;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.filter-pill:hover:not(:disabled) {
+  border-color: var(--color-brand);
+}
+
+.filter-pill[aria-pressed='true'] {
+  border-color: var(--color-brand);
+  color: white;
+  background: var(--color-brand);
+}
+
+.filter-pill-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-ink-3);
+  background: #f1f5f9;
+}
+
+.filter-pill[aria-pressed='true'] .filter-pill-count {
+  color: white;
+  background: rgb(255 255 255 / 0.22);
+}
+
+.filter-pill:disabled,
+.filter-list button:disabled,
+.filter-segment button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* One choice out of a short list, each with its count on the right. */
+.filter-list {
+  display: grid;
+  gap: 2px;
+}
+
+.filter-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--color-ink-2);
+  text-align: left;
+}
+
+.filter-list button span {
+  font-size: 12px;
+  color: var(--color-ink-3);
+}
+
+.filter-list button:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.filter-list button[aria-checked='true'] {
+  font-weight: 600;
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.filter-segment {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 3px;
+  border-radius: 12px;
+  background: #f1f5f9;
+}
+
+.filter-segment button {
+  height: 32px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+}
+
+.filter-segment button[aria-checked='true'] {
+  color: var(--color-ink);
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.feed-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  font-size: 14px;
+  color: var(--color-ink-2);
+  cursor: pointer;
+}
+
+.feed-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand);
+}
+
+/* An active filter, shown under the toolbar; clicking it removes the filter. */
+.feed-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: var(--color-ink);
+  box-shadow: var(--shadow-card);
+  transition: background 0.15s;
+}
+
+.feed-chip:hover {
+  background: #21405f;
+}
+
+@media (min-width: 640px) {
+  html[data-dock-pinned='true'] .feed-scroller {
+    left: 246px;
+  }
+}
+
+@media (max-width: 639px) {
+  .feed-scroller {
+    inset: 62px 0 0 0;
+    padding: 12px 14px 110px;
+  }
+}
+
+.reel-scroller::-webkit-scrollbar,
+.reel-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.reel-slide {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 76px 16px 20px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.reel-stage {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  height: 100%;
+  max-height: 860px;
+}
+
+.reel-card {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 10 / 16;
+  max-width: calc(100vw - 130px);
+  overflow: hidden;
+  border-radius: 28px;
+  color: white;
+  background: var(--color-ink);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.5),
+    0 30px 60px -20px rgb(20 44 96 / 0.55);
+}
+
+/* The whole picture is the play and pause control; the card's own buttons sit above it. */
+.reel-video-toggle {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.reel-video-play {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 999px;
+  color: white;
+  background: rgb(8 16 32 / 0.5);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.reel-video-progress {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 3;
+  height: 3px;
+  background: rgb(255 255 255 / 0.2);
+}
+
+.reel-video-progress div {
+  width: 0;
+  height: 100%;
+  background: white;
+}
+
+.reel-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgb(8 16 32 / 0.3) 0%, transparent 22%),
+    linear-gradient(0deg, rgb(8 16 32 / 0.92) 0%, rgb(8 16 32 / 0.6) 34%, transparent 62%);
+}
+
+.reel-body {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 2;
+  padding: 22px;
+}
+
+.reel-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgb(255 255 255 / 0.2);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.45);
+}
+
+.reel-chip-solid {
+  background: white;
+  color: var(--color-ink);
+}
+
+.reel-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 8px;
+}
+
+.reel-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 64px;
+  color: var(--color-ink);
+}
+
+.reel-action-icon {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  background: white;
+  box-shadow:
+    0 1px 2px rgb(24 52 110 / 0.08),
+    0 10px 22px -10px rgb(24 52 110 / 0.4);
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.2s,
+    color 0.2s;
+}
+
+.reel-action-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.reel-action:hover .reel-action-icon {
+  transform: scale(1.1);
+}
+
+.reel-action:active .reel-action-icon {
+  transform: scale(0.94);
+}
+
+.reel-action[data-active='true'] .reel-action-icon,
+.reel-action[data-primary='true'] .reel-action-icon {
+  background: var(--color-brand);
+  color: white;
+}
+
+.reel-action-label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.reel-end {
+  width: min(420px, 100%);
+  padding: 44px 32px;
+  border-radius: 28px;
+  text-align: center;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: var(--shadow-lift);
+}
+
+.reel-pager {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+
+.reel-pager button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  color: var(--color-ink);
+  background: rgb(255 255 255 / 0.85);
+  box-shadow: var(--shadow-card);
+  transition:
+    background 0.2s,
+    opacity 0.2s;
+}
+
+.reel-pager button:hover {
+  background: white;
+}
+
+.reel-pager button:disabled {
+  opacity: 0.4;
+}
+
+.reel-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border-radius: 14px;
+  font-size: 14px;
+  color: white;
+  background: var(--color-ink);
+  box-shadow: var(--shadow-lift);
+  transform: translateX(-50%);
+}
+
+/* Phones: the photo fills the screen and the actions sit on top of it, as in TikTok. */
+@media (max-width: 639px) {
+  .reel-header {
+    padding: 12px;
+  }
+
+  .reel-slide {
+    padding: 0;
+  }
+
+  .reel-stage {
+    position: relative;
+    width: 100%;
+    max-height: none;
+  }
+
+  .reel-card {
+    width: 100%;
+    max-width: none;
+    aspect-ratio: auto;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .reel-shade {
+    background:
+      linear-gradient(180deg, rgb(8 16 32 / 0.55) 0%, transparent 24%),
+      linear-gradient(0deg, rgb(8 16 32 / 0.94) 0%, rgb(8 16 32 / 0.6) 40%, transparent 68%);
+  }
+
+  .reel-body {
+    padding: 18px 86px 96px 18px;
+  }
+
+  .reel-rail {
+    position: absolute;
+    right: 8px;
+    bottom: 96px;
+    gap: 12px;
+    padding: 0;
+  }
+
+  .reel-action {
+    width: 58px;
+    color: white;
+  }
+
+  .reel-action-icon {
+    width: 46px;
+    height: 46px;
+    color: white;
+    background: rgb(255 255 255 / 0.22);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.5);
+  }
+
+  .reel-action-label {
+    text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+  }
+
+  .reel-end {
+    width: calc(100% - 32px);
+  }
+
+  .reel-pager {
+    display: none;
+  }
+
+  .reel-toast {
+    bottom: 92px;
+  }
+}
+
+/* ---------- Calendar ---------- */
+
+.cal-tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+.cal-tile-count {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 1;
+}
+
+.cal-tile-count[data-tone='must'],
+.cal-tile-count[data-tone='late'] {
+  color: #c2410c;
+}
+
+.cal-tile-count[data-tone='should'] {
+  color: var(--color-brand);
+}
+
+.cal-nav {
+  display: grid;
+  place-items: center;
+  height: 36px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  color: var(--color-ink-2);
+  background: white;
+}
+
+.cal-nav:hover {
+  background: #f1f5f9;
+}
+
+.cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cal-legend::before,
+.cal-dot {
+  content: '';
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-brand);
+}
+
+.cal-legend[data-priority='must']::before,
+.cal-item[data-priority='must'] .cal-dot {
+  background: #ea580c;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cal-weekday {
+  padding-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-ink-3);
+}
+
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  height: 92px;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  text-align: left;
+  background: white;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.cal-cell:hover {
+  border-color: var(--color-brand);
+}
+
+.cal-cell[data-outside='true'] {
+  background: rgb(248 250 252 / 0.7);
+}
+
+.cal-cell[data-outside='true'] > * {
+  opacity: 0.45;
+}
+
+.cal-cell[aria-selected='true'] {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px var(--color-brand);
+}
+
+.cal-day {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+}
+
+.cal-cell[data-today='true'] .cal-day {
+  color: white;
+  background: var(--color-brand);
+}
+
+.cal-pill {
+  display: block;
+  flex-shrink: 0;
+  padding: 1px 6px;
+  overflow: hidden;
+  border-left: 3px solid var(--color-brand);
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1e3a8a;
+  background: var(--color-brand-soft);
+}
+
+.cal-pill[data-priority='must'] {
+  border-left-color: #ea580c;
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.cal-pill[data-done='true'] {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.cal-more {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-ink-3);
+}
+
+.cal-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-brand);
+}
+
+.cal-group[data-priority='must'] {
+  color: #c2410c;
+}
+
+.cal-group span {
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: white;
+  background: currentColor;
+}
+
+.cal-group span {
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.cal-group[data-priority='must'] span {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.cal-item {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-left: 3px solid var(--color-brand);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.cal-item[data-priority='must'] {
+  border-left-color: #ea580c;
+  background: #fff7ed;
+}
+
+.cal-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border-left: 3px solid var(--color-brand);
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.cal-next[data-priority='must'] {
+  border-left-color: #ea580c;
+}
+
+.cal-next:hover {
+  background: #f1f5f9;
+}
+
+.cal-next span:last-child {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--color-ink-3);
+}
+
+@media (max-width: 640px) {
+  .cal-cell {
+    height: 64px;
+  }
+
+  .cal-pill {
+    height: 6px;
+    padding: 0;
+    font-size: 0;
+  }
+}
+
+/* ---------- Roadmap evidence ---------- */
+
+.path-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+  background: #f1f5f9;
+}
+
+.path-chip[data-strong='true'] {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+/* One person's history as a short vertical line of stops. */
+.path-line {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+
+.path-line li {
+  position: relative;
+  padding-left: 18px;
+}
+
+.path-line li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-brand);
+}
+
+.path-line li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  width: 1px;
+  height: calc(100% + 1px);
+  background: rgb(36 91 216 / 0.3);
+}
+
+/* ---------- Applications ---------- */
+
+.status-select select {
+  height: 30px;
+  padding: 0 28px 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  appearance: none;
+  background: white
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12' fill='none' stroke='%2346617d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  cursor: pointer;
+}
+
+.status-select:not([data-status='none']) select {
+  border-color: var(--color-brand);
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.status-select[data-status='applied'] select {
+  border-color: #6ee7b7;
+  background-color: #ecfdf5;
+  color: #047857;
+}
+
+.app-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: #eef2f7;
+}
+
+.app-status button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.app-status button[aria-pressed='true'] {
+  background: white;
+  color: var(--color-brand);
+  box-shadow: var(--shadow-card);
+}
+
+.app-reminder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: var(--color-ink-2);
+}
+
+.app-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--color-brand);
+}
+
+.app-link:hover {
+  background: var(--color-brand-soft);
+}
+
+.app-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  background: white;
+  color: var(--color-ink-2);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s;
+}
+
+.app-tile > :first-child {
+  color: var(--color-ink);
+}
+
+.app-tile[aria-pressed='true'] {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+/* ---------- Opportunity details ---------- */
+
+/* One window, three columns: the photo and facts, the details, and the roadmap with the
+   question box. It is sized to the screen so nothing has to scroll on a laptop. */
+.detail-dialog {
+  margin: auto;
+  width: min(1180px, calc(100vw - 2rem));
+  height: min(760px, calc(100dvh - 2rem));
+  padding: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  background: white;
+  color: var(--color-ink);
+  box-shadow: var(--shadow-lift);
+  animation: detail-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detail-dialog::backdrop {
+  background: rgb(21 43 67 / 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+@keyframes detail-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+
+.detail-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: var(--color-ink-2);
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+.detail-close:hover {
+  color: var(--color-ink);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.1fr) minmax(0, 1fr);
+  height: 100%;
+}
+
+.detail-photo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-ink);
+}
+
+.detail-photo-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgb(8 16 32 / 0.94) 0%, rgb(8 16 32 / 0.7) 36%, rgb(8 16 32 / 0.1) 68%, transparent 100%);
+}
+
+.detail-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 24px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.detail-side {
+  gap: 14px;
+  padding-top: 58px;
+  background: var(--color-canvas);
+}
+
+.detail-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-line);
+}
+
+.detail-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.detail-roadmap {
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #e3edff 0%, #f1f6ff 100%);
+  box-shadow: inset 0 0 0 1px rgb(36 91 216 / 0.12);
+}
+
+.detail-roadmap-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: var(--color-brand);
+}
+
+.detail-steps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  max-height: min(340px, 42dvh);
+  margin-top: 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.detail-steps li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 12px;
+}
+
+.detail-steps li[data-current='true'] {
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+/* The line joining one step to the next. */
+.detail-steps li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: calc(100% - 5px);
+  width: 2px;
+  height: 14px;
+  border-radius: 2px;
+  background: rgb(36 91 216 / 0.25);
+}
+
+@media (max-width: 1023px) {
+  .detail-dialog {
+    height: auto;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .detail-photo {
+    min-height: 380px;
+  }
+
+  .detail-col {
+    overflow: visible;
+  }
+
+  .detail-side {
+    padding-top: 24px;
+  }
+}
+
+.ask {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 200px;
+  padding: 16px;
+  border-radius: 18px;
+  background: white;
+  box-shadow: var(--shadow-card);
+}
+
+/* The conversation takes the spare height and scrolls by itself; the box stays at the bottom. */
+.ask-thread {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* One row that slides sideways, so the suggestions never take height from the conversation. */
+.ask-chips {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ask-chips > * {
+  flex-shrink: 0;
+}
+
+.ask-question {
+  width: fit-content;
+  max-width: 90%;
+  margin-left: auto;
+  padding: 8px 12px;
+  border-radius: 14px 14px 4px 14px;
+  font-size: 14px;
+  color: white;
+  background: var(--color-brand);
+}
+
+.ask-answer {
+  max-width: 95%;
+  padding: 10px 12px;
+  border-radius: 14px 14px 14px 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-ink-2);
+  background: var(--color-canvas);
+}
+
+.ask-chip {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+  background: white;
+  transition: border-color 0.15s;
+}
+
+.ask-chip:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.ask-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 6px 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: white;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.ask-form:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgb(36 91 216 / 0.15);
+}
+
+.ask-form input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: 15px;
+  outline: none;
+  background: none;
+}
+
+.ask-form button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: white;
+  background: var(--color-brand);
+  transition: opacity 0.15s;
+}
+
+.ask-form button:disabled {
+  opacity: 0.35;
+}
+
+/* ---------- macOS desktop app: no title bar ---------- */
+
+/* The strip along the top where the window can be dragged. It sits above the page, so the
+   page's own controls start below it. */
+.window-drag {
+  display: none;
+}
+
+html.is-desktop .window-drag {
+  display: block;
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 34px;
+  /* Under the page and ignored by the pointer: it only marks the area as draggable. On top, it
+     would swallow clicks meant for the top bar. */
+  z-index: 0;
+  pointer-events: none;
+  -webkit-app-region: drag;
+}
+
+/* The top bar (logo, filters, profile) sits on the same line as the window buttons. Its left
+   end starts after them; its controls are carved out of the drag strip so they stay clickable. */
+html.is-desktop .reel-header {
+  padding-top: 11px;
+  padding-left: 104px;
+}
+
+html.is-desktop .page-header {
+  padding-top: 11px;
+}
+
+html.is-desktop .reel-header > *,
+html.is-desktop .page-header > * {
+  -webkit-app-region: no-drag;
+}
+
+@media (max-width: 1299px) {
+  html.is-desktop .page-header {
+    padding-left: 76px;
+  }
+}
+
+/* With the sidebar pinned, the window buttons are inside it and the bar needs no extra room. */
+@media (min-width: 640px) {
+  html.is-desktop[data-dock-pinned='true'] .reel-header {
+    padding-left: 24px;
+  }
+
+  html.is-desktop[data-dock-pinned='true'] .page-header {
+    padding-left: 0;
+  }
+}
+
+html.is-desktop .reel-slide {
+  padding-top: 70px;
+}
+
+html.is-desktop .feed-scroller {
+  top: 64px;
+}
+
+/* The sidebar starts below the window buttons. */
+html.is-desktop .dock-zone {
+  padding-top: 52px;
+}
+
+html.is-desktop .signin-page > :first-child {
+  padding-top: 52px;
+}
+
+@media (max-width: 639px) {
+  html.is-desktop .dock-zone {
+    padding-top: 12px;
+  }
+
+  html.is-desktop .reel-slide {
+    padding-top: 0;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(52 199 89 / 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 7px rgb(52 199 89 / 0);
+  }
+}
+
+.live-dot {
+  animation: pulse-ring 1.8s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-zone,
+  .dock-zone[data-open='true'],
+  .dock > :not(.dock-glass),
+  .dock-zone[data-open='true'] .dock > :not(.dock-glass),
+  .page-outer,
+  .dock-tile,
+  .dock-handle {
+    transition: none;
+  }
+
+  .dock-bar,
+  .feed-filter-panel,
+  .detail-dialog,
+  .usage-window,
+  .dock-tile::before {
+    animation: none;
+  }
+
+  .live-dot {
+    animation: none;
+  }
+}
+
+/* Account menu under the round button at the top right. */
+.profile-menu {
+  animation: profile-menu-in 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top right;
+}
+
+@keyframes profile-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-menu {
+    animation: none;
+  }
+}

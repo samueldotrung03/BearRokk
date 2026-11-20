@@ -2,7 +2,7 @@
 // network) and GrokBrain (live calls to Grok).
 import type { CalendarEventInput, EventAsk, EventVerdict } from './eventSorter.ts';
 import type { AgentGroup } from './types.ts';
-import type { MemorySummary, Assignment, Brief, Candidate, ApplicationInfo, FoundDeadline, Lead, Profile, ReviewFocus, ScoutSpec, Verdict, Opportunity } from './types.ts';
+import type { MemorySummary, Assignment, Brief, Candidate, ApplicationInfo, FoundDeadline, Lead, OppType, Profile, ReviewFocus, ScoutSpec, Verdict, Opportunity } from './types.ts';
 
 export interface MasterInput {
   profile: Profile;
@@ -15,6 +15,31 @@ export interface MasterInput {
   pastSearches?: string[];
   /** The student's own wording for this run, when they typed one. */
   request?: string | null;
+}
+
+/** What the application drafter is told about one application. */
+export interface DraftInput {
+  title: string;
+  organizer: string;
+  type: OppType | null;
+  /** The organizer's page for the posting, null for an application the student made without one. */
+  sourceUrl: string | null;
+  /** Where the student applies. */
+  actionUrl: string | null;
+  /** What the posting says about itself (who can apply, field, tags), null when nothing is known. */
+  summary: string | null;
+  /** What the application reader already read off the application page, if it ran. */
+  known: ApplicationInfo | null;
+}
+
+/** The application's real questions and uploads, as the organizer asks for them. */
+export interface DraftedApplication {
+  questions: { title: string; prompt: string; wordLimit: number | null }[];
+  uploads: { title: string; prompt: string }[];
+  /** False when the questions could not be found; nothing is made up in their place. */
+  found: boolean;
+  /** One or two plain sentences for the student on what was found, or why nothing was. */
+  note: string;
 }
 
 export interface Brain {
@@ -53,4 +78,9 @@ export interface Brain {
   validate(candidate: Candidate, brief: Brief, memory: MemorySummary, focus: ReviewFocus): Promise<Verdict>;
   /** Presentation manager: write the reason shown on each card. */
   present(kept: Opportunity[], brief: Brief, memory: MemorySummary): Promise<Map<string, string>>;
+  /**
+   * Application drafter: find the organizer's real application questions and required uploads,
+   * for the student's application portal. Asked only when the student asks for it.
+   */
+  draftApplication?(input: DraftInput): Promise<DraftedApplication>;
 }
