@@ -189,6 +189,9 @@ export interface Assignment {
   managerId: string;
   name: string;
   category: Category;
+  /** The kind of opportunity this manager works on, and kinds it also covers. */
+  kind?: OppType;
+  also?: OppType[];
   lens: Lens;
   focus: string[];
   /** Worker jobs this manager may use. */
@@ -262,7 +265,7 @@ export interface LogEvent {
 }
 
 /** fill: the agents started again on their own because the feed was short of its target. */
-export type Trigger = 'manual' | 'profile' | 'feedback' | 'schedule' | 'first' | 'fill';
+export type Trigger = 'manual' | 'profile' | 'feedback' | 'schedule' | 'first' | 'fill' | 'auto';
 
 export interface RunSnapshot {
   id: string;
@@ -352,6 +355,50 @@ export interface Application {
     syncedDeadline?: string | null;
     error: string | null;
   };
+  /** True for one the student made themselves, with no posting behind it (its id starts "custom-"). */
+  custom?: boolean;
+  /** The application as the student writes it inside the app, one tab per part. */
+  portal?: Portal;
+}
+
+// ---- the application portal: one application written inside the app, Common App style -------
+// The dashboard has the same shapes in dashboard/src/lib/portal/types.ts; these are the source of truth.
+
+export type PortalTabKind = 'question' | 'upload' | 'note';
+
+/** A file the student attached. Only its name and size are kept with the account; the contents stay on their device. */
+export interface PortalFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  addedAt: string;
+}
+
+/** One part of the application: a question to answer, something to upload, or the student's own note. */
+export interface PortalTab {
+  id: string;
+  kind: PortalTabKind;
+  /** Short name shown in the left bar. */
+  title: string;
+  /** question: the prompt as the organizer words it. upload: what to upload and any rules. note: empty. */
+  prompt: string;
+  /** A word limit when the organizer gives one. */
+  wordLimit: number | null;
+  /** The student's answer or note: plain text, paragraphs split by blank lines. */
+  body: string;
+  files: PortalFile[];
+  /** Where the tab came from: the posting itself, the agents' search, or the student. */
+  source: 'posting' | 'agents' | 'student';
+  done: boolean;
+  updatedAt: string;
+}
+
+export interface Portal {
+  /** In the order the student arranged them. */
+  tabs: PortalTab[];
+  /** The agents' last look for this application's questions and uploads. */
+  drafted: { at: string; found: boolean; note: string } | null;
 }
 
 /** Search job a manager hands to a scout. */
@@ -425,6 +472,8 @@ export interface LinkedSheet {
 
 /** Section 2: what the app learned. The student does not edit it. */
 export interface LearnedMemory {
+  /** Automode times already run, so a restart does not run them again. */
+  autoDone?: string[];
   /** Every save, like, dislike, open and apply, in order. */
   interactions: Interaction[];
   /** Every posting the agents found and kept, with the reason shown on its card. */
@@ -458,6 +507,16 @@ export interface PendingPosting {
   foundAt: string;
 }
 
+export interface AutoMode {
+  on: boolean;
+  /** Local clock times, "HH:MM", one per run. */
+  times: string[];
+  /** The student's time zone, from their computer. */
+  timeZone: string;
+  /** When Automode was last turned on; times before it do not run. */
+  since: string | null;
+}
+
 /** The agent groups a student can pick a model for. */
 export type AgentGroup = 'master' | 'managers' | 'workers' | 'validators' | 'presentation' | 'helpers';
 export const AGENT_GROUPS: AgentGroup[] = ['master', 'managers', 'workers', 'validators', 'presentation', 'helpers'];
@@ -468,7 +527,10 @@ export const AGENT_GROUPS: AgentGroup[] = ['master', 'managers', 'workers', 'val
  */
 export interface AgentSettings {
   models: Partial<Record<AgentGroup, string>>;
-  minimums: Partial<Record<OppType, number>>;
+  /** Per kind, and "any": a total across every kind being searched for, in any mix. */
+  minimums: Partial<Record<OppType | 'any', number>>;
   /** The kinds searches cover; empty means what the profile asks for. */
-  kinds?: Category[];
+  kinds?: OppType[];
+  /** Automode: searches on their own at these local times every day, while BearRok is open. */
+  auto?: AutoMode;
 }

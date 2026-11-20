@@ -8,6 +8,7 @@ import {
   Compass,
   GearSix,
   House,
+  MagnifyingGlass,
   Path,
   PushPin,
   PushPinSlash,
@@ -44,6 +45,7 @@ export const dockItems: DockItem[] = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDots },
   { to: '/saved', label: 'Saved', icon: BookmarkSimple },
   { to: '/agents', label: 'Agents', icon: Robot },
+  { to: '/search', label: 'Search', icon: MagnifyingGlass },
   { to: '/settings', label: 'Settings', icon: GearSix, bottom: true },
   { to: '/profile', label: 'Profile', icon: UserCircle, bottom: true },
 ];

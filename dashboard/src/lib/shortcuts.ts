@@ -22,6 +22,7 @@ export const shortcutActions: ShortcutAction[] = [
   { id: 'page:/calendar', label: 'Calendar', group: 'Pages', fallback: 'mod+6' },
   { id: 'page:/saved', label: 'Saved', group: 'Pages', fallback: 'mod+7' },
   { id: 'page:/agents', label: 'Agents', group: 'Pages', fallback: 'mod+8' },
+  { id: 'page:/search', label: 'Search', group: 'Pages', fallback: null },
   { id: 'page:/settings', label: 'Settings', group: 'Pages', fallback: 'mod+9' },
   { id: 'page:/profile', label: 'Profile', group: 'Pages', fallback: null },
 ];

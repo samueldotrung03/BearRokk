@@ -315,6 +315,22 @@ export function Feed() {
   const opportunities = useOpportunities();
   const agentsLive = useLive();
   const plan = planFor(state, opportunities);
+  // ?open=<id>, from the menu bar's top recommendation or a deadline: open that card's details.
+  const [, setParams] = useSearchParams();
+  const askedOpen = params.get('open');
+  useEffect(() => {
+    if (!askedOpen) return;
+    const card = opportunities.find((o) => o.id === askedOpen);
+    if (!card) return;
+    setDetails(card);
+    setParams(
+      (p) => {
+        p.delete('open');
+        return p;
+      },
+      { replace: true },
+    );
+  }, [askedOpen, opportunities, setParams]);
   const scroller = useRef<HTMLDivElement>(null);
 
   // The ranking runs again on every save, like and dislike, but only for cards the student has

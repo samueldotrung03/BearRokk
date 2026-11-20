@@ -4,12 +4,15 @@ import { useAuth } from './auth/AuthProvider.tsx';
 import { isOnboarded } from './auth/onboarding.ts';
 import { Assistant } from './components/Assistant.tsx';
 import { DeadlineNotifier } from './components/DeadlineNotifier.tsx';
+import { MenuBarBridge } from './components/MenuBarBridge.tsx';
 import { Dock } from './components/Dock.tsx';
 import { Spotlight } from './components/Spotlight.tsx';
 import './styles/assistant.css';
 import './styles/spotlight.css';
 import { Agents } from './pages/Agents.tsx';
 import { Applications } from './pages/Applications.tsx';
+import { ApplicationPortal } from './pages/ApplicationPortal.tsx';
+import { ApplicationView } from './pages/ApplicationView.tsx';
 import { Calendar } from './pages/Calendar.tsx';
 import { Discover } from './pages/Discover.tsx';
 import { Feed } from './pages/Feed.tsx';
@@ -18,6 +21,7 @@ import { Profile } from './pages/Profile.tsx';
 import { Roadmap } from './pages/Roadmap.tsx';
 import { RoadmapList } from './pages/RoadmapList.tsx';
 import { Saved } from './pages/Saved.tsx';
+import { Search } from './pages/Search.tsx';
 import { Settings } from './pages/Settings.tsx';
 import { SignIn } from './pages/SignIn.tsx';
 import { SignUp } from './pages/SignUp.tsx';
@@ -52,9 +56,12 @@ export function App() {
         <Route path="/roadmap/list" element={<RoadmapList />} />
         <Route path="/discover" element={<Discover />} />
         <Route path="/applications" element={<Applications />} />
+        <Route path="/applications/:id" element={<ApplicationPortal />} />
+        <Route path="/applications/:id/view" element={<ApplicationView />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/saved" element={<Saved />} />
         <Route path="/agents" element={<Agents />} />
+        <Route path="/search" element={<Search />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/signin" element={<SignIn />} />
@@ -64,6 +71,7 @@ export function App() {
       </Routes>
       {!onAccountPage && <Assistant />}
       {!onAccountPage && <DeadlineNotifier />}
+      {!onAccountPage && <MenuBarBridge />}
       {!onAccountPage && <Spotlight />}
     </>
   );

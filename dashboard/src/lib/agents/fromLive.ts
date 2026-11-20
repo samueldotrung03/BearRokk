@@ -107,7 +107,7 @@ export function fromLive(live: LiveAgents): MapView {
   if (master) add({ id: master.id, level: 'master', name: master.name, title: master.name, sub: master.role, lane: null }, agentOf(statusOf(master.status), master.detail), master);
 
   managers.forEach((m, i) => {
-    add({ id: m.id, level: 'manager', name: m.name, title: m.name.replace(/ manager$/i, ''), sub: m.role, lane: i }, agentOf(statusOf(m.status), m.detail), m);
+    add({ id: m.id, level: 'manager', name: m.name, title: m.name.replace(/ manager(?=( \d+)?$)/i, ''), sub: m.role, lane: i }, agentOf(statusOf(m.status), m.detail), m);
     if (master) {
       edges.push({ from: master.id, to: m.id });
       if (running(m.id)) transfers.push({ from: master.id, to: m.id, kind: 'brief' });

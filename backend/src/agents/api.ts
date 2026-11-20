@@ -10,11 +10,14 @@ import { readResume, RESUME_MAX_BYTES, RESUME_TYPES } from '../resume.ts';
 import { exportApplications, trackerRows, writeTracker } from '../sheets.ts';
 import type { Store } from '../store/index.ts';
 import { config } from '../config.ts';
+import { cleanTimes, defaultTimes, validTimeZone } from './autoMode.ts';
 import { randomBytes } from 'node:crypto';
 import { allCalendarsIn, consentUrl, exchangeCode, pkce, refreshAccess, revoke, servicesIn, type GoogleService, type OAuthClient } from '../googleOAuth.ts';
 import type { AgentSystem } from './system.ts';
+import { PORTAL_LIMITS } from './portal.ts';
 import { AGENT_GROUPS, APPLICATION_STATUSES, CATEGORIES, CATEGORY_OF, type Action, type AgentGroup, type AgentSettings, type OppType, type Category, type ClassYear, type Profile, type StudentPreferences } from './types.ts';
 import { RoadmapRequest, type RoadmapWriter } from '../roadmap.ts';
+import { ownMatches, searchContext, SearchRequest, type SearchWriter } from '../search.ts';
 
 export interface AgentsOptions {
   demo: AgentSystem;
@@ -30,6 +33,8 @@ export interface AgentsOptions {
   tracker?: typeof writeTracker;
   /** Writes a roadmap. Absent when no model is connected; replaceable in tests. */
   roadmap?: RoadmapWriter | null;
+  /** Searches the web and ranks for the student on the Search page. Absent when no model is connected. */
+  search?: SearchWriter | null;
   /** Where each student's memory is kept. Without it nothing outlives the backend. */
   memory?: Pick<Store, 'loadStudent' | 'saveStudent' | 'deleteStudent'>;
   /**
@@ -47,6 +52,17 @@ export interface AgentsOptions {
 
 const ACTIONS: Action[] = ['save', 'like', 'dislike', 'open', 'apply'];
 const YEARS: ClassYear[] = ['Freshman', 'Sophomore', 'Junior', 'Senior'];
+/** A web address as typed ("example.org/apply" is taken as https), or null when it is not one. */
+function webLink(raw: string): string | null {
+  for (const candidate of [raw, `https://${raw}`]) {
+    try {
+      const url = new URL(candidate);
+      if ((url.protocol === 'https:' || url.protocol === 'http:') && url.hostname.includes('.')) return url.toString().slice(0, 2000);
+    } catch {}
+  }
+  return null;
+}
+
 const strings = (v: unknown, max = 12) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, max) : null);
 
 /** The profile page's answers, with sizes capped so a request cannot store arbitrary amounts. */
@@ -269,6 +285,32 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     }
   });
 
+  // The Search page. /search/local answers at once with the student's own postings that match;
+  // /search has the agents' model search the web and rank everything for this student. With no
+  // model connected /search says so, and the page shows only their own matches.
+  app.post(`${base}/search/local`, async (c) => {
+    const system = await systemOf(c);
+    const parsed = SearchRequest.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: 'type at least two characters to search for' }, 400);
+    const student = system.student();
+    const context = parsed.data.personal ? searchContext(student.profile, system.getResume()?.text ?? '') : { parts: [] };
+    return c.json({ results: ownMatches(student, parsed.data), contextParts: context.parts, ai: Boolean(opts.search), writer: opts.grok?.mode ?? 'simulated' });
+  });
+  app.post(`${base}/search`, async (c) => {
+    const system = await systemOf(c);
+    if (!opts.search) return c.json({ error: 'no model is connected, so the web cannot be searched' }, 503);
+    const parsed = SearchRequest.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: 'type at least two characters to search for' }, 400);
+    const student = system.student();
+    const context = parsed.data.personal ? searchContext(student.profile, system.getResume()?.text ?? '').text : '';
+    try {
+      const { data } = await opts.search({ request: parsed.data, context, own: ownMatches(student, parsed.data) });
+      return c.json({ ...data, writer: opts.grok?.mode ?? 'api' });
+    } catch (error) {
+      return c.json({ error: `the search could not finish: ${error instanceof Error ? error.message : 'unknown error'}` }, 502);
+    }
+  });
+
   // Stop the search in flight. What it already checked stays; nothing follows on its own.
   app.post(`${base}/runs/stop`, async (c) => {
     const system = await systemOf(c);
@@ -433,6 +475,9 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
       settings: system.getAgentSettings(),
       groups: AGENT_GROUPS.map((id) => ({ id, label: GROUP_LABEL[id], tier: id === 'workers' || id === 'helpers' ? config.xaiModels.low : config.xaiModels.normal })),
       models: grokModels(),
+      auto: system.autoStatus(),
+      // What searches cover when nothing is ticked.
+      profileKinds: system.profileKinds(),
       // Whether the choices are in use now: only while the agents run on Grok.
       applied: opts.grok?.mode === 'api' || opts.grok?.mode === 'cli',
     });
@@ -446,14 +491,21 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
       AGENT_GROUPS.flatMap((g) => (typeof body?.models?.[g] === 'string' && allowed.has(body.models[g]) ? [[g, body.models[g]]] : [])),
     ) as AgentSettings['models'];
     const minimums = Object.fromEntries(
-      Object.keys(CATEGORY_OF).flatMap((t) => {
+      [...Object.keys(CATEGORY_OF), 'any'].flatMap((t) => {
         const n = Number(body?.minimums?.[t]);
-        return Number.isInteger(n) && n > 0 ? [[t, Math.min(n, 50)]] : [];
+        // A kind up to 50; the total across kinds up to 100.
+        return Number.isInteger(n) && n > 0 ? [[t, Math.min(n, t === 'any' ? 100 : 50)]] : [];
       }),
     ) as AgentSettings['minimums'];
-    const kinds = (Array.isArray(body?.kinds) ? body.kinds : []).filter((k: unknown): k is Category => CATEGORIES.includes(k as Category));
-    system.setAgentSettings({ models, minimums, kinds: [...new Set(kinds)] as Category[] });
-    return c.json({ settings: system.getAgentSettings() });
+    const kinds = (Array.isArray(body?.kinds) ? body.kinds : []).filter((k: unknown): k is OppType => typeof k === 'string' && k in CATEGORY_OF);
+    // Automode: on or off, one to six clock times, in the student's time zone.
+    let auto: AgentSettings['auto'] | undefined;
+    if (body?.auto && typeof body.auto === 'object') {
+      const times = cleanTimes(body.auto.times);
+      auto = { on: body.auto.on === true && times.length > 0, times: times.length ? times : defaultTimes(1), timeZone: validTimeZone(body.auto.timeZone) ?? Intl.DateTimeFormat().resolvedOptions().timeZone, since: null };
+    }
+    system.setAgentSettings({ models, minimums, kinds: [...new Set(kinds)] as OppType[], ...(auto ? { auto } : {}) });
+    return c.json({ settings: system.getAgentSettings(), auto: system.autoStatus() });
   });
 
   // The calendar's chat box: a sentence becomes an event the page then adds (and puts on Google
@@ -573,6 +625,59 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
   const calendar = opts.calendar ?? { create: createDeadlineEvent, remove: deleteEvent };
 
   app.get(`${base}/applications`, async (c) => c.json({ applications: (await systemOf(c)).listApplications() }));
+
+  // Start an application as To apply: { opportunityId } tracks a posting (one already tracked comes
+  // back unchanged, 200), { title, organizer?, deadline?, actionUrl? } makes the student's own (201).
+  app.post(`${base}/applications`, async (c) => {
+    const system = await systemOf(c);
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== 'object') return c.json({ error: 'send a posting id or a title' }, 400);
+    if (typeof body.opportunityId === 'string' && body.opportunityId) {
+      const made = system.createApplication({ opportunityId: body.opportunityId });
+      if (!made) return c.json({ error: 'opportunity not found' }, 404);
+      return c.json({ application: made.application }, made.created ? 201 : 200);
+    }
+    const title = typeof body.title === 'string' ? body.title.trim().slice(0, PORTAL_LIMITS.title) : '';
+    if (!title) return c.json({ error: 'Give the application a title.' }, 400);
+    const organizer = typeof body.organizer === 'string' ? body.organizer.trim().slice(0, PORTAL_LIMITS.title) : '';
+    let deadline: string | null = null;
+    if (typeof body.deadline === 'string' && body.deadline.trim()) {
+      if (Number.isNaN(Date.parse(body.deadline))) return c.json({ error: 'The deadline is not a date.' }, 400);
+      deadline = new Date(body.deadline).toISOString();
+    }
+    let actionUrl: string | null = null;
+    if (typeof body.actionUrl === 'string' && body.actionUrl.trim()) {
+      actionUrl = webLink(body.actionUrl.trim());
+      if (!actionUrl) return c.json({ error: 'The link is not a web address.' }, 400);
+    }
+    const made = system.createApplication({ title, organizer, deadline, actionUrl })!;
+    return c.json({ application: made.application }, 201);
+  });
+
+  // The application portal: the application's parts as tabs, written and kept inside the app.
+  app.get(`${base}/applications/:oppId/portal`, async (c) => {
+    const found = (await systemOf(c)).getPortal(c.req.param('oppId'));
+    if (!found) return c.json({ error: 'application not found' }, 404);
+    return c.json(found);
+  });
+
+  // Save every tab, in order. The tabs are cleaned and cut to size before they are kept.
+  app.put(`${base}/applications/:oppId/portal`, async (c) => {
+    const system = await systemOf(c);
+    const body = await c.req.json().catch(() => null);
+    if (!body || !Array.isArray(body.tabs)) return c.json({ error: 'send the tabs as a list' }, 400);
+    const saved = system.savePortal(c.req.param('oppId'), body.tabs.slice(0, PORTAL_LIMITS.tabs * 5));
+    if (!saved.ok && saved.reason === 'not found') return c.json({ error: 'application not found' }, 404);
+    if (!saved.ok) return c.json({ error: 'This application is too long to save. Shorten an answer or remove a tab, then try again.' }, 413);
+    return c.json({ portal: saved.portal });
+  });
+
+  // Ask the agents for the application's questions and uploads; they are added as new tabs.
+  app.post(`${base}/applications/:oppId/portal/draft`, async (c) => {
+    const portal = await (await systemOf(c)).draftPortal(c.req.param('oppId'));
+    if (!portal) return c.json({ error: 'application not found' }, 404);
+    return c.json({ portal });
+  });
 
   // Set a status, save draft answers, or supply a missing deadline. Marking to_apply or applying
   // sets reminders, and puts the deadline on Google Calendar when the request carries the

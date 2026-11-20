@@ -15,6 +15,16 @@ export interface GrokConnection {
   error?: string;
 }
 
+/** What the menu bar menu shows. Paths are routes inside the app. */
+export interface MenuBarData {
+  signedIn: boolean;
+  searching: boolean;
+  deadlines: { label: string; path: string }[];
+  top: { label: string; path: string } | null;
+}
+
+export type MenuBarAction = { type: 'run' } | { type: 'stop' } | { type: 'open'; path: string };
+
 interface DesktopBridge {
   platform: string;
   /** Absent in a desktop shell older than the page. */
@@ -22,6 +32,11 @@ interface DesktopBridge {
     status: () => Promise<GrokConnection>;
     connect: (choice: { mode: 'cli' } | { mode: 'api'; key: string } | { mode: 'claude' }) => Promise<GrokConnection>;
     disconnect: () => Promise<GrokConnection>;
+  };
+  /** The menu bar icon at the top of the screen (macOS). Absent in an older desktop shell. */
+  menuBar?: {
+    update: (data: MenuBarData) => void;
+    onAction: (callback: (action: MenuBarAction) => void) => () => void;
   };
   permissions: () => Promise<Record<PermissionKind, PermissionState>>;
   openPermission: (kind: PermissionKind) => Promise<boolean>;

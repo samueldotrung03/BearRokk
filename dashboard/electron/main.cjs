@@ -6,6 +6,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const backend = require('./backend.cjs');
+const menuBar = require('./menuBar.cjs');
+
+/** The one app window; closing it on macOS keeps the app (and the menu bar icon) running. */
+let mainWindow = null;
 
 // Set by `npm run app:dev` to load the Vite dev server instead of the built files.
 const devUrl = process.env.ELECTRON_START_URL;
@@ -39,6 +43,10 @@ function createWindow() {
   });
 
   window.once('ready-to-show', () => window.show());
+  mainWindow = window;
+  window.on('closed', () => {
+    if (mainWindow === window) mainWindow = null;
+  });
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     openExternally(url);
@@ -52,6 +60,7 @@ function createWindow() {
 
   if (devUrl) window.loadURL(devUrl);
   else window.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  return window;
 }
 
 // ---- macOS permissions, for the Settings page -------------------------------------------
@@ -105,6 +114,8 @@ app.whenReady().then(async () => {
   // The packaged app carries its own icon; this covers `npm run app`, which runs inside Electron's.
   if (process.platform === 'darwin' && !app.isPackaged) app.dock.setIcon(path.join(__dirname, 'icon.png'));
   createWindow();
+  // The bear in the menu bar at the top of the screen.
+  if (process.platform === 'darwin') menuBar.mount({ ipcMain, window: () => mainWindow, create: createWindow });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

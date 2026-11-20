@@ -1,161 +1,139 @@
-// Everything the student is applying to: where each one stands, what it still needs, when it is
-// due, and the reminders and calendar entry that go with the deadline. On top of that, a writing
-// helper on every question, a readiness score with the single next step, and a ranked "what to
-// do next" strip. The rules live in src/lib/applications.ts and src/lib/apps; this file wires
-// them to the store and decides which application is open.
-import { CalendarArrowDown } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+// Every application the student is working on, from their account. Postings set to To apply or
+// Applying on the Saved page are applications already, so they appear here by themselves; the
+// student can also start one from a saved posting or a blank one. Each row opens the application's
+// portal, where its parts are written and uploaded. The rules live in src/lib/portal/list.ts.
+import { X as XSmall } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { ApplicationRow } from '../components/applications/ApplicationRow.tsx';
-import { Board } from '../components/applications/Board.tsx';
-import { Funnel, NextUp, Toolbar, type View } from '../components/applications/Overview.tsx';
-import { Sheet } from '../components/applications/Sheet.tsx';
-import { focusAndFlash, materialDomId, promptDomId, useReducedMotion, type GoTo, type Intent, type Item } from '../components/applications/shared.tsx';
-import { Suggestions } from '../components/applications/Suggestions.tsx';
+import { ApplicationListRow } from '../components/applications/list/ApplicationListRow.tsx';
+import { ListToolbar } from '../components/applications/list/ListToolbar.tsx';
+import { NewApplicationButton } from '../components/applications/list/NewApplication.tsx';
 import { Card, Page } from '../components/Page.tsx';
-import { applicationInfo, opportunities } from '../data/sample.ts';
-import { statusLabel } from '../lib/applications.ts';
-import { funnelCounts, matchesQuery, sortItems, type SortKey } from '../lib/apps/board.ts';
-import { allDeadlinesIcs, exportable } from '../lib/apps/export.ts';
-import { readinessOf } from '../lib/apps/readiness.ts';
+import {
+  DEFAULT_PREFS,
+  dueWithinWeek,
+  filterApplications,
+  filterExceptStatus,
+  mergeApplications,
+  normalizePrefs,
+  sortApplications,
+  statusCounts,
+  type ApplicationRecord,
+  type ListPrefs,
+} from '../lib/portal/list.ts';
 import { useLocal } from '../lib/useLocal.ts';
-import { useStore } from '../state/StoreProvider.tsx';
-import type { ApplicationStatus } from '../types.ts';
+import { useLive } from '../state/live.tsx';
 import '../styles/applications.css';
 
 export function Applications() {
-  const { state } = useStore();
-  const reduced = useReducedMotion();
-  const [filter, setFilter] = useState<ApplicationStatus | 'all'>('all');
+  const live = useLive();
+  const [stored, setStored] = useLocal<ListPrefs>('bearrok.applications.list', DEFAULT_PREFS);
+  const prefs = normalizePrefs(stored);
+  const setPrefs = (next: Partial<ListPrefs>) => setStored((current) => ({ ...normalizePrefs(current), ...next }));
   const [query, setQuery] = useState('');
-  const [view, setView] = useLocal<View>('bearrok.applications.view', 'list');
-  const [sort, setSort] = useLocal<SortKey>('bearrok.applications.sort', 'deadline');
-  const [expanded, setExpanded] = useState<string[]>([]);
-  const [sheetId, setSheetId] = useState<string | null>(null);
-  const [intent, setIntent] = useState<{ id: string; intent: Intent } | null>(null);
+  const [records, setRecords] = useState<ApplicationRecord[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
-  const tracked: Item[] = useMemo(
-    () =>
-      opportunities.flatMap((o) => {
-        const application = state.applications[o.id];
-        if (!application) return [];
-        const info = applicationInfo[o.id];
-        return [{ opportunity: o, application, info, readiness: readinessOf(o, application, info) }];
-      }),
-    [state.applications],
-  );
-  const counts = funnelCounts(tracked.map((i) => i.application.status));
-  const searched = sortItems(
-    tracked.filter((i) => matchesQuery(i.opportunity, query)).map((i) => ({ ...i, score: i.readiness.score })),
-    sort,
-  );
-  // The board already splits by status, so the funnel filter only narrows the list view.
-  const shown = view === 'board' ? searched : searched.filter((i) => filter === 'all' || i.application.status === filter);
-  const toExport = exportable(tracked.map((i) => ({ opportunity: i.opportunity, status: i.application.status })));
-  const ics = allDeadlinesIcs(toExport);
+  // The full records (title, custom flag, portal progress) are read when the page opens and again
+  // whenever the account's applications change, so one made elsewhere or set on Saved shows up.
+  const changeKey = JSON.stringify(Object.values(live.applications).map((a) => [a.opportunityId, a.status, a.deadline]));
+  useEffect(() => {
+    if (live.status !== 'connected') return;
+    let cancelled = false;
+    void live
+      .request('/applications')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(String(res.status));
+        const body = (await res.json()) as { applications?: ApplicationRecord[] };
+        if (cancelled) return;
+        setRecords(body.applications ?? []);
+        setLoadFailed(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [changeKey, live.status]);
 
-  /** Opens an application where the next step is: a question (maybe with the helper running) or a material. */
-  const goTo: GoTo = useCallback(
-    (id, target) => {
-      if (view === 'board') setSheetId(id);
-      else setExpanded((list) => (list.includes(id) ? list : [...list, id]));
-      // Clear the filter and search if they would hide the application being opened.
-      setFilter((current) => (current === 'all' || state.applications[id]?.status === current ? current : 'all'));
-      const opened = opportunities.find((o) => o.id === id);
-      setQuery((current) => (opened && !matchesQuery(opened, current) ? '' : current));
-      if (target?.promptIndex !== undefined) {
-        setIntent({ id, intent: { index: target.promptIndex, kind: target.helper ?? 'focus', nonce: Date.now() } });
-        focusAndFlash(promptDomId(id, target.promptIndex), reduced);
-      } else if (target?.material) {
-        focusAndFlash(materialDomId(id, target.material), reduced);
-      } else if (view === 'list') {
-        focusAndFlash(`ap-row-${id}`, reduced);
-      }
-    },
-    [view, reduced, state.applications],
+  const offline = live.status === 'offline';
+  const all = useMemo(
+    () => (offline ? [] : mergeApplications(live.applications, records, [...live.savedCards, ...live.opportunities])),
+    [offline, live.applications, records, live.savedCards, live.opportunities],
   );
+  // The posting behind each application, for its picture and who can apply.
+  const postingsById = useMemo(() => new Map([...live.opportunities, ...live.savedCards].map((o) => [o.id, o])), [live.opportunities, live.savedCards]);
+  // Waiting for the account, or for the first read of the records while the stream already has some.
+  const loading = live.status === 'connecting' || (live.status === 'connected' && records === null && !loadFailed);
 
-  const sheetItem = sheetId ? tracked.find((i) => i.opportunity.id === sheetId) : undefined;
-  const intentFor = (id: string) => (intent?.id === id ? intent.intent : undefined);
+  const now = Date.now();
+  const others = { kind: prefs.kind, query, dueSoon: prefs.dueSoon };
+  const counts = statusCounts(filterExceptStatus(all, others, now));
+  const dueSoonCount = filterApplications(all, { ...others, status: prefs.status, dueSoon: true }, now).length;
+  const shown = sortApplications(filterApplications(all, { ...others, status: prefs.status }, now), prefs.sort);
 
-  const exportButton = tracked.length > 0 && (
-    <a
-      href={ics ? `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}` : undefined}
-      download={ics ? 'bearrok-deadlines.ics' : undefined}
-      aria-disabled={!ics}
-      className="ap-export"
-      title={ics ? 'One calendar file with every deadline, with reminders for the ones you are applying to' : 'No tracked application has a deadline on its posting yet'}
-    >
-      <CalendarArrowDown className="size-4" aria-hidden="true" />
-      Export all deadlines
-      <span className="ap-export-count">{toExport.length}</span>
-    </a>
-  );
+  const active = all.filter((a) => a.status === 'to_apply' || a.status === 'applying');
+  const dueThisWeek = active.filter((a) => dueWithinWeek(a, now)).length;
+  const subtitle =
+    all.length === 0
+      ? 'Write and keep every application in one place, a tab for each part.'
+      : `${active.length} in progress${dueThisWeek ? `, ${dueThisWeek} due this week` : ''}. Open one to write and upload each part.`;
+
+  const clearFilters = () => {
+    setQuery('');
+    setPrefs({ status: 'active', kind: 'all', dueSoon: false });
+  };
 
   return (
-    <Page title="Applications" subtitle="Everything you are applying to: where each one stands, what it needs and when it is due." aside={exportButton}>
-      {tracked.length === 0 ? (
+    <Page title="Applications" subtitle={subtitle} aside={<NewApplicationButton disabled={offline} />}>
+      {offline ? (
         <Card className="p-10 text-center">
-          <p className="text-lg font-semibold">Nothing tracked yet</p>
-          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-2">
-            Open a card's details in the feed and set a status, start from an Apply step on your roadmap, or track one of your agents' picks below.
+          <p className="text-lg font-semibold">Your applications cannot be reached</p>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-2">
+            They are kept with your account, and the app cannot reach it right now. They show here again once it can; nothing you wrote is lost.
           </p>
-          <Link to="/" className="btn-primary mt-6 inline-flex h-10 items-center rounded-xl px-4 text-sm text-white">
-            Go to the feed
-          </Link>
+        </Card>
+      ) : all.length === 0 ? (
+        <Card className="p-10 text-center">
+          <p className="text-lg font-semibold">{loading ? 'Loading your applications…' : 'No applications yet'}</p>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-2">
+            Postings you set to To apply or Applying on the Saved page appear here by themselves. You can also start one from a posting you saved, or a blank one for
+            anything else.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <NewApplicationButton variant="solid" />
+            <Link to="/saved" className="inline-flex h-10 items-center rounded-xl border border-line bg-white px-4 text-sm font-semibold text-ink">
+              Go to Saved
+            </Link>
+          </div>
         </Card>
       ) : (
         <>
-          <Funnel
-            counts={counts}
-            filter={view === 'board' ? 'all' : filter}
-            onFilter={(status) => {
-              // The board already shows every status side by side, so a filter means the list.
-              setFilter(status);
-              if (view === 'board') setView('list');
-            }}
-          />
-          <NextUp items={tracked} goTo={goTo} />
-          <Toolbar
-            query={query}
-            onQuery={setQuery}
-            sort={sort}
-            onSort={setSort}
-            view={view}
-            onView={setView}
-            filter={view === 'board' ? 'all' : filter}
-            onClearFilter={() => setFilter('all')}
-            shown={shown.length}
-          />
-
+          <ListToolbar prefs={prefs} onPrefs={setPrefs} query={query} onQuery={setQuery} counts={counts} dueSoonCount={dueSoonCount} />
+          {loadFailed && (
+            <p className="mt-3 rounded-xl bg-white/85 px-4 py-2.5 text-sm text-orange-700 shadow-card">
+              Progress and the applications you made yourself could not be loaded just now. They show again when the app can reach your account.
+            </p>
+          )}
           {shown.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-ink-2">
-              {query ? `Nothing matches “${query}”.` : `Nothing is marked ${statusLabel[filter as ApplicationStatus]} right now.`}
+            <Card className="mt-4 p-8 text-center">
+              <p className="font-semibold">Nothing matches</p>
+              <p className="mx-auto mt-1 max-w-sm text-sm text-ink-2">Try fewer words, another kind or another status.</p>
+              <button type="button" onClick={clearFilters} className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-xl border border-line bg-white px-4 text-sm font-semibold">
+                <XSmall className="size-4" aria-hidden="true" /> Show every active application
+              </button>
             </Card>
-          ) : view === 'board' ? (
-            <Board items={shown} onOpen={(id) => goTo(id)} />
           ) : (
-            <div className="space-y-4">
-              {shown.map((item) => (
-                <ApplicationRow
-                  key={item.opportunity.id}
-                  item={item}
-                  open={expanded.includes(item.opportunity.id)}
-                  onToggle={() =>
-                    setExpanded((list) => (list.includes(item.opportunity.id) ? list.filter((id) => id !== item.opportunity.id) : [...list, item.opportunity.id]))
-                  }
-                  goTo={goTo}
-                  intent={intentFor(item.opportunity.id)}
-                />
+            <ul className="mt-4 flex flex-col gap-3.5" aria-label="Applications">
+              {shown.map((a) => (
+                <ApplicationListRow key={a.opportunityId} application={a} posting={postingsById.get(a.opportunityId)} tracked={live.applications[a.opportunityId]} now={now} />
               ))}
-            </div>
+            </ul>
           )}
         </>
       )}
-
-      <Suggestions />
-
-      {view === 'board' && sheetItem && <Sheet key={sheetItem.opportunity.id} item={sheetItem} onClose={() => setSheetId(null)} goTo={goTo} intent={intentFor(sheetItem.opportunity.id)} />}
     </Page>
   );
 }

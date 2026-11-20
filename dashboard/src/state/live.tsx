@@ -77,6 +77,10 @@ interface BackendStudent {
   savedItems?: BackendFeedEntry[];
   applications?: TrackedApplication[];
   sheet?: LinkedSheet | null;
+  /** The search managers the next search will have, from the kinds chosen in Agent settings. */
+  nextManagers?: { name: string; role: string }[];
+  /** Automode: on or off, the next scheduled time, and searches waiting to run. */
+  auto?: { on: boolean; nextAt: string | null; waiting: number; startsAt: string | null };
 }
 interface BackendRun {
   id: string;
@@ -137,6 +141,10 @@ interface LiveValue {
   request: (path: string, init?: RequestInit) => Promise<Response>;
   /** The latest agent run, shaped for the Agents page. Null before the first one. */
   agents: LiveAgents | null;
+  /** The search managers the next search will have. */
+  nextManagers: { name: string; role: string }[];
+  /** Automode's state, or null when it is off or the backend is not reachable. */
+  auto: { on: boolean; nextAt: string | null; waiting: number; startsAt: string | null } | null;
   searching: boolean;
   /** Search again now. With a type, the search is for more of that kind only, and the kind is added to what the student looks for. */
   runNow: (type?: OpportunityType) => Promise<void>;
@@ -447,6 +455,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       },
       request,
       agents: status === 'connected' && run ? toAgents(run) : null,
+      nextManagers: status === 'connected' ? (student?.nextManagers ?? []) : [],
+      auto: status === 'connected' && student?.auto?.on ? student.auto : null,
       searching: status === 'connected' && run?.status === 'running',
       runNow: async (type) => {
         await request('/runs', { method: 'POST', body: JSON.stringify(type ? { type } : {}) }).catch(() => {});
@@ -506,4 +516,33 @@ export function DataBadge() {
       )}
     </span>
   );
+}
+
+/**
+ * The Agents page between searches: when the kinds chosen in Agent settings change who the search
+ * managers are, the page shows the managers the next search will have, ready, instead of the last
+ * search's. A search that is running, or a line-up that has not changed, is shown as it is.
+ */
+export function withNextManagers(agents: LiveAgents, next: { name: string; role: string }[]): LiveAgents {
+  if (agents.running || next.length === 0) return agents;
+  const same = next.length === agents.managers.length && next.every((m, i) => m.name === agents.managers[i]?.name);
+  if (same) return agents;
+  return {
+    ...agents,
+    master: agents.master && { ...agents.master, status: 'idle', detail: 'Ready for the next search, with the kinds chosen in Agent settings.' },
+    managers: next.map((m, i) => ({ id: `next-manager-${i + 1}`, name: m.name, role: m.role.replace(/^./, (c) => c.toUpperCase()), status: 'idle', detail: 'Ready for the next search.' })),
+    workers: [],
+    validators: [],
+    presenter: null,
+    summary: `Next search: ${summarizeLineup(next)}`,
+  };
+}
+
+function summarizeLineup(next: { name: string }[]): string {
+  const counts = new Map<string, number>();
+  for (const m of next) {
+    const kind = m.name.replace(/ manager( \d+)?$/, '').toLowerCase();
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return [...counts].map(([kind, n]) => `${n} on ${kind}`).join(', ');
 }

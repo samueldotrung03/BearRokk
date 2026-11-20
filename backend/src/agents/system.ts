@@ -1,16 +1,19 @@
 // The agent system for one student: holds profile, history and results, starts runs on its own,
 // and runs the master -> search managers -> worker fleet -> validators -> presentation manager chain.
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { addToCalendarUrl, type DeadlineEvent } from '../calendar.ts';
 import { resumeInfo, type Resume, type ResumeInfo } from '../resume.ts';
 import { canonicalUrl } from '../validate.ts';
-import type { Brain } from './brain.ts';
+import type { Brain, DraftedApplication } from './brain.ts';
+import { cleanDraft, cleanTabs, emptyPortal, mergeTabs, PORTAL_LIMITS, portalBytes, tabsFromDraft, tabsFromPosting } from './portal.ts';
 import { Fleet, limiter } from './fleet.ts';
+import { KIND_TITLE, lineupNames, planLineup } from './lineup.ts';
+import { AUTO_GAP_MS, dueSlots, nextSlot } from './autoMode.ts';
 import { isStopped, StoppedError, throwIfStopped, withSignal } from './stop.ts';
 import type { FoundImage, ImageFinder } from './images.ts';
 import type { CalendarEventInput } from './eventSorter.ts';
 import type { TrackerItem } from '../sheets.ts';
-import { allocateSlots, buildMemory, categoryWeights, noteSignals, rankFeed, summarize } from './scoring.ts';
+import { buildMemory, categoryWeights, noteSignals, rankFeed, summarize } from './scoring.ts';
 import {
   CATEGORIES,
   CATEGORY_LABEL,
@@ -34,6 +37,7 @@ import {
   type LogEvent,
   type MemorySummary,
   type PendingPosting,
+  type Portal,
   type Opportunity,
   type Profile,
   type RunRecord,
@@ -100,6 +104,10 @@ export const DEMO_PROFILE: Profile = {
 };
 
 export interface StudentState {
+  /** Automode: on or off, the next scheduled time, and searches waiting to run. */
+  auto?: { on: boolean; nextAt: string | null; waiting: number; startsAt: string | null };
+  /** The search managers the next search will have. */
+  nextManagers?: { name: string; role: string }[];
   profile: Profile;
   memory: MemorySummary;
   feed: FeedEntry[];
@@ -161,6 +169,13 @@ const MORE_OF: Record<OppType, string> = {
 };
 
 const PICTURE_RETRY_MS = 86_400_000;
+/** Settings saved before kinds were split: "program" becomes its three kinds. */
+function upgradeSettings(s: AgentSettings | undefined): AgentSettings {
+  if (!s) return { models: {}, minimums: {}, kinds: [] };
+  const kinds = (s.kinds ?? []).flatMap((k) => ((k as string) === 'program' ? (['hackathon', 'research', 'scholarship'] as OppType[]) : [k]));
+  return { ...s, kinds: [...new Set(kinds)] };
+}
+
 /** Searches in a row the agents may run to reach a minimum the student set, so it cannot run forever. */
 const MINIMUM_RUNS = 12;
 /** True for a posting nobody has looked for a picture for, or one nothing was found for a day ago. */
@@ -174,6 +189,25 @@ function applyPicture(o: Opportunity, found: FoundImage | null, now: Date) {
   o.image = found?.url ?? null;
   o.imageCredit = found?.credit ?? null;
   o.imageCreditUrl = found?.creditUrl ?? null;
+}
+
+/** True when the student has written in or attached something to the portal, so it is worth keeping. */
+const portalHasWork = (portal: Portal | undefined) => !!portal?.tabs.some((t) => t.body.trim() || t.files.length || t.source === 'student');
+
+/** "2 questions", "1 upload": a count for a note to the student. */
+const countOf = (n: number, kind: 'question' | 'upload') => `${n} ${kind}${n === 1 ? '' : 's'}`;
+const tabsOf = (tabs: { kind: string }[], kind: 'question' | 'upload') => countOf(tabs.filter((t) => t.kind === kind).length, kind);
+
+/** What the posting says about itself, for the application drafter. */
+function postingSummary(o: Opportunity): string | null {
+  const parts = [
+    o.eligibility ? `Who can apply: ${o.eligibility}` : '',
+    o.field ? `Field: ${o.field}` : '',
+    o.tags.length ? `Tags: ${o.tags.join(', ')}` : '',
+    o.location ? `Location: ${o.location}` : '',
+    o.deadline ? `Deadline: ${o.deadline}` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join('. ') : null;
 }
 
 const idFor = (key: string) => `opp-${createHash('sha1').update(key).digest('hex').slice(0, 10)}`;
@@ -206,7 +240,7 @@ export class AgentSystem {
   private searches: SearchRecord[] = [];
   private runs: RunRecord[] = [];
   /** Models per agent group and minimums per kind, from the Agents page. */
-  private agentSettings: AgentSettings = { models: {}, minimums: {} };
+  private agentSettings: AgentSettings = { models: {}, minimums: {}, kinds: [] };
   /** A kind of opportunity the student asked for more of; the next run searches only for it. */
   private focus: OppType | null = null;
   /** The Google Sheet the saved list is kept in, once the student links one. */
@@ -224,6 +258,10 @@ export class AgentSystem {
   private listeners = new Set<Listener>();
   private profileTimer: NodeJS.Timeout | null = null;
   private scheduleTimer: NodeJS.Timeout | null = null;
+  /** Automode: scheduled times already run (ISO), the check timer, and when the last search ended. */
+  private autoDone: string[] = [];
+  private autoTimer: NodeJS.Timeout | null = null;
+  private lastRunEnded = 0;
   private scheduleSeconds = 0;
   private runDirty = false;
   private seq = 0;
@@ -262,7 +300,7 @@ export class AgentSystem {
       profile: this.profile,
       memory: summarize(memory),
       // Only the kinds of opportunity the student asked for, in their profile or their agent settings.
-      feed: rankFeed([...this.opportunities.values()].filter((o) => this.profile.categories.includes(CATEGORY_OF[o.type]) || (this.agentSettings.kinds ?? []).includes(CATEGORY_OF[o.type])), memory, {
+      feed: rankFeed([...this.opportunities.values()].filter((o) => this.profile.categories.includes(CATEGORY_OF[o.type]) || (this.agentSettings.kinds ?? []).includes(o.type)), memory, {
         now: this.opts.now(),
         reasons: this.reasons,
         newIds: this.newIds,
@@ -281,7 +319,17 @@ export class AgentSystem {
       provider: this.brain.mode === 'live' ? (this.opts.provider ?? 'grok') : 'simulated',
       applications: this.listApplications(),
       resume: resumeInfo(this.resume),
+      nextManagers: this.nextManagers(memory),
+      auto: this.autoStatus(),
     };
+  }
+
+  /** The search managers the next search will have, for the Agents page to show before it runs. */
+  private nextManagers(memory: ReturnType<AgentSystem['memory']>): { name: string; role: string }[] {
+    const kinds = this.searchKinds();
+    const lineup = planLineup(kinds.length ? kinds : (Object.keys(CATEGORY_OF) as OppType[]), categoryWeights(memory), this.opts.slots);
+    const names = lineupNames(lineup);
+    return lineup.map((s, i) => ({ name: names[i]!, role: [MORE_OF[s.kind], ...s.also.map((t) => MORE_OF[t])].join(', ') }));
   }
 
   currentRun() {
@@ -407,6 +455,7 @@ export class AgentSystem {
         runs: this.runs,
         applications: [...this.applications.values()],
         runCount: this.runCount,
+        autoDone: this.autoDone,
       },
     };
   }
@@ -420,7 +469,8 @@ export class AgentSystem {
     if (Array.isArray(p?.reminderDays)) this.reminderDays = p.reminderDays;
     this.sheet = p?.sheet ?? null;
     this.google = p?.google ?? null;
-    this.agentSettings = p?.agentSettings ?? { models: {}, minimums: {} };
+    this.agentSettings = upgradeSettings(p?.agentSettings);
+    this.autoDone = [...(memory.learned?.autoDone ?? [])];
     this.brain.setModels?.(this.agentSettings.models);
     this.interactions = structuredClone(l.interactions ?? []);
     this.opportunities = new Map((l.opportunities ?? []).map((o) => [o.id, structuredClone(o)]));
@@ -430,7 +480,8 @@ export class AgentSystem {
     this.searches = structuredClone(l.searches ?? []);
     this.pending = new Map((l.pending ?? []).map((p) => [p.key, structuredClone(p)]));
     this.runs = structuredClone(l.runs ?? []);
-    this.applications = new Map((l.applications ?? []).map((a) => [a.opportunityId, structuredClone(a)]));
+    // Applications saved before the portal existed get an empty one.
+    this.applications = new Map((l.applications ?? []).map((a) => [a.opportunityId, { ...structuredClone(a), custom: a.custom ?? false, portal: a.portal ? structuredClone(a.portal) : emptyPortal() }]));
     this.runCount = l.runCount ?? this.runs.length;
     this.newIds = new Set();
     // setSchedule announces the restored state; it must not be saved straight back.
@@ -438,6 +489,7 @@ export class AgentSystem {
     this.saver = null;
     this.setSchedule(p?.scheduleSeconds ?? 0);
     this.saver = saver;
+    this.syncAutoTimer();
   }
 
   /** What the app has learned, in numbers and recent entries, for a page that shows it. */
@@ -500,7 +552,7 @@ export class AgentSystem {
       const nowSaved = this.memory().saved.has(opportunityId);
       const app = this.applications.get(opportunityId);
       if (nowSaved && !app) this.setApplication(opportunityId, { status: 'interested' });
-      else if (!nowSaved && app?.status === 'interested' && Object.keys(app.drafts).length === 0) this.removeApplication(opportunityId);
+      else if (!nowSaved && app?.status === 'interested' && Object.keys(app.drafts).length === 0 && !portalHasWork(app.portal)) this.removeApplication(opportunityId);
     }
     this.emitStudent();
     if (this.feedbackSinceRun >= this.opts.feedbackThreshold) void this.trigger('feedback');
@@ -557,10 +609,10 @@ export class AgentSystem {
   /** What would go on the student's calendar for this application, or null without a deadline. */
   calendarEvent(app: Application): DeadlineEvent | null {
     if (!app.deadline) return null;
-    const lines = [`Deadline for ${app.title} at ${app.organizer}.`];
+    const lines = [app.organizer ? `Deadline for ${app.title} at ${app.organizer}.` : `Deadline for ${app.title}.`];
     if (app.actionUrl) lines.push(`Apply: ${app.actionUrl}`);
     if (app.materials.length) lines.push(`Needs: ${app.materials.join(', ')}`);
-    return { title: `Due: ${app.title} (${app.organizer})`, deadline: app.deadline, description: lines.join('\n') };
+    return { title: app.organizer ? `Due: ${app.title} (${app.organizer})` : `Due: ${app.title}`, deadline: app.deadline, description: lines.join('\n') };
   }
 
   /**
@@ -586,6 +638,8 @@ export class AgentSystem {
       reminders: [],
       needsDeadline: false,
       calendar: { state: 'none', eventId: null, htmlLink: null, addUrl: null, error: null },
+      custom: false,
+      portal: emptyPortal(),
     };
     if (opp?.application && app.prompts.length === 0) Object.assign(app, { prompts: opp.application.prompts, materials: opp.application.materials });
     const before = app.status;
@@ -603,8 +657,8 @@ export class AgentSystem {
     if (app.calendar.state !== 'synced') app.calendar.state = event ? 'link' : 'none';
 
     this.applications.set(opportunityId, app);
-    // Applying is the strongest signal the ranking gets.
-    if (app.status === 'applied' && before !== 'applied') this.interactions.push({ opportunityId, action: 'apply', at: now.toISOString() });
+    // Applying is the strongest signal the ranking gets. A custom application has no posting to rank.
+    if (app.status === 'applied' && before !== 'applied' && !app.custom) this.interactions.push({ opportunityId, action: 'apply', at: now.toISOString() });
     this.emitStudent();
     return app;
   }
@@ -640,20 +694,87 @@ export class AgentSystem {
 
   /** Saved with the account; a minimum applies from the next search. */
   setAgentSettings(settings: AgentSettings) {
-    this.agentSettings = settings;
+    const kinds = settings.kinds ?? [];
+    // A minimum only counts for a kind being searched for.
+    const searched = new Set(kinds.length ? kinds : this.profileKinds());
+    const minimums = Object.fromEntries(Object.entries(settings.minimums).filter(([t]) => t === 'any' || searched.has(t as OppType)));
+    // Turning Automode on starts from now: times earlier today do not all run at once.
+    const before = this.agentSettings.auto;
+    const auto = settings.auto ? { ...settings.auto, since: settings.auto.on ? (before?.on ? (before.since ?? this.opts.now().toISOString()) : this.opts.now().toISOString()) : null } : before;
+    this.agentSettings = { ...settings, kinds, minimums, ...(auto ? { auto } : {}) };
     this.brain.setModels?.(settings.models);
+    this.syncAutoTimer();
     this.emitStudent();
   }
 
-  /** The first kind with a minimum the feed does not reach yet, with how many it has. */
-  private unmetMinimum(): { type: OppType; have: number; want: number } | null {
+  /** Check every half minute while Automode is on; a laptop waking from sleep is caught by the next check. */
+  private syncAutoTimer() {
+    const on = this.agentSettings.auto?.on === true;
+    if (on && !this.autoTimer) {
+      this.autoTimer = setInterval(() => this.checkAuto(), 30_000);
+      this.autoTimer.unref();
+    } else if (!on && this.autoTimer) {
+      clearInterval(this.autoTimer);
+      this.autoTimer = null;
+    }
+  }
+
+  /** BearRok is open when its window is connected to this student's agents. */
+  private appOpen() {
+    return this.listeners.size > 0;
+  }
+
+  /**
+   * Start the oldest waiting Automode search, when BearRok is open, no search is running, and the
+   * last one ended at least 10 minutes ago. True when one started.
+   */
+  checkAuto(): boolean {
+    const auto = this.agentSettings.auto;
+    if (!auto?.on || !this.appOpen() || this.running) return false;
+    const now = this.opts.now();
+    if (this.lastRunEnded && now.getTime() - this.lastRunEnded < AUTO_GAP_MS) return false;
+    const due = dueSlots(now, auto.times, auto.timeZone, auto.since, this.autoDone);
+    if (!due.length) return false;
+    this.autoDone = [...this.autoDone, due[0]!].slice(-30);
+    void this.trigger('auto');
+    return true;
+  }
+
+  /** What the Agents page shows about Automode. */
+  autoStatus(): { on: boolean; nextAt: string | null; waiting: number; startsAt: string | null } {
+    const auto = this.agentSettings.auto;
+    if (!auto?.on) return { on: false, nextAt: null, waiting: 0, startsAt: null };
+    const now = this.opts.now();
+    const waiting = dueSlots(now, auto.times, auto.timeZone, auto.since, this.autoDone).length;
+    const startsAt = waiting ? new Date(Math.max(now.getTime(), this.lastRunEnded ? this.lastRunEnded + AUTO_GAP_MS : 0)).toISOString() : null;
+    return { on: true, nextAt: nextSlot(now, auto.times, auto.timeZone), waiting, startsAt };
+  }
+
+  /** The kinds of opportunity the student's profile asks for. */
+  profileKinds(): OppType[] {
+    return (Object.keys(CATEGORY_OF) as OppType[]).filter((t) => this.profile.categories.includes(CATEGORY_OF[t]));
+  }
+
+  /** The kinds searches cover: the ones ticked in the agent settings, or else the profile's. */
+  searchKinds(): OppType[] {
+    return this.agentSettings.kinds?.length ? this.agentSettings.kinds : this.profileKinds();
+  }
+
+  /**
+   * The first minimum the feed does not reach yet, with how many it has: a kind's own number first,
+   * then the total across every kind searched for (type null: any of them counts).
+   */
+  private unmetMinimum(): { type: OppType | null; have: number; want: number } | null {
     const now = this.opts.now().getTime();
-    const feed = this.student().feed.filter((e) => !e.opportunity.deadline || Date.parse(e.opportunity.deadline) >= now);
-    for (const [type, want] of Object.entries(this.agentSettings.minimums) as [OppType, number][]) {
-      if (!want || want <= 0) continue;
+    const searched = new Set(this.searchKinds());
+    const feed = this.student().feed.filter((e) => searched.has(e.opportunity.type) && (!e.opportunity.deadline || Date.parse(e.opportunity.deadline) >= now));
+    for (const [type, want] of Object.entries(this.agentSettings.minimums) as [OppType | 'any', number][]) {
+      if (type === 'any' || !want || want <= 0 || !searched.has(type)) continue;
       const have = feed.filter((e) => e.opportunity.type === type).length;
       if (have < want) return { type, have, want };
     }
+    const total = this.agentSettings.minimums.any ?? 0;
+    if (total > 0 && feed.length < total) return { type: null, have: feed.length, want: total };
     return null;
   }
 
@@ -704,6 +825,132 @@ export class AgentSystem {
     return app;
   }
 
+  // ---- the application portal: the application written inside the app ------------------------
+
+  /**
+   * Start an application, as To apply. With a posting's id it tracks that posting; one already
+   * tracked comes back as it is. Without one it is the student's own, with no posting behind it.
+   * Null for a posting that does not exist. Nothing is drafted here: the page asks for that.
+   */
+  createApplication(
+    input: { opportunityId: string } | { title: string; organizer: string; deadline: string | null; actionUrl: string | null },
+  ): { application: Application; created: boolean } | null {
+    if ('opportunityId' in input) {
+      const existing = this.applications.get(input.opportunityId);
+      if (existing) return { application: existing, created: false };
+      const application = this.setApplication(input.opportunityId, { status: 'to_apply' });
+      return application ? { application, created: true } : null;
+    }
+    let id = `custom-${randomBytes(6).toString('hex')}`;
+    while (this.applications.has(id)) id = `custom-${randomBytes(6).toString('hex')}`;
+    this.applications.set(id, {
+      opportunityId: id,
+      title: input.title,
+      organizer: input.organizer,
+      status: 'to_apply',
+      updatedAt: this.opts.now().toISOString(),
+      deadline: input.deadline,
+      actionUrl: input.actionUrl,
+      prompts: [],
+      materials: [],
+      drafts: {},
+      reminders: [],
+      needsDeadline: false,
+      calendar: { state: 'none', eventId: null, htmlLink: null, addUrl: null, error: null },
+      custom: true,
+      portal: emptyPortal(),
+    });
+    // Goes through the usual path so reminders and the calendar link are set the same way.
+    return { application: this.setApplication(id, { status: 'to_apply' })!, created: true };
+  }
+
+  getPortal(opportunityId: string): { application: Application; portal: Portal } | null {
+    const application = this.applications.get(opportunityId);
+    if (!application) return null;
+    application.portal ??= emptyPortal();
+    return { application, portal: application.portal };
+  }
+
+  /**
+   * Save the portal's tabs as the page sent them, in order, after making them safe to store.
+   * Refused when it would make this application, or every portal on the account together, too
+   * big to store; a save that makes it smaller always goes through.
+   */
+  savePortal(opportunityId: string, rawTabs: unknown[]): { ok: true; portal: Portal } | { ok: false; reason: 'not found' | 'too large' } {
+    const app = this.applications.get(opportunityId);
+    if (!app) return { ok: false, reason: 'not found' };
+    const before = app.portal ?? emptyPortal();
+    const now = this.opts.now().toISOString();
+    const portal: Portal = { tabs: cleanTabs(rawTabs, before.tabs, now), drafted: before.drafted };
+    const size = portalBytes(portal);
+    const others = [...this.applications.values()].reduce((sum, a) => (a === app || !a.portal ? sum : sum + portalBytes(a.portal)), 0);
+    if ((size > PORTAL_LIMITS.portalBytes || others + size > PORTAL_LIMITS.accountBytes) && size > portalBytes(before)) return { ok: false, reason: 'too large' };
+    const changed = JSON.stringify(portal.tabs) !== JSON.stringify(before.tabs);
+    app.portal = portal;
+    if (changed) {
+      app.updatedAt = now;
+      this.emitStudent();
+    }
+    return { ok: true, portal };
+  }
+
+  /**
+   * Look for the application's questions and uploads and add them as tabs. What the posting's
+   * own application reader found comes first (source "posting"), then what the drafter found on
+   * the web (source "agents"). Tabs already there are never replaced or removed, and a question
+   * already on a tab is not added twice. Null when the application does not exist.
+   */
+  async draftPortal(opportunityId: string): Promise<Portal | null> {
+    const app = this.applications.get(opportunityId);
+    if (!app) return null;
+    const opp = app.custom ? null : (this.opportunities.get(opportunityId) ?? null);
+    const known = opp?.application ?? (app.prompts.length || app.materials.length ? { prompts: app.prompts, materials: app.materials } : null);
+    const link = app.actionUrl ?? opp?.actionUrl ?? opp?.sourceUrl ?? null;
+
+    let draft: DraftedApplication | null = null;
+    // Why the search found nothing, when it never ran or failed.
+    let missed: string | null = null;
+    if (!opp && !link) missed = "There is no posting or link to look for this application's questions on. Add its questions and uploads yourself as tabs.";
+    else if (!this.brain.draftApplication) missed = "The agents cannot look for this application's questions right now. Add them yourself as tabs.";
+    else {
+      try {
+        draft = cleanDraft(
+          await this.brain.draftApplication({
+            title: app.title,
+            organizer: app.organizer,
+            type: opp?.type ?? null,
+            sourceUrl: opp?.sourceUrl ?? null,
+            actionUrl: link,
+            summary: opp ? postingSummary(opp) : null,
+            known,
+          }),
+        );
+      } catch (e) {
+        console.error('application drafter failed:', errorText(e));
+        missed = 'The agents could not look for the questions this time. Try again in a moment, or add them yourself as tabs.';
+      }
+    }
+
+    // The application may have been removed while the agents looked.
+    const current = this.applications.get(opportunityId);
+    if (!current) return null;
+    const now = this.opts.now().toISOString();
+    const fromPosting = tabsFromPosting(known, now);
+    const before = current.portal ?? emptyPortal();
+    const { tabs, added } = mergeTabs(before.tabs, [...fromPosting, ...(draft?.found ? tabsFromDraft(draft, now) : [])]);
+    const found = fromPosting.length > 0 || !!draft?.found;
+    let note: string;
+    if (draft?.found) note = draft.note || `Found ${countOf(draft.questions.length, 'question')} and ${countOf(draft.uploads.length, 'upload')}.`;
+    else if (fromPosting.length) note = `Taken from the posting's application page: ${tabsOf(fromPosting, 'question')} and ${tabsOf(fromPosting, 'upload')}.${missed ? ` ${missed}` : ''}`;
+    else note = draft?.note || missed || "This application's questions could not be found. Add them yourself as tabs.";
+    if (found && added.length === 0) note += ' Your tabs already cover all of it, so nothing new was added.';
+
+    current.portal = { tabs, drafted: { at: now, found, note } };
+    if (added.length) current.updatedAt = now;
+    this.emitStudent();
+    return current.portal;
+  }
+
   /** Start a run, or queue one if a run is already going. */
   trigger(trigger: Trigger): Promise<void> {
     if (this.running) {
@@ -717,16 +964,14 @@ export class AgentSystem {
       .then(() => {
         this.running = null;
         this.abort = null;
+        this.lastRunEnded = this.opts.now().getTime();
         // Something the student did comes first; otherwise search again while the feed is short.
         const next = this.queued ?? (this.shouldFill() ? 'fill' : null);
         // A follow-up for an unmet minimum searches for that kind only.
         if (next === 'fill') {
           const unmet = this.unmetMinimum();
-          if (unmet) {
-            const category = CATEGORY_OF[unmet.type];
-            if (!this.profile.categories.includes(category)) this.profile = { ...this.profile, categories: [...this.profile.categories, category] };
-            this.focus = unmet.type;
-          }
+          // A total searches every kind again; a kind's own number searches that kind.
+          if (unmet?.type) this.focus = unmet.type;
         }
         this.queued = null;
         if (next) return this.trigger(next);
@@ -793,6 +1038,7 @@ export class AgentSystem {
       profile: 'The profile changed, so the agents started on their own',
       feedback: `${this.opts.feedbackThreshold} new reactions, so the agents started on their own`,
       schedule: 'Scheduled run',
+      auto: 'Automode: a scheduled daily search',
       fill: `The feed has fewer than ${this.opts.feedTarget} opportunities, so the agents are searching again`,
     };
     log('System', TRIGGER_TEXT[trigger]);
@@ -807,26 +1053,23 @@ export class AgentSystem {
       const focus = this.focus;
       this.focus = null;
       // The kinds chosen in the agent settings, when any, or else the ones the profile asks for.
-      const kinds = this.agentSettings.kinds?.length ? this.agentSettings.kinds : this.profile.categories;
-      const split = focus
-        ? (Object.fromEntries(CATEGORIES.map((c) => [c, c === CATEGORY_OF[focus] ? this.opts.slots : 0])) as Record<Category, number>)
-        : allocateSlots(kinds, categoryWeights(memory), this.opts.slots);
+      const searchKinds = this.searchKinds();
+      // One kind per manager (see lineup.ts); with no kinds at all, every category once.
+      const lineup = planLineup(searchKinds.length ? searchKinds : (Object.keys(CATEGORY_OF) as OppType[]), categoryWeights(memory), this.opts.slots, focus);
+      const names = lineupNames(lineup);
       const perManager = Math.floor(this.opts.maxJobs / this.opts.slots);
-      const skeleton: Assignment[] = [];
-      for (const category of Object.keys(split) as Category[]) {
-        for (let i = 0; i < split[category]; i++) {
-          const n = skeleton.length + 1;
-          skeleton.push({
-            managerId: `manager-${n}`,
-            name: `${CATEGORY_LABEL[category].split(' ')[0]} manager ${split[category] > 1 ? i + 1 : ''}`.trim(),
-            category,
-            lens: 'all',
-            focus: [],
-            budget: perManager,
-            others: [],
-          });
-        }
-      }
+      const skeleton: Assignment[] = lineup.map((slot, i) => ({
+        managerId: `manager-${i + 1}`,
+        name: names[i]!,
+        category: CATEGORY_OF[slot.kind],
+        kind: slot.kind,
+        also: slot.also,
+        lens: 'all',
+        focus: [],
+        budget: perManager,
+        others: [],
+      }));
+      const split = Object.fromEntries(CATEGORIES.map((c) => [c, skeleton.filter((a) => a.category === c).length])) as Record<Category, number>;
       const { brief, assignments } = await this.brain.master({
         profile: this.profile,
         memory: summary,
@@ -834,6 +1077,24 @@ export class AgentSystem {
         assignments: skeleton,
         pastSearches: this.searches.map((s) => s.query),
       });
+      // The master chooses lenses and focus; the kind and name stay the ones planned here.
+      for (const a of assignments) {
+        const planned = skeleton.find((x) => x.managerId === a.managerId);
+        if (planned) Object.assign(a, { kind: planned.kind, also: planned.also, name: planned.name, category: planned.category });
+      }
+      // Programs cover hackathons, research and scholarships: each program manager is told its own kind.
+      for (const a of assignments) {
+        const kind = a.kind ?? skeleton.find((s) => s.managerId === a.managerId)?.kind;
+        if (!kind || CATEGORY_OF[kind] !== 'program') continue;
+        const covers = [kind, ...(a.also ?? [])];
+        // A manager covering every program kind needs no narrowing.
+        if (covers.length >= 3) continue;
+        const words = covers.map((t) => MORE_OF[t]);
+        // The master's own focus values stay first: the search plans are built from them.
+        a.focus = [...a.focus.filter((f) => !words.includes(f)).slice(0, 3 - words.length), ...words];
+      }
+      const programs = searchKinds.filter((t) => CATEGORY_OF[t] === 'program');
+      if (!focus && programs.length > 0 && programs.length < 3) brief.preferences.push(`Programs: look only for ${programs.map((t) => MORE_OF[t]).join(' and ')}.`);
       if (focus) {
         // The kind goes after the managers' own focus values, which the search plans are built from.
         for (const a of assignments) a.focus = [...a.focus.filter((f) => f !== MORE_OF[focus]).slice(0, 2), MORE_OF[focus]];
@@ -842,7 +1103,8 @@ export class AgentSystem {
       }
       run.brief = brief;
       run.assignments = assignments;
-      const mix = (Object.keys(split) as Category[]).filter((c) => split[c] > 0).map((c) => `${split[c]} on ${CATEGORY_LABEL[c].toLowerCase()}`);
+      const mix = [...new Set(lineup.map((s) => s.kind))].map((k) => `${lineup.filter((s) => s.kind === k).length} on ${MORE_OF[k]}`);
+      void split;
       set(master, { status: 'done', detail: `Brief: ${brief.goal}. Search managers: ${mix.join(', ')}.` });
       log('Master agent', `Wants: ${brief.goal}`);
       if (brief.avoid.length) log('Master agent', `Told the managers to avoid: ${brief.avoid.join(', ')}`);
@@ -1036,7 +1298,7 @@ export class AgentSystem {
           const lens = a.lens === 'all' ? 'everything' : `by ${a.lens === 'employer' ? 'organization type' : a.lens}`;
           if (this.opts.managerStaggerMs) await new Promise((r) => setTimeout(r, index * this.opts.managerStaggerMs));
           log('Master agent', `Command to ${a.name}: cover ${CATEGORY_LABEL[a.category].toLowerCase()} ${lens} (${a.focus.join(', ')})`);
-          const manager = node({ id: a.managerId, level: 'manager', name: a.name, role: `${CATEGORY_LABEL[a.category]}, ${lens}`, status: 'running', detail: 'Planning the search…' });
+          const manager = node({ id: a.managerId, level: 'manager', name: a.name, role: `${a.kind ? [MORE_OF[a.kind], ...(a.also ?? []).map((t) => MORE_OF[t])].join(', ').replace(/^./, (c) => c.toUpperCase()) : CATEGORY_LABEL[a.category]}, ${lens}`, status: 'running', detail: 'Planning the search…' });
           try {
             // A scout only finds leads; reading them is what produces results. Keep most of the
             // manager's budget for readers, or a small run spends everything on searching.
@@ -1145,7 +1407,8 @@ export class AgentSystem {
       run.status = 'complete';
       const unmet = this.unmetMinimum();
       if (unmet) {
-        log('System', this.fillRuns + 1 < MINIMUM_RUNS ? `${unmet.have} of the ${unmet.want} ${MORE_OF[unmet.type]} you asked for so far. Searching again for more.` : `${unmet.have} of the ${unmet.want} ${MORE_OF[unmet.type]} you asked for after ${this.fillRuns + 1} searches in a row. Stopping here; the next search tries again.`);
+        const what = unmet.type ? MORE_OF[unmet.type] : 'opportunities';
+        log('System', this.fillRuns + 1 < MINIMUM_RUNS ? `${unmet.have} of the ${unmet.want} ${what} you asked for so far. Searching again for more.` : `${unmet.have} of the ${unmet.want} ${what} you asked for after ${this.fillRuns + 1} searches in a row. Stopping here; the next search tries again.`);
       } else if (shown < this.opts.feedTarget) {
         log('System', this.shouldFill() ? `${shown} of ${this.opts.feedTarget} opportunities found so far. Searching again for more.` : `${shown} of ${this.opts.feedTarget} opportunities found after ${this.fillRuns + 1} searches in a row. The agents will look again on the next run.`);
       }

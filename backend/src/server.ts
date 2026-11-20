@@ -11,6 +11,7 @@ import { config, liveAvailable, provider } from './config.ts';
 import { oauthClientFrom } from './googleOAuth.ts';
 import { openStore } from './store/index.ts';
 import { cached, writeRoadmap } from './roadmap.ts';
+import { cachedSearch, writeSearch } from './search.ts';
 import { UserFirestore } from './store/userFirestore.ts';
 
 const store = await openStore();
@@ -56,6 +57,7 @@ const { app } = createApp(store, {}, {
   verify,
   webConfig: webConfig(),
   roadmap: liveAvailable() ? cached(writeRoadmap) : null,
+  search: liveAvailable() ? cachedSearch(writeSearch) : null,
   grok: !liveAvailable()
     ? { connected: false, mode: 'simulated', detail: 'No Grok connection is configured, so the agents are simulated on sample data.' }
     : config.grokTransport === 'claude'

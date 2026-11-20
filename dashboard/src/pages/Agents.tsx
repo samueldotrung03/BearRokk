@@ -4,12 +4,12 @@
 // fast beats arrive), the student's standing instructions, and which agent is selected.
 import { Pause, Play, RotateCcw, Server, SkipForward, Square } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { AgentSettingsButton } from '../components/agents/AgentSettings.tsx';
+import { AgentSettingsButton, autoLine } from '../components/agents/AgentSettings.tsx';
 import { AnimatedNumber, clockText, compact } from '../components/agents/AnimatedNumber.tsx';
 import { Funnel } from '../components/agents/Funnel.tsx';
 import { useBackendStatus, useReducedMotion, type BackendState } from '../components/agents/hooks.ts';
-import { ActivityStream, LiveNodeDetail, NodeDetail } from '../components/agents/NodeDetail.tsx';
-import { RunGraph } from '../components/agents/RunGraph.tsx';
+import { TeamAbout, TeamMap } from '../components/agents/TeamMap.tsx';
+import type { TeamId } from '../lib/agents/team.ts';
 import { BriefCard, TellBar, type StandingInstruction } from '../components/agents/TellAgents.tsx';
 import { MemoryCard, UsageCard } from '../components/agents/UsageMemory.tsx';
 import { Page, StatusPill } from '../components/Page.tsx';
@@ -19,7 +19,7 @@ import { funnel, idleRun, runReducer, totals, type RunInput } from '../lib/agent
 import { fromLive, liveStats, sourceLabel, type Provider } from '../lib/agents/fromLive.ts';
 import { fromRun } from '../lib/agents/view.ts';
 import { useLocal } from '../lib/useLocal.ts';
-import { useLive } from '../state/live.tsx';
+import { useLive, withNextManagers } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
@@ -66,7 +66,10 @@ export function Agents() {
   const [selected, setSelected] = useState('master');
   const live = useLive();
   // The backend's run, when there is one, replaces the simulation on the map and in the panels.
-  const real = live.agents;
+  // Between searches, the managers the next search will have (they follow the kinds chosen in Agent settings).
+  // The agent picked in the team picture.
+  const [teamSelected, setTeamSelected] = useState<TeamId>('manager');
+  const real = useMemo(() => (live.agents ? withNextManagers(live.agents, live.nextManagers) : null), [live.agents, live.nextManagers]);
 
   const memory = useMemo(() => memoryFrom(state, opportunities), [state]);
   const texts = useMemo(() => instructions.map((i) => i.text), [instructions]);
@@ -198,6 +201,7 @@ export function Agents() {
               )
             ) : null}
             {real && <AgentSettingsButton />}
+            {real && autoLine(live.auto) && <span className="ag-auto-note">{autoLine(live.auto)}</span>}
             {real ? null : (
               <>
                 <button type="button" className="ag-btn" data-primary="true" onClick={() => start(texts, 'Started by hand with Run now.')}>
@@ -271,18 +275,10 @@ export function Agents() {
         </dl>
 
         <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
-          <RunGraph view={view} selected={node?.id ?? ''} onSelect={setSelected} reduced={reduced} pulseMs={real ? 1400 : Math.min(beatMs * 0.9, 1400)} />
-          <div className="grid gap-4 md:h-[420px] md:grid-cols-2 xl:h-[540px] xl:grid-cols-1 xl:grid-rows-[minmax(0,1.15fr)_minmax(0,1fr)]">
-            {!node ? (
-              <section className="ag-panel p-4 text-[13px] text-white/60">The run has not reported any agents yet.</section>
-            ) : real ? (
-              <LiveNodeDetail node={node} agent={view.agents[node.id]!} info={view.info[node.id]} />
-            ) : (
-              <NodeDetail run={run} node={node} />
-            )}
-            <div className="h-[300px] min-h-0 md:h-auto">
-              <ActivityStream log={view.log} nodes={view.nodes} empty={real ? 'The backend has not reported any activity for this run yet.' : undefined} />
-            </div>
+          {/* A simplified picture of the team: one manager and four workers toward one goal. */}
+          <TeamMap view={view} selected={teamSelected} onSelect={setTeamSelected} />
+          <div className="h-[420px] min-h-0 xl:h-[540px]">
+            <TeamAbout selected={teamSelected} onSelect={setTeamSelected} />
           </div>
         </div>
       </section>

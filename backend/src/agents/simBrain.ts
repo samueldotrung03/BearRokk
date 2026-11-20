@@ -1,6 +1,7 @@
 // Simulated agents. Same roles, inputs and outputs as the live ones, but every decision is made
 // by plain rules over the sample catalog, with short pauses so a run can be watched.
-import type { Brain, MasterInput } from './brain.ts';
+import type { Brain, DraftedApplication, DraftInput, MasterInput } from './brain.ts';
+import { questionTitle, uploadTitle, wordLimitIn } from './portal.ts';
 import { currentSignal, StoppedError } from './stop.ts';
 import { sortByRules, type CalendarEventInput, type EventAsk, type EventVerdict } from './eventSorter.ts';
 import { CATALOG, findByUrl, officialUrl, repostUrl, toCandidate, type CatalogItem } from './catalog.ts';
@@ -265,6 +266,24 @@ export class SimBrain implements Brain {
       scholarship: { prompts: ['Tell us about a challenge you overcame (500 words).'], materials: ['Transcript', 'One recommendation letter'] },
     };
     return byType[candidate.type]!;
+  }
+
+  /**
+   * The simulated agents cannot search the web, so they only pass on what the posting's own
+   * application reader found. With nothing found, they say so rather than invent questions.
+   */
+  async draftApplication(input: DraftInput): Promise<DraftedApplication> {
+    await this.pause(800, input.title + 'draft');
+    const known = input.known;
+    if (!known || (known.prompts.length === 0 && known.materials.length === 0)) {
+      return { questions: [], uploads: [], found: false, note: "No questions are known for this application yet, and these sample agents cannot search the web for them. Add the application's questions yourself as tabs." };
+    }
+    return {
+      questions: known.prompts.map((p) => ({ title: questionTitle(p), prompt: p, wordLimit: wordLimitIn(p) })),
+      uploads: known.materials.map((m) => ({ title: uploadTitle(m), prompt: m })),
+      found: true,
+      note: `Taken from the posting's application page: ${known.prompts.length} ${known.prompts.length === 1 ? 'question' : 'questions'} and ${known.materials.length} ${known.materials.length === 1 ? 'upload' : 'uploads'}.`,
+    };
   }
 
   async validate(candidate: Candidate, brief: Brief, memory: MemorySummary, focus: ReviewFocus) {
