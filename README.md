@@ -228,16 +228,6 @@ The event is **Thursday, November 19, 2026**. Grok account access is expected ar
 | After access · before the rehearsal cutoff | A and B trace one live student request through discovery, validation, storage, and display. C compares the displayed facts with the source. | A judge can follow a displayed claim back to the organizer. Record which parts ran live and how long the search took. |
 | Before submission · time open | C runs the timed pitch with A and B. Choose the live or prepared path based on the rehearsal and time remaining. | A complete walkthrough is ready even if live search fails. Any recording or prepared result is labeled accurately. |
 
-### Three-person work split
-
-Assignments below are provisional. The team has two Claude Max seats and one teammate with regular Claude and ChatGPT credits. Use skill and availability to pick names, then use tool access as a tie-breaker.
-
-| Proposed owner | Work owned | First handoff |
-|---|---|---|
-| **A · Agent backend and database** (Max) | Own the request coordinator, Grok workers, validation, and persistence. Keeping source evidence and storage together gives one person responsibility for what a result claims. | Give B the two example records and search states. At account handover, test one live request through to a stored result. |
-| **B · Dashboard UI/UX and integration** (Max) | Own the student’s question, follow-up, progress, cards, and organizer links. Show prepared, live, empty, and failed searches clearly. | Build the demo journey against the agreed examples so dashboard work can proceed before Grok access. Later connect the same view to A’s results. |
-| **C · Pitch website UI/UX and demo** (regular Claude and ChatGPT credits) | Own the pitch page, the transition into the dashboard, and the presentation. Select and manually check the example club and event, recording their source links and dates. | Give A and B the two sources early. Show the fragmented search in the opening, then let the dashboard demonstrate the student’s decision. Own rehearsal and the fallback recording. |
-
 ### Open decisions
 
 | Planning detail | Confirmed value |
