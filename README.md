@@ -21,6 +21,17 @@ The product should do that discovery and checking for them. Each student sets th
 
 The team reports having skills for reading and evaluating résumés. Those could help personalize later searches. The proposed demo works from the student’s request alone. Résumé integration, review of extracted details, and permission to store those details are open decisions.
 
+## Discovery app
+
+The student-facing discovery screen lives in this repository. It opens on For you, then Feed, using prepared examples. Saves, likes, and dislikes stay in this browser.
+
+```bash
+npm install
+npm run dev
+```
+
+Open the printed local URL. `npm run build` typechecks and writes `dist/`.
+
 ## Agent and data flow
 
 | Responsibility | Proposed behavior | What the next stage receives |
