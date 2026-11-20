@@ -29,9 +29,9 @@ contextBridge.exposeInMainWorld('bearrokDesktop', {
     },
   },
   grok: {
-    /** { managed, mode: 'cli' | 'api' | 'claude' | null, cliFound, claudeFound, canStoreKey }. claude is a temporary test set-up. */
+    /** { managed, mode: 'cli' | 'api' | null, cliFound, canStoreKey }. */
     status: () => ipcRenderer.invoke('grok:status'),
-    /** { mode: 'cli' }, { mode: 'api', key } or { mode: 'claude' }. Restarts the agents on the new connection. */
+    /** { mode: 'cli' } or { mode: 'api', key }. Restarts the agents on the new connection. */
     connect: (choice) => ipcRenderer.invoke('grok:connect', choice),
     disconnect: () => ipcRenderer.invoke('grok:disconnect'),
   },

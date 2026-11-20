@@ -31,7 +31,7 @@ import {
 
 export { mergeSection, SECTION_IDS, type Guide, type SectionId } from './schemas.ts';
 
-/** One model call. The default goes through grok.ts (xAI API, Grok CLI, or Claude while testing). */
+/** One model call. The default goes through grok.ts (xAI API or Grok CLI). */
 export type Ask = <S extends z.ZodType>(opts: { name: string; system: string; user: string; schema: S; tools?: GrokTool[]; model?: string }) => Promise<{ data: z.infer<S> }>;
 
 export class CareerError extends Error {
@@ -57,7 +57,6 @@ const emptySection = <T>(): SectionState<T> => ({ status: 'waiting', data: null,
 
 /** The models behind each tier, for the transport in use. */
 function tierModels(): { normal?: string; low?: string } {
-  if (config.grokTransport === 'claude') return config.claudeCli.models;
   if (config.grokTransport === 'cli') return config.grokCli.models;
   return config.xaiModels;
 }
@@ -86,8 +85,8 @@ export class CareerGuides {
     env: Env = {
       live: liveAvailable,
       provider,
-      // Only Grok can read X. While testing on Claude the stories are written as labelled samples.
-      canSearchX: () => config.grokTransport !== 'claude',
+      // Grok reads X. Without X search the stories are written as labelled samples.
+      canSearchX: () => true,
     },
   ) {
     this.file = file;

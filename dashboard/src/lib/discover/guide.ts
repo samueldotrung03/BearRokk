@@ -86,7 +86,7 @@ export type Guide = {
   oneLine: string | null;
   field: string | null;
   status: 'planning' | 'researching' | 'ready' | 'failed';
-  provider: 'grok' | 'claude' | 'simulated';
+  provider: 'grok' | 'simulated';
   startedAt: string;
   updatedAt: string;
   error: string | null;
@@ -163,9 +163,9 @@ export function stepLine(guide: Guide): string | null {
   return `${now ? working[now] : 'Putting the guide together'} · ${done} of ${SECTION_IDS.length} ready`;
 }
 
-/** Who researched the guide, as the page says it. Claude is a test set-up and is never shown as Grok. */
+/** Who researched the guide, as the page says it. */
 export function providerLabel(provider: Guide['provider']): string {
-  return provider === 'grok' ? 'Grok' : provider === 'claude' ? 'Claude (test mode)' : 'simulated agents';
+  return provider === 'grok' ? 'Grok' : 'simulated agents';
 }
 
 type Load = { guide: Guide | null; error: string | null; busy: boolean };

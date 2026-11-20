@@ -15,8 +15,7 @@ import { desktopBridge, loadAllowed, saveAllowed, type GrokConnection, type Perm
 
 interface GrokInfo {
   connected: boolean;
-  /** claude: a temporary test set-up, see backend/SWAP_TO_GROK.md. */
-  mode: 'api' | 'cli' | 'claude' | 'simulated';
+  mode: 'api' | 'cli' | 'simulated';
   detail: string;
 }
 
@@ -191,9 +190,7 @@ export function Settings() {
                       <p className="text-sm text-ink-2">
                         {ownGrok.mode === 'cli'
                           ? 'Using the Grok app on this computer, on your Grok subscription.'
-                          : ownGrok.mode === 'claude'
-                            ? 'Test set-up: using the Claude app on this computer, on its Claude subscription. Disconnect to choose Grok.'
-                            : 'Using your xAI API key. It is stored encrypted on this computer and nowhere else.'}
+                          : 'Using your xAI API key. It is stored encrypted on this computer and nowhere else.'}
                       </p>
                       <ActionButton disabled={grokBusy} onClick={() => void changeGrok(() => desktopBridge!.grok!.disconnect())}>
                         Disconnect
@@ -233,14 +230,6 @@ export function Settings() {
                             Connect
                           </ActionButton>
                         </form>
-                      )}
-                      {ownGrok.claudeFound && (
-                        <div className="flex flex-wrap items-center gap-3">
-                          <ActionButton disabled={grokBusy} onClick={() => void changeGrok(() => desktopBridge!.grok!.connect({ mode: 'claude' }))}>
-                            Use Claude for testing
-                          </ActionButton>
-                          <p className="min-w-0 flex-1 text-sm text-ink-3">For testing before Grok is connected. Runs the agents on the Claude app found on this computer; results are labelled as a Claude test.</p>
-                        </div>
                       )}
                     </>
                   )}

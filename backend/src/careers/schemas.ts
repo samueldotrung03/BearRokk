@@ -138,7 +138,7 @@ export type Guide = {
   /** What each part's researcher looks for, from the master's plan; reused by "Add more". */
   angles: z.infer<typeof Angles> | null;
   status: 'planning' | 'researching' | 'ready' | 'failed';
-  provider: 'grok' | 'claude' | 'simulated';
+  provider: 'grok' | 'simulated';
   startedAt: string;
   updatedAt: string;
   error: string | null;

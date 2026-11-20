@@ -4,9 +4,6 @@
 // starts it on this computer. Their data is kept in the cloud under their own sign-in; the one
 // thing they bring is Grok, either the Grok app for the command line signed in to their
 // subscription, or an xAI API key. That choice is kept here, on this computer only.
-//
-// TEMPORARY, FOR TESTING: the agents can also be pointed at the Claude app for the command line,
-// as the backend allows until Grok access arrives (backend/SWAP_TO_GROK.md). Remove it with that.
 const { app, ipcMain, safeStorage } = require('electron');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -55,20 +52,11 @@ function findGrokCli() {
   return places.find((p) => fs.existsSync(p)) ?? null;
 }
 
-/** TEMPORARY: where the Claude app for the command line is installed, or null. */
-function findClaudeCli() {
-  const home = os.homedir();
-  const places = [path.join(home, '.local', 'bin', 'claude'), path.join(home, '.claude', 'local', 'claude'), '/opt/homebrew/bin/claude', '/usr/local/bin/claude'];
-  return places.find((p) => fs.existsSync(p)) ?? null;
-}
-
 function grokStatus() {
   const settings = readSettings();
   const cli = findGrokCli();
-  const claude = findClaudeCli();
-  const mode =
-    settings.grokMode === 'cli' && cli ? 'cli' : settings.grokMode === 'api' && storedKey(settings) ? 'api' : settings.grokMode === 'claude' && claude ? 'claude' : null;
-  return { managed, mode, cliFound: cli !== null, claudeFound: claude !== null, canStoreKey: safeStorage.isEncryptionAvailable() };
+  const mode = settings.grokMode === 'cli' && cli ? 'cli' : settings.grokMode === 'api' && storedKey(settings) ? 'api' : null;
+  return { managed, mode, cliFound: cli !== null, canStoreKey: safeStorage.isEncryptionAvailable() };
 }
 
 // ---- running the backend --------------------------------------------------------------------
@@ -122,12 +110,6 @@ function backendEnv() {
   } else if (settings.grokMode === 'api') {
     const key = storedKey(settings);
     if (key) env.XAI_API_KEY = key;
-  } else if (settings.grokMode === 'claude' && findClaudeCli()) {
-    // TEMPORARY test set-up: Opus for the master, managers, validation and presentation; Sonnet for the workers.
-    env.GROK_TRANSPORT = 'claude';
-    env.CLAUDE_CLI_BIN = findClaudeCli();
-    env.CLAUDE_MODEL_NORMAL = 'opus';
-    env.CLAUDE_MODEL_LOW = 'sonnet';
   }
   return env;
 }
@@ -174,10 +156,6 @@ function mount() {
       if (!safeStorage.isEncryptionAvailable()) return { ...grokStatus(), error: 'This computer cannot store the key securely.' };
       settings.grokMode = 'api';
       settings.grokKey = safeStorage.encryptString(key).toString('base64');
-    } else if (choice && choice.mode === 'claude') {
-      if (!findClaudeCli()) return { ...grokStatus(), error: 'The Claude app for the command line was not found on this computer.' };
-      settings.grokMode = 'claude';
-      delete settings.grokKey;
     } else {
       return { ...grokStatus(), error: 'Unknown choice.' };
     }

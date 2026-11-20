@@ -415,7 +415,7 @@ function apply(snapshot, animate) {
 function renderHeader() {
   if (student) {
     const mode = $('mode');
-    mode.textContent = student.mode !== 'live' ? 'Simulated agents · sample data' : student.provider === 'claude' ? 'Live agents on Claude (test)' : 'Live Grok agents';
+    mode.textContent = student.mode !== 'live' ? 'Simulated agents · sample data' : 'Live Grok agents';
     mode.className = 'pill' + (student.mode === 'live' ? ' live' : '');
     const cur = [...student.profile.categories].sort().join(',');
     for (const b of $('scenario').children) b.classList.toggle('on', b.dataset.cats.split(',').sort().join(',') === cur);

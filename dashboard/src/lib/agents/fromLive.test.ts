@@ -36,12 +36,10 @@ function liveRun(over: Partial<LiveAgents> = {}): LiveAgents {
 }
 
 describe('sourceLabel', () => {
-  it('names the source exactly, and never calls a Claude run Grok', () => {
+  it('names the source exactly', () => {
     expect(sourceLabel('grok')).toBe('Live run on Grok');
-    expect(sourceLabel('claude')).toBe('Test run on Claude');
     expect(sourceLabel('simulated')).toBe('Backend run, simulated agents');
     expect(sourceLabel(null)).toMatch(/^Simulated run on sample data/);
-    expect(sourceLabel('claude')).not.toMatch(/grok/i);
   });
 });
 

@@ -47,7 +47,7 @@ export interface AgentsOptions {
   /** How long to wait after a change before saving, so a burst of changes is one write. */
   saveDelayMs?: number;
   /** How the agents reach Grok, for the settings page. */
-  grok?: { connected: boolean; mode: 'api' | 'cli' | 'claude' | 'simulated'; detail: string };
+  grok?: { connected: boolean; mode: 'api' | 'cli' | 'simulated'; detail: string };
 }
 
 const ACTIONS: Action[] = ['save', 'like', 'dislike', 'open', 'apply'];

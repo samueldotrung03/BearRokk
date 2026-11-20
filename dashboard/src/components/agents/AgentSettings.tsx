@@ -319,7 +319,7 @@ function AgentSettingsDialog({ onClose }: { onClose: () => void }) {
           <p className="ags-note">
             {applied
               ? 'The Grok model each group of agents runs on.'
-              : 'The Grok model each group of agents will run on. The agents run on Claude for testing right now, so these take effect once Grok is connected.'}
+              : 'The Grok model each group of agents will run on. These take effect once Grok is connected.'}
           </p>
           <div className="mt-3 grid gap-2">
             {groups.map((g) => (

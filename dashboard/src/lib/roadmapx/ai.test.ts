@@ -98,10 +98,10 @@ describe('the roadmap Grok writes', () => {
     expect(written.phases.find((p) => p.id === clubPhase.id)!.more).toEqual([{ id: null, title: 'Run for a club officer role', why: 'Shows leadership.' }]);
   });
 
-  it('never calls Claude\'s writing Grok\'s', () => {
+  it('says Grok wrote the roadmap', () => {
     const state = { ...initialState, doneSteps: [] };
-    const journey = aiJourney(state, careerJourney(state, now), answer('claude'));
-    expect(journey.analysis.basis).toContain('Claude, standing in for Grok');
+    const journey = aiJourney(state, careerJourney(state, now), answer('api'));
+    expect(journey.analysis.basis).toContain('Written by Grok');
     expect(journey.mode).toBe('career');
   });
 });

@@ -94,7 +94,6 @@ export function Roadmap() {
   const planWritten = useAiRoadmap(planRequest, planning);
   const journey = useMemo(() => (planDraft ? (planWritten.answer ? aiPlan(planDraft, planWritten.answer) : planDraft) : board), [planDraft, planWritten.answer, board]);
   const written = planning ? planWritten : boardWritten;
-  const writer = written.answer?.writer;
   const build = (on: boolean) => {
     setPlans(on ? [...new Set([...plans, careerId])] : plans.filter((id) => id !== careerId));
     setView('journey');
@@ -307,13 +306,9 @@ export function Roadmap() {
             {journey.guide
               ? guide?.sample || guide?.provider === 'simulated'
                 ? 'Sample steps from the career guide. No model is connected.'
-                : guide?.provider === 'claude'
-                  ? 'From the career guide, researched by Claude standing in for Grok'
-                  : 'From the career guide, researched by Grok'
+                : 'From the career guide, researched by Grok'
               : written.status === 'ready'
-              ? writer === 'claude'
-                ? 'Written by Claude, standing in for Grok during testing'
-                : 'Written by Grok for you'
+              ? 'Written by Grok for you'
               : written.status === 'writing'
                 ? 'Your roadmap is being written. This is a first draft by fixed rules.'
                 : written.status === 'failed'

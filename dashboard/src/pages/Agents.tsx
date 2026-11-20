@@ -29,10 +29,9 @@ const SPEEDS = [0.5, 1, 2, 4] as const;
 /** Real time per beat at 1x. A full run is about 17 beats, so roughly 22 seconds. */
 const BEAT_MS = 1300;
 
-/** Says more about a backend run after its label, without ever calling Claude output Grok. */
+/** Says more about a backend run after its label. */
 const sourceNote: Record<Provider, string> = {
   grok: 'The agent backend’s latest run, as it happens.',
-  claude: 'The agent backend’s latest run, with Claude standing in for Grok while testing.',
   simulated: 'The agent backend’s latest run. Its agents are simulated and its postings invented.',
 };
 

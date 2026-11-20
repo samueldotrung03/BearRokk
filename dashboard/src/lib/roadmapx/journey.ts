@@ -461,7 +461,7 @@ export function customCareer(goal: string): Journey {
 export interface GuideStart {
   steps: { title: string; detail: string; when?: string | null; resource: { title: string; url: string } | null; prepares?: string[] }[];
   /** Who researched it, so sample steps are never shown as live research. */
-  provider: 'grok' | 'claude' | 'simulated';
+  provider: 'grok' | 'simulated';
   sample: boolean;
 }
 
@@ -506,7 +506,7 @@ export function guideJourney(goal: string, guide: GuideStart, doneSteps: string[
       opportunity: null,
     });
   }
-  const who = guide.sample || guide.provider === 'simulated' ? 'sample steps, because no model is connected' : guide.provider === 'claude' ? 'researched by Claude, standing in for Grok during testing' : 'researched by Grok';
+  const who = guide.sample || guide.provider === 'simulated' ? 'sample steps, because no model is connected' : 'researched by Grok';
   const journey = finish(
     'career',
     goal,

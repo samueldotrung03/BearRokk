@@ -7,7 +7,7 @@ import type { StudentMemory } from './agents/types.ts';
 import { createApp } from './app.ts';
 import { CareerGuides } from './careers/guide.ts';
 import { firebaseVerifier, webConfig } from './auth.ts';
-import { config, liveAvailable, provider } from './config.ts';
+import { config, liveAvailable } from './config.ts';
 import { oauthClientFrom } from './googleOAuth.ts';
 import { openStore } from './store/index.ts';
 import { cached, writeRoadmap } from './roadmap.ts';
@@ -23,7 +23,7 @@ const newSystem = (profile = {}) =>
         new GrokBrain(),
         config.grokTransport === 'api'
           ? { provider: 'grok', ...feed }
-          : { provider: provider() === 'claude' ? 'claude' : 'grok', concurrency: config.grokCli.concurrency, maxJobs: config.liveCli.maxJobs, managerStaggerMs: 600, ...feed },
+          : { provider: 'grok', concurrency: config.grokCli.concurrency, maxJobs: config.liveCli.maxJobs, managerStaggerMs: 600, ...feed },
         profile,
       )
     : new AgentSystem(new SimBrain({ speed: Number(process.env.SIM_SPEED ?? 0.6) }), { managerStaggerMs: 900, ...feed }, profile);
@@ -60,9 +60,7 @@ const { app } = createApp(store, {}, {
   search: liveAvailable() ? cachedSearch(writeSearch) : null,
   grok: !liveAvailable()
     ? { connected: false, mode: 'simulated', detail: 'No Grok connection is configured, so the agents are simulated on sample data.' }
-    : config.grokTransport === 'claude'
-      ? { connected: false, mode: 'claude', detail: 'For testing, the agents are running on Claude through this computer. Grok is not connected yet.' }
-      : config.grokTransport === 'cli'
+    : config.grokTransport === 'cli'
       ? { connected: true, mode: 'cli', detail: 'Through the Grok app on this computer, on its Grok subscription.' }
       : { connected: true, mode: 'api', detail: `Through the xAI API (${config.xaiModels.normal} and ${config.xaiModels.low}).` },
 }, careers);
@@ -71,7 +69,7 @@ serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`backend listening on http://localhost:${port}`);
   console.log(`  store:  ${store.kind === 'firestore' ? 'Firestore' : account ? `Firestore under each student's own sign-in; guests in a local file (${config.localDataFile})` : `local file (${config.localDataFile})`}`);
   const m = config.xaiModels;
-  console.log(`  agents: ${!liveAvailable() ? 'simulated on sample data (no XAI_API_KEY)' : config.grokTransport === 'claude' ? `TEST MODE on Claude (${config.claudeCli.models.normal} and ${config.claudeCli.models.low}) through the Claude CLI. Swap to Grok: see SWAP_TO_GROK.md` : config.grokTransport === 'cli' ? `live Grok through the CLI on this machine's subscription (${config.grokCli.bin})` : `live Grok API: master/managers/validation/presentation ${m.normal}, workers ${m.low}`}`);
+  console.log(`  agents: ${!liveAvailable() ? 'simulated on sample data (no XAI_API_KEY)' : config.grokTransport === 'cli' ? `live Grok through the CLI on this machine's subscription (${config.grokCli.bin})` : `live Grok API: master/managers/validation/presentation ${m.normal}, workers ${m.low}`}`);
   console.log(`  google: ${oauthClient ? 'lasting connection for Calendar and Sheets (OAuth client set)' : 'one session at a time (no GOOGLE_OAUTH_CLIENT_FILE)'}`);
   console.log(`  sign-in: ${verify ? `Google and email, Firebase project ${config.firebaseWeb.projectId}` : 'off (set FIREBASE_WEB_API_KEY and FIREBASE_PROJECT_ID)'}`);
   console.log(`  watch:  http://localhost:${port}/`);

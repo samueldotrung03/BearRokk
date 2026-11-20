@@ -214,7 +214,7 @@ function due(o) {
 function renderHeader() {
   if (!student) return;
   const mode = $('mode');
-  mode.textContent = student.mode !== 'live' ? 'Simulated agents · sample data' : student.provider === 'claude' ? 'Live agents on Claude (test)' : 'Live Grok agents';
+  mode.textContent = student.mode !== 'live' ? 'Simulated agents · sample data' : 'Live Grok agents';
   mode.className = 'pill' + (student.mode === 'live' ? ' live' : '');
   $('auto').textContent = student.scheduleSeconds ? `Auto-run: every ${student.scheduleSeconds}s` : 'Auto-run: off';
   $('auto').className = 'btn' + (student.scheduleSeconds ? ' on' : '');

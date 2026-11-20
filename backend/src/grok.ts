@@ -19,11 +19,6 @@ export async function grokJson<S extends z.ZodType>(opts: {
 }): Promise<GrokResult<z.infer<S>>> {
   // A stopped search makes no new calls.
   throwIfStopped();
-  if (config.grokTransport === 'claude') {
-    // Temporary test path. See SWAP_TO_GROK.md.
-    const { claudeCliJson } = await import('./claudeCli.ts');
-    return claudeCliJson(opts);
-  }
   if (config.grokTransport === 'cli') {
     const { grokCliJson } = await import('./grokCli.ts');
     return grokCliJson(opts);

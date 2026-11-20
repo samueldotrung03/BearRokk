@@ -5,12 +5,9 @@ export type PermissionState = 'granted' | 'denied' | 'unknown';
 /** How this copy of the app reaches Grok. `managed` is false when the app did not start the backend itself. */
 export interface GrokConnection {
   managed: boolean;
-  /** claude: a temporary test set-up, see backend/SWAP_TO_GROK.md. */
-  mode: 'cli' | 'api' | 'claude' | null;
+  mode: 'cli' | 'api' | null;
   /** The Grok app for the command line is installed on this computer. */
   cliFound: boolean;
-  /** The Claude app for the command line is installed on this computer (test set-up only). */
-  claudeFound?: boolean;
   canStoreKey: boolean;
   error?: string;
 }
@@ -30,7 +27,7 @@ interface DesktopBridge {
   /** Absent in a desktop shell older than the page. */
   grok?: {
     status: () => Promise<GrokConnection>;
-    connect: (choice: { mode: 'cli' } | { mode: 'api'; key: string } | { mode: 'claude' }) => Promise<GrokConnection>;
+    connect: (choice: { mode: 'cli' } | { mode: 'api'; key: string }) => Promise<GrokConnection>;
     disconnect: () => Promise<GrokConnection>;
   };
   /** The menu bar icon at the top of the screen (macOS). Absent in an older desktop shell. */

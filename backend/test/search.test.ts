@@ -82,10 +82,10 @@ test('API: search answers own matches at once, and the web search honestly refus
   let seen: Parameters<SearchWriter>[0] | null = null;
   const answer = { intent: 'i', answer: 'a', results: [], related: [], contextUsed: [] };
   const writer = cachedSearch(async (input) => (calls++, (seen = input), { data: answer, citations: [] }));
-  const on = createApp(new LocalStore(null), {}, { demo, search: writer, grok: { connected: false, mode: 'claude', detail: '' } }).app;
+  const on = createApp(new LocalStore(null), {}, { demo, search: writer, grok: { connected: true, mode: 'cli', detail: '' } }).app;
   const res = await post(on, 'search', { query: 'software internship', kind: 'internship' });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ...answer, writer: 'claude' });
+  assert.deepEqual(await res.json(), { ...answer, writer: 'cli' });
   assert.equal(seen!.request.kind, 'internship');
   await post(on, 'search', { query: 'software internship', kind: 'internship' });
   assert.equal(calls, 1, 'the same search again is answered from the cache');

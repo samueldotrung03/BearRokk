@@ -64,7 +64,7 @@ export interface SearchAnswer {
   results: SearchResult[];
   related: string[];
   contextUsed: string[];
-  /** Which model searched: 'claude' is the temporary test set-up, standing in for Grok. */
+  /** Which connection searched: 'api' or 'cli'. */
   writer: string;
 }
 

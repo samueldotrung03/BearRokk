@@ -93,8 +93,6 @@ Set `GROK_TRANSPORT` in `backend/.env`. The agents are the same either way; only
 | Model tiers | `XAI_MODEL_*` | `GROK_CLI_MODEL_*`, otherwise the CLI's default for every level |
 | At once | 8 worker calls | 3 CLI processes (`GROK_CLI_CONCURRENCY`) |
 
-There is a third value, `claude`, which is **temporary and for testing only**: it runs the same agents on Claude through the Claude Code CLI so the live chain can be exercised before Grok access exists. See [`SWAP_TO_GROK.md`](SWAP_TO_GROK.md).
-
 Cautions for `cli`:
 
 - Grok Build is a coding agent that can read files and run commands. Each call runs in an empty temporary folder and the prompt tells it to use web search only. `GROK_CLI_ALWAYS_APPROVE=1` lets it use tools without asking, which web search may need; that also removes the approval step for anything a web page might talk it into, so turn it on only on a machine and account you are comfortable with.
@@ -292,7 +290,7 @@ Reused as is: the Grok client, the stores, the evidence rules, the deterministic
 
 ## Roadmap writer
 
-`src/roadmap.ts`, served at `POST /api/students/:id/roadmap`. It is one call, not a run of the agent tree: the normal tier with web search. The request carries the student's profile, notes and restrictions, either a career goal or one posting with the application's status, and any paths the app already holds. The answer is a fit check (what the profile shows and what is missing), three to five phases of steps each marked as coming from the posting, a gap, what people did, or after applying, real resource links, and short accounts of how people got in. The prompt keeps the same rules as the agents: notes first, restrictions as rules, no guessed facts. For a posting already applied to it writes what to do while waiting instead of how to apply. Answers are kept in memory per distinct request. With no model connected the route answers 503 and the dashboard draws its own rule-built draft. It has run once on the Claude test path and never on Grok.
+`src/roadmap.ts`, served at `POST /api/students/:id/roadmap`. It is one call, not a run of the agent tree: the normal tier with web search. The request carries the student's profile, notes and restrictions, either a career goal or one posting with the application's status, and any paths the app already holds. The answer is a fit check (what the profile shows and what is missing), three to five phases of steps each marked as coming from the posting, a gap, what people did, or after applying, real resource links, and short accounts of how people got in. The prompt keeps the same rules as the agents: notes first, restrictions as rules, no guessed facts. For a posting already applied to it writes what to do while waiting instead of how to apply. Answers are kept in memory per distinct request. With no model connected the route answers 503 and the dashboard draws its own rule-built draft. It has not run on Grok yet.
 
 When a career request carries `chosen` (the options the student picked on the dashboard's board), the roadmap is built from exactly those: one phase per category, one step per pick with `actions` (things to do, in order), and `more` on each phase (further recommendations in that category). For a posting it also searches the web and X for the organizer's selection process and returns the stages it can source in `process` (empty when it found none; it is told not to guess them). `npm run roadmap:check` writes one roadmap of each form for an invented student and checks the shape the dashboard draws.
 
@@ -311,7 +309,7 @@ One agent system runs more than one kind of request. Each kind has a **skill**: 
 |---|---|---|
 | Master | Names the career and gives each part an angle | Reads what the student asked, with their profile and notes (notes first) and their earlier asks; writes the part's focus, or routes a request for postings to the opportunity search |
 | Managers (one per part, no model call) | Write the researcher's job from the angle; for how to start, list the interview formats to prepare for | The same, from the focus, with what the part already holds so only new items come back |
-| Workers (shared fleet, kinds `guide-research`, `guide-review`) | Basics, posts from X (sample stories on Claude), interviews, then how to start once the interviews are validated | The one part |
+| Workers (shared fleet, kinds `guide-research`, `guide-review`) | Basics, posts from X (labelled sample stories without X search), interviews, then how to start once the interviews are validated | The one part |
 | Validators (one per part) | Take out or correct items that break the part's rules (soft skills in basics, a `prepares` name that is not a real format, a post with no real link) | The same |
 | Presentation | Writes the two-sentence summary over every post | Merges without repeats; rewrites the summary when posts were added; new interview formats get steps in how to start; writes the three suggested requests for the "Add more" window |
 

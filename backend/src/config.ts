@@ -21,18 +21,7 @@ export const config = {
    * How the agents reach Grok. "api": the xAI API with XAI_API_KEY, billed per call.
    * "cli": the Grok Build CLI on this machine, signed in with a Grok subscription.
    */
-  grokTransport: (env.GROK_TRANSPORT === 'cli' ? 'cli' : env.GROK_TRANSPORT === 'claude' ? 'claude' : 'api') as 'api' | 'cli' | 'claude',
-  /**
-   * TEMPORARY, for testing before Grok access: GROK_TRANSPORT=claude runs the agents on Claude
-   * through the Claude Code CLI on this machine. See SWAP_TO_GROK.md.
-   */
-  claudeCli: {
-    bin: env.CLAUDE_CLI_BIN ?? 'claude',
-    models: { high: env.CLAUDE_MODEL_HIGH ?? 'opus', normal: env.CLAUDE_MODEL_NORMAL ?? 'sonnet', low: env.CLAUDE_MODEL_LOW ?? 'haiku' },
-    timeoutMs: Number(env.CLAUDE_CLI_TIMEOUT_MS ?? 240_000),
-    /** low, medium, high, xhigh or max, passed to the CLI as --effort. Unset leaves the CLI's own default. */
-    effort: env.CLAUDE_EFFORT || undefined,
-  },
+  grokTransport: (env.GROK_TRANSPORT === 'cli' ? 'cli' : 'api') as 'api' | 'cli',
   /** With a CLI each call is a whole program, so a live run is kept small enough to finish in a few minutes. */
   liveCli: { maxJobs: Number(env.LIVE_MAX_JOBS ?? 12) },
   /** The feed should hold at least `target` cards; the agents search again, up to `maxFillRuns` times in a row, until it does. */
@@ -80,4 +69,4 @@ export const config = {
 export const liveAvailable = () => config.grokTransport !== 'api' || config.xaiApiKey !== null;
 
 /** Which model family the agents are on right now. */
-export const provider = (): 'grok' | 'claude' | 'simulated' => (!liveAvailable() ? 'simulated' : config.grokTransport === 'claude' ? 'claude' : 'grok');
+export const provider = (): 'grok' | 'simulated' => (!liveAvailable() ? 'simulated' : 'grok');

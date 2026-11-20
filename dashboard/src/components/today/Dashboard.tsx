@@ -328,7 +328,7 @@ export function RoadmapCard({ roadmap, onTick }: { roadmap: RoadmapGlance; onTic
   );
 }
 
-const providerWords = { grok: 'Running on Grok', claude: 'Test run on Claude', simulated: 'Simulated agents' } as const;
+const providerWords = { grok: 'Running on Grok', simulated: 'Simulated agents' } as const;
 
 export function AgentsCard({ inFeed }: { inFeed: number }) {
   const live = useLive();

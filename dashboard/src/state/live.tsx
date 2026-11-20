@@ -68,7 +68,7 @@ interface BackendFeedEntry {
 interface BackendStudent {
   feed: BackendFeedEntry[];
   mode: 'simulated' | 'live';
-  provider: 'grok' | 'claude' | 'simulated';
+  provider: 'grok' | 'simulated';
   runCount: number;
   /** Cards the feed should hold; the agents keep searching while it has fewer. */
   feedTarget?: number;
@@ -123,8 +123,8 @@ interface LiveValue {
   usingLive: boolean;
   /** Cards the feed should hold; the agents keep searching on their own while it has fewer. */
   feedTarget: number;
-  /** Which model the agents are on. "claude" is a temporary test set-up. */
-  provider: 'grok' | 'claude' | 'simulated';
+  /** Which model the agents are on. */
+  provider: 'grok' | 'simulated';
   opportunities: Opportunity[];
   /** Saved postings the account holds, including ones the feed no longer shows. */
   savedCards: Opportunity[];
@@ -538,11 +538,9 @@ export function DataBadge() {
         ? ['Connecting…', 'Connecting']
         : !live.usingLive
           ? ['No results yet', 'Empty']
-      : live.provider === 'claude'
-        ? ['Live · Claude test', 'Live']
-        : live.provider === 'grok'
-          ? ['Live · Grok', 'Live']
-          : ['Simulated agents', 'Simulated'];
+      : live.provider === 'grok'
+        ? ['Live · Grok', 'Live']
+        : ['Simulated agents', 'Simulated'];
   return (
     <span className="flex items-center gap-1.5">
       <span className="flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur" title={live.status === 'offline' ? 'The agent backend is not reachable.' : undefined}>

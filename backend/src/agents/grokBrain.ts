@@ -14,7 +14,7 @@ import { CATEGORY_LABEL, type AgentGroup, type ReviewFocus, type Assignment, typ
  * The high tier (XAI_MODEL_HIGH) is configured but not assigned to any level at the moment.
  */
 const TIER: { high?: string; normal?: string; low?: string } =
-  config.grokTransport === 'claude' ? config.claudeCli.models : config.grokTransport === 'cli' ? config.grokCli.models : config.xaiModels;
+  config.grokTransport === 'cli' ? config.grokCli.models : config.xaiModels;
 export const AGENT_TIERS = {
   master: 'normal',
   searchManager: 'normal',
@@ -73,12 +73,9 @@ export class GrokBrain implements Brain {
     this.models = { ...models };
   }
 
-  /**
-   * The model for one agent group: the student's choice while the agents run on Grok, the tier's
-   * default otherwise (the Claude test set-up does not take Grok model names).
-   */
+  /** The model for one agent group: the student's choice, or the tier's default. */
   private model(group: AgentGroup, tier: string | undefined): string | undefined {
-    return config.grokTransport !== 'claude' ? (this.models[group] ?? tier) : tier;
+    return this.models[group] ?? tier;
   }
 
   async master(input: MasterInput) {

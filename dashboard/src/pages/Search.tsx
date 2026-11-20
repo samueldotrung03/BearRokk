@@ -281,7 +281,7 @@ export function Search() {
               <div className="srch-answer-head">
                 <Sparkles aria-hidden="true" />
                 <span>Overview</span>
-                <span className="srch-writer">{run.answer.writer === 'claude' ? 'Searched by Claude, standing in for Grok during testing' : 'Searched by Grok'}</span>
+                <span className="srch-writer">Searched by Grok</span>
               </div>
               {run.answer.intent && <p className="srch-intent">{run.answer.intent}</p>}
               <Answer text={run.answer.answer} count={run.answer.results.length} />

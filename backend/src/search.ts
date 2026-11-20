@@ -332,7 +332,7 @@ export const writeSearch: SearchWriter = async ({ request, context, own }) => {
     user: searchPrompt(request, context, own, tag),
     schema: Answer,
     tools: request.web ? [{ type: 'web_search' }] : [],
-    model: (config.grokTransport === 'claude' ? config.claudeCli.models : config.grokTransport === 'cli' ? config.grokCli.models : config.xaiModels).normal,
+    model: (config.grokTransport === 'cli' ? config.grokCli.models : config.xaiModels).normal,
   });
   return { data: mergeAnswer(data, own), citations };
 };

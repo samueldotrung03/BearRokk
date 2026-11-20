@@ -9,7 +9,7 @@ if (!liveAvailable()) {
   console.error('No model is connected. Set XAI_API_KEY, or GROK_TRANSPORT=cli, in backend/.env first.');
   process.exit(1);
 }
-console.log(`transport: ${config.grokTransport}${config.grokTransport === 'claude' ? '  (TEST MODE: this is Claude, not Grok)' : ''}\n`);
+console.log(`transport: ${config.grokTransport}\n`);
 
 const profile = {
   major: 'Computer Science',

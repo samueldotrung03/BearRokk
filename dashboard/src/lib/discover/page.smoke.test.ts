@@ -45,7 +45,7 @@ const guide = (over: Partial<Guide> = {}): Guide => ({
   oneLine: 'Studies how people and markets use scarce resources.',
   field: 'economics',
   status: 'ready',
-  provider: 'claude',
+  provider: 'grok',
   startedAt: '2026-11-19T10:00:00Z',
   updatedAt: '2026-11-19T10:02:00Z',
   error: null,
@@ -187,10 +187,11 @@ describe('Career guide', () => {
     expect(stepLine(guide())).toBeNull();
   });
 
-  it('never presents Claude as Grok, and says when a figure is missing', () => {
-    expect(providerLabel('claude')).toBe('Claude (test mode)');
+  it('names who researched the guide, and says when a figure is missing', () => {
+    expect(providerLabel('grok')).toBe('Grok');
+    expect(providerLabel('simulated')).toBe('simulated agents');
     const html = renderGuide(guide());
-    expect(html).toContain('by Claude (test mode)');
+    expect(html).toContain('by Grok');
     expect(html).toContain('No pay figure found');
   });
 

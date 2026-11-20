@@ -74,7 +74,7 @@ export interface SystemOptions {
   /** Stored postings without a picture that one run looks for pictures for, on top of its own finds. */
   imageBackfill?: number;
   /** Which model family a live brain talks to, for labelling. */
-  provider?: 'grok' | 'claude';
+  provider?: 'grok';
   now: () => Date;
 }
 
@@ -131,8 +131,8 @@ export interface StudentState {
   sheet: LinkedSheet | null;
   runCount: number;
   mode: 'simulated' | 'live';
-  /** Which model family the agents are on. "claude" is a temporary test set-up. */
-  provider: 'grok' | 'claude' | 'simulated';
+  /** Which model family the agents are on. */
+  provider: 'grok' | 'simulated';
   applications: Application[];
   /** The uploaded résumé, without the file itself. */
   resume: ResumeInfo | null;

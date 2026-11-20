@@ -1,4 +1,4 @@
-// Career guides on a fake model: no network, no Grok, no Claude.
+// Career guides on a fake model: no network, no Grok.
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -55,7 +55,7 @@ function fakeAsk(calls: Call[], fail: string[] = [], reply: (name: string, n: nu
   }) as Ask;
 }
 
-const env = (canSearchX: boolean) => ({ live: () => true, provider: () => (canSearchX ? 'grok' : 'claude') as 'grok' | 'claude', canSearchX: () => canSearchX });
+const env = (canSearchX: boolean) => ({ live: () => true, provider: () => 'grok' as const, canSearchX: () => canSearchX });
 const names = (calls: Call[]) => calls.map((c) => c.name);
 
 test('the master routes guides and asks to career discovery, and postings to the opportunity search', () => {

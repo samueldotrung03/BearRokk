@@ -33,13 +33,9 @@ test('agent settings: each group uses its chosen Grok model, others their tier',
   const brain = new GrokBrain();
   brain.setModels({ master: 'grok-x', workers: 'grok-y' });
   const model = (brain as any).model.bind(brain);
-  if (config.grokTransport === 'claude') {
-    assert.equal(model('master', 'tier'), 'tier', 'the Claude test set-up keeps its own models');
-  } else {
-    assert.equal(model('master', 'tier'), 'grok-x');
-    assert.equal(model('workers', 'tier'), 'grok-y');
-    assert.equal(model('validators', 'tier'), 'tier');
-  }
+  assert.equal(model('master', 'tier'), 'grok-x');
+  assert.equal(model('workers', 'tier'), 'grok-y');
+  assert.equal(model('validators', 'tier'), 'tier');
 });
 
 test('agent settings: a minimum keeps the agents searching for that kind until it is met', async () => {

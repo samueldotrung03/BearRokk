@@ -204,7 +204,7 @@ const ask = (request: RoadmapRequest, again = '') =>
     schema: Roadmap,
     tools: [{ type: 'web_search' }, { type: 'x_search' }],
     // The normal tier of whichever transport is in use, as the master agent and managers use.
-    model: (config.grokTransport === 'claude' ? config.claudeCli.models : config.grokTransport === 'cli' ? config.grokCli.models : config.xaiModels).normal,
+    model: (config.grokTransport === 'cli' ? config.grokCli.models : config.xaiModels).normal,
   });
 
 /** Writes the roadmap, and asks once more when the first answer is thinner than its form asks. */
