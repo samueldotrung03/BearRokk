@@ -35,6 +35,20 @@ npm run dev
 
 Open the printed local URL. `npm run build` typechecks and writes `dist/`.
 
+## Backend
+
+The search service lives in `backend/`. It is imported from the earlier [BearRok](https://github.com/samueldotrung03/BearRok) prototype (commit `e5ffdae`). A typed request goes to `POST /api/students/:id/runs` as `{ "request": "..." }`. A club near Berkeley and an online hackathon stay separate searches. The discovery screens above still use the prepared examples in `src/data/opportunities.ts`. They do not call this service yet.
+
+```bash
+cd backend
+npm install
+npm run typecheck
+npm test
+npm run dev
+```
+
+Without `XAI_API_KEY` the agents run on the labeled simulated catalog. Details and the rest of the run path are in [`backend/README.md`](backend/README.md).
+
 ## How BearRokk solves it
 
 The same request is the one the plan rehearses and the one the pitch page already shows.
