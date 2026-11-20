@@ -117,6 +117,22 @@ The visit is the request above, Cosmo Hacks, and the CodePath card.
 
 The Feed image above is the list after the change. Cards show the type, the title, the organizer, and a date. Cosmo Hacks is the event in the source notes. CodePath is the club in the discovery data.
 
+![Your agents, sample run](site/assets/agents.png)
+
+*Your agents, sample run.*
+
+![Career discovery, software engineer](site/assets/career-discovery.png)
+
+*Career discovery, software engineer.*
+
+![Roadmap](site/assets/roadmap.jpg)
+
+*Roadmap.*
+
+![Dark Feed with the category sidebar](site/assets/feed-dark.jpg)
+
+*Dark Feed with the category sidebar.*
+
 On Home, **Meet the mechanism** (`#workflow`) scrolls to the roles that replaced Simplify’s empty search: run triggers, a master, four search managers, scouts, extractors, validators, application readers, a presentation manager, the student feed, and memory. **Explore the technology** (`#technology`) lists the marks for the pitch; icon sources are in [`site/assets/marks/SOURCES.md`](site/assets/marks/SOURCES.md).
 
 **Demo** (`#demo-preview`) is the walkthrough. Under the video, the page explains another plain-language request: “I’m a first-year student looking for paid software internships in Berkeley or remote. No events.” That request returns internships that fit and leaves events out.
