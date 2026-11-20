@@ -18,7 +18,7 @@ python3 -m http.server 4174 --bind 127.0.0.1
 
 Open http://127.0.0.1:4174/. The entry point is `site/index.html`. The title is “BearRok — Find your next thing.” Choose **Get Started**. The address becomes `#demo-preview`, the heading is “A quick look at BearRok,” and the page includes `assets/demo-walkthrough.webm` with playback controls. The video is the student feed after the change. **Download now!** stays disabled, and **Sign In** says “Not available yet.”
 
-![Feed view after the Simplify change. Cards show a type, a title, an organizer, and a date beside a roadmap panel.](site/assets/project-feed.png)
+![Feed view after the Simplify change. Cards show a type, a title, an organizer, and a date.](site/assets/feed-screenshot.jpg)
 
 ## The problem
 
@@ -115,7 +115,7 @@ The visit is the request above, Cosmo Hacks, and the CodePath card.
 
 ## A look inside
 
-The Feed image above is Home after the change. Cards show the type, the title, the organizer, and a date, next to the roadmap. Cosmo Hacks is the event in the source notes. CodePath is the club in the discovery data.
+The Feed image above is the list after the change. Cards show the type, the title, the organizer, and a date. Cosmo Hacks is the event in the source notes. CodePath is the club in the discovery data.
 
 On Home, **Meet the mechanism** (`#workflow`) scrolls to the roles that replaced Simplify’s empty search: run triggers, a master, four search managers, scouts, extractors, validators, application readers, a presentation manager, the student feed, and memory. **Explore the technology** (`#technology`) lists the marks for the pitch; icon sources are in [`site/assets/marks/SOURCES.md`](site/assets/marks/SOURCES.md).
 
