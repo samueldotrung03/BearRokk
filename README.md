@@ -20,6 +20,10 @@ Open http://127.0.0.1:4174/. The entry point is `site/index.html`. The title is 
 
 ![Feed view after the Simplify change. Cards show a type, a title, an organizer, and a date.](site/assets/feed-screenshot.jpg)
 
+![Calendar](site/assets/calendar-light.png)
+
+*Calendar.*
+
 ## The problem
 
 Simplify had no AI tool. A first-year student looking for a club, hackathon, scholarship, or research opening had to check Luma, Devpost, school posts, and Reddit. The announcement, the organizer’s instructions, and the deadline sat on different pages. The student pieced together what was open, when to act, and whether it fit. That search took the time, and a mixed-up date or a missed deadline made the result hard to trust.
