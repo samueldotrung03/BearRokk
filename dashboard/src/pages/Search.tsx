@@ -6,7 +6,7 @@
 // Client: src/lib/search.ts. Backend: backend/src/search.ts.
 import { ArrowRight, ArrowUpRight, Briefcase, Clock, Copy, ExternalLink, Globe, MapPin, Search as SearchIcon, Sparkles, UserRound, X as XSmall } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useAuth } from '../auth/AuthProvider.tsx';
 import { Card, Page } from '../components/Page.tsx';
 import { logoUrl, suggest, type Company, type Suggestion } from '../data/searchSuggestions.ts';
@@ -28,6 +28,7 @@ import {
   type SearchFilters,
   type SearchResult,
 } from '../lib/search.ts';
+import { askedQuery } from '../lib/quick.ts';
 import '../styles/search.css';
 
 type Phase = 'idle' | 'own' | 'web' | 'done';
@@ -109,6 +110,23 @@ export function Search() {
     setFilters(next);
     if (rerun && run.q) void search(run.q, next);
   };
+  // /search?q=<text>, from the quick panel: run that query on arrival, then drop it from the
+  // address so going back and forth does not run it again.
+  const [params, setParams] = useSearchParams();
+  const asked = askedQuery(params);
+  useEffect(() => {
+    if (!asked) return;
+    setParams(
+      (p) => {
+        p.delete('q');
+        return p;
+      },
+      { replace: true },
+    );
+    void search(asked);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per query that arrives
+  }, [asked]);
+
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     setOpen(false);

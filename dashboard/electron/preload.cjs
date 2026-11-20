@@ -1,6 +1,6 @@
 // The only bridge between the page and the desktop shell: asking macOS which permissions the app
-// has, opening the matching pane of System Settings, bringing the window to the front, and
-// choosing how the agents reach Grok. The page gets no other access, and can never read a stored
+// has, opening the matching pane of System Settings, bringing the window to the front, the menu bar
+// icon and notch panel, and choosing how the agents reach Grok. The page gets no other access, and can never read a stored
 // key back.
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -22,6 +22,14 @@ contextBridge.exposeInMainWorld('bearrokDesktop', {
       ipcRenderer.on('menubar:action', listener);
       return () => ipcRenderer.removeListener('menubar:action', listener);
     },
+  },
+  /** The notch panel's page: pass a pick to the main window, close the panel, or fit it to its content. */
+  quick: {
+    /** { type: 'run' | 'stop' } or { type: 'open', path }. The panel closes after sending it. */
+    action: (a) => ipcRenderer.send('quick:action', a),
+    hide: () => ipcRenderer.send('quick:hide'),
+    /** Height in pixels, kept between 200 and 640. */
+    resize: (h) => ipcRenderer.send('quick:resize', h),
   },
   grok: {
     /** { managed, mode: 'cli' | 'api' | 'claude' | null, cliFound, claudeFound, canStoreKey }. claude is a temporary test set-up. */

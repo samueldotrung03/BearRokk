@@ -69,6 +69,70 @@ export function answerText(stdout: string): string {
   }
 }
 
+/** The answer the CLI checked against the schema it was given (`--json-schema`), when it returned one. */
+export function structuredAnswer(stdout: string): unknown {
+  try {
+    const body = JSON.parse(stdout.trim());
+    const v = body?.structuredOutput ?? body?.structured_output;
+    return v && typeof v === 'object' ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Every complete top-level JSON object in a reply, in the order written. */
+export function jsonObjects(text: string): unknown[] {
+  const found: unknown[] = [];
+  let i = 0;
+  while ((i = text.indexOf('{', i)) >= 0) {
+    let depth = 0;
+    let inString = false;
+    let end = -1;
+    for (let j = i; j < text.length; j++) {
+      const ch = text[j];
+      if (inString) {
+        if (ch === '\\') j++;
+        else if (ch === '"') inString = false;
+      } else if (ch === '"') inString = true;
+      else if (ch === '{') depth++;
+      else if (ch === '}' && --depth === 0) {
+        end = j;
+        break;
+      }
+    }
+    if (end < 0) break;
+    try {
+      found.push(JSON.parse(text.slice(i, end + 1)));
+      i = end + 1;
+    } catch {
+      i += 1;
+    }
+  }
+  return found;
+}
+
+/**
+ * The fullest answer in the CLI's output that fits the schema. The CLI sometimes writes an empty
+ * copy of the shape before or between its searches, in its text or as its checked answer, so the
+ * first object found is not always the real one.
+ */
+export function fullestAnswer<S extends z.ZodType>(stdout: string, schema: S): z.infer<S> {
+  const candidates = [structuredAnswer(stdout), ...jsonObjects(answerText(stdout))].filter((c) => c !== undefined);
+  let best: { data: z.infer<S>; size: number } | null = null;
+  let firstError: unknown;
+  for (const c of candidates) {
+    const parsed = schema.safeParse(c);
+    if (!parsed.success) {
+      firstError ??= parsed.error;
+      continue;
+    }
+    const size = JSON.stringify(parsed.data).length;
+    if (!best || size > best.size) best = { data: parsed.data, size };
+  }
+  if (best) return best.data;
+  throw firstError ?? new Error('the reply contained no JSON object');
+}
+
 /** Pull the first complete JSON object out of a reply that may have prose or code fences around it. */
 export function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -111,21 +175,26 @@ export async function grokCliJson<S extends z.ZodType>(opts: {
   const prompt = [
     opts.system,
     opts.tools?.length ? 'Use your web search tool to find and open pages. Do not read, write or run anything on this computer.' : 'Answer from the information given. Do not use any tools.',
-    `Reply with one JSON object and nothing else: no explanation, no code fence. It must match this JSON Schema:\n${JSON.stringify(schema)}`,
+    `Reply with one JSON object and nothing else: no explanation, no code fence. Write it once, after your research is done, never as an empty placeholder. It must match this JSON Schema:\n${JSON.stringify(schema)}`,
     `---\n${opts.user}`,
   ].join('\n\n');
 
   const args = ['-p', prompt, '--output-format', 'json', '--no-auto-update', '--cwd', sandboxDir()];
   if (opts.model) args.push('-m', opts.model);
+  // The CLI is a full agent: at its default effort one search takes minutes of thinking between steps.
+  if (config.grokCli.effort) args.push('--reasoning-effort', config.grokCli.effort);
+  if (!opts.tools?.length) args.push('--disable-web-search');
+  // The CLI holds the answer to the schema itself, which is quicker and surer than finding JSON in prose.
+  const withSchema = [...args, '--json-schema', JSON.stringify(schema)];
   // Only when switched on: lets the CLI use tools (web search) without a person approving each one.
   if (opts.tools?.length && config.grokCli.alwaysApprove) args.push('--always-approve');
 
   let lastError: unknown;
-  // One retry: a reply that is not valid JSON is usually fixed by asking again.
+  // One retry, without the schema option in case the CLI turned the schema down: the prompt still asks for the JSON.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const stdout = await run(args, opts.timeoutMs ?? config.grokCli.timeoutMs);
-      return { data: opts.schema.parse(extractJson(answerText(stdout))), citations: [] };
+      const stdout = await run(attempt === 0 ? withSchema : args, opts.timeoutMs ?? config.grokCli.timeoutMs);
+      return { data: fullestAnswer(stdout, opts.schema), citations: [] };
     } catch (e) {
       lastError = e;
       if (e instanceof StoppedError || (e instanceof Error && /not found|timed out/.test(e.message))) break;

@@ -18,6 +18,7 @@ import { Discover } from './pages/Discover.tsx';
 import { Feed } from './pages/Feed.tsx';
 import { ForgotPassword } from './pages/ForgotPassword.tsx';
 import { Profile } from './pages/Profile.tsx';
+import { Quick } from './pages/Quick.tsx';
 import { Roadmap } from './pages/Roadmap.tsx';
 import { RoadmapList } from './pages/RoadmapList.tsx';
 import { Saved } from './pages/Saved.tsx';
@@ -38,6 +39,8 @@ export function App() {
 
   const { status, user } = useAuth();
   const onAccountPage = accountPages.includes(pathname);
+  // The desktop app's quick panel: its own small window, with no app chrome and its own signed-out state.
+  if (pathname === '/quick') return <Quick />;
   // Firebase takes a moment to restore a saved sign-in; show nothing rather than flash the wrong page.
   if (status === 'loading') return <div className="window-drag" aria-hidden="true" />;
   // The app is for signed-in students, or a guest who chose to look around on sample data.

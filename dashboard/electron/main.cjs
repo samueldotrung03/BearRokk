@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const backend = require('./backend.cjs');
 const menuBar = require('./menuBar.cjs');
+const notch = require('./notch.cjs');
 
 /** The one app window; closing it on macOS keeps the app (and the menu bar icon) running. */
 let mainWindow = null;
@@ -116,8 +117,11 @@ app.whenReady().then(async () => {
   createWindow();
   // The bear in the menu bar at the top of the screen.
   if (process.platform === 'darwin') menuBar.mount({ ipcMain, window: () => mainWindow, create: createWindow });
+  // The shortcut panel that drops down from the camera notch.
+  if (process.platform === 'darwin') notch.mount({ ipcMain, window: () => mainWindow, create: createWindow, devUrl });
+  // The notch panel stays open hidden, so the main window is checked for itself, not by counting windows.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (!mainWindow) createWindow();
   });
 });
 

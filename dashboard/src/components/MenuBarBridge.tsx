@@ -3,35 +3,17 @@
 // nothing, and does nothing outside the desktop app.
 import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { useAuth } from '../auth/AuthProvider.tsx';
 import { desktopBridge } from '../lib/desktopBridge.ts';
-import { menuBarData } from '../lib/menuBar.ts';
+import { menuBarLabels } from '../lib/menuBar.ts';
+import { useGlance } from '../state/glance.ts';
 import { useLive } from '../state/live.tsx';
-import { rankFeed } from '../state/ranking.ts';
-import { useStore } from '../state/StoreProvider.tsx';
 
 export function MenuBarBridge() {
   const bridge = desktopBridge?.menuBar;
-  const auth = useAuth();
   const live = useLive();
-  const { state } = useStore();
   const navigate = useNavigate();
-  const signedIn = auth.status === 'signedIn' || auth.status === 'guest';
-
-  // The same ranking as the feed's For you, so the top recommendation is the feed's first card.
-  const ranked = useMemo(() => rankFeed(live.opportunities, state), [live.opportunities, state]);
-  const data = useMemo(
-    () =>
-      menuBarData({
-        signedIn,
-        searching: live.searching,
-        ranked,
-        applications: live.applications,
-        postings: [...live.opportunities, ...live.savedCards],
-        saved: state.saved,
-      }),
-    [signedIn, live.searching, ranked, live.applications, live.opportunities, live.savedCards, state.saved],
-  );
+  const g = useGlance();
+  const data = useMemo(() => menuBarLabels(g), [g]);
 
   // Sent only when what the menu shows changes.
   const sent = useRef('');
