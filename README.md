@@ -24,6 +24,17 @@ Open http://127.0.0.1:4174/. The entry point is `site/index.html`. The title is 
 
 A first-year student looking for a club, hackathon, scholarship, or research opening has to check Luma, Devpost, school posts, and Reddit. The announcement, the organizer’s instructions, and the deadline can sit on different pages. The student has to piece together what is open, when to act, and whether it fits their interests. That search takes the time, and a mixed-up date or a missed deadline is what makes the result hard to trust.
 
+## Discovery app
+
+The student-facing discovery screen lives in this repository. It opens on For you, then Feed, using prepared examples. Saves, likes, and dislikes stay in this browser.
+
+```bash
+npm install
+npm run dev
+```
+
+Open the printed local URL. `npm run build` typechecks and writes `dist/`.
+
 ## How BearRokk solves it
 
 The same request is the one the plan rehearses and the one the pitch page already shows.
