@@ -10,23 +10,43 @@ let latest = { searching: false, deadlines: [], top: null, signedIn: false };
 let getWindow = () => null;
 let makeWindow = () => null;
 
-/** The window, made again if it was closed, shown and in front; `then` runs once its page is ready. */
-function withWindow(then) {
+/** Whether the page in the window is listening, and an action picked before it was. */
+let ready = false;
+let pending = null;
+const watched = new WeakSet();
+
+/** The window, made again if it was closed, shown and in front. */
+function showWindow() {
   let window = getWindow();
-  const fresh = !window;
-  if (!window) window = makeWindow();
-  if (!window) return;
+  if (!window || window.isDestroyed()) window = makeWindow();
+  if (!window) return null;
+  if (!watched.has(window.webContents)) {
+    watched.add(window.webContents);
+    // A page that starts loading again is not listening until it says so.
+    window.webContents.on('did-start-loading', () => {
+      ready = false;
+    });
+    window.on('closed', () => {
+      ready = false;
+    });
+  }
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
   if (process.platform === 'darwin') app.focus({ steal: true });
-  // A page still loading has no listener yet.
-  if (fresh || window.webContents.isLoading()) window.webContents.once('did-finish-load', () => setTimeout(() => then(window), 400));
-  else then(window);
+  return window;
+}
+
+function deliver() {
+  const window = getWindow();
+  if (!pending || !ready || !window || window.isDestroyed()) return;
+  window.webContents.send('menubar:action', pending);
+  pending = null;
 }
 
 function send(action) {
-  withWindow((window) => window.webContents.send('menubar:action', action));
+  pending = action;
+  if (showWindow()) deliver();
 }
 
 function build() {
@@ -41,13 +61,14 @@ function build() {
     );
     items.push({ type: 'separator' }, { label: 'Key deadlines', enabled: false });
     if (latest.deadlines.length === 0) items.push({ label: 'Nothing due soon', enabled: false });
-    for (const d of latest.deadlines) items.push({ label: d.label, click: () => send({ type: 'open', path: d.path }) });
+    for (const d of latest.deadlines) {
+      const path = d.path;
+      items.push({ label: d.label, click: () => send({ type: 'open', path }) });
+    }
     items.push({ type: 'separator' }, { label: 'Top recommendation', enabled: false });
-    items.push(
-      latest.top
-        ? { label: latest.top.label, click: () => send({ type: 'open', path: latest.top.path }) }
-        : { label: 'Nothing in your feed yet', enabled: false },
-    );
+    // Kept as it is now: an update while the menu is open must not change what a click opens.
+    const top = latest.top;
+    items.push(top ? { label: top.label, click: () => send({ type: 'open', path: top.path }) } : { label: 'Nothing in your feed yet', enabled: false });
   }
   items.push({ type: 'separator' }, { label: 'Open feed', click: () => send({ type: 'open', path: '/' }) });
   items.push({ type: 'separator' }, { label: 'Quit BearRok', click: () => app.quit() });
@@ -60,7 +81,7 @@ const clip = (text, n = 60) => (typeof text === 'string' ? (text.length > n ? `$
 
 /** Only plain fields, and only paths inside the app, are taken from the page. */
 function clean(data) {
-  const inApp = (p) => typeof p === 'string' && p.startsWith('/') && !p.startsWith('//');
+  const inApp = (p) => typeof p === 'string' && p.startsWith('/') && !p.startsWith('//') && !p.includes('\\');
   return {
     signedIn: data?.signedIn === true,
     searching: data?.searching === true,
@@ -76,6 +97,10 @@ function mount({ ipcMain, window, create }) {
   icon.setTemplateImage(true);
   tray = new Tray(icon);
   build();
+  ipcMain.on('menubar:ready', (_event, on) => {
+    ready = on === true;
+    deliver();
+  });
   ipcMain.on('menubar:update', (_event, data) => {
     latest = clean(data);
     build();

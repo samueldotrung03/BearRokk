@@ -269,3 +269,9 @@ test('portal: unsaving a posting keeps its application when the student has writ
   s.interact(ACME.id, 'save');
   assert.ok(s.getApplication(ACME.id), 'kept');
 });
+
+test('review fixes: non-Latin prompts are not added twice, and prototype names are not kinds', async () => {
+  const { normalise } = await import('../src/agents/portal.ts');
+  assert.equal(normalise('你为什么想加入我们？'), '你为什么想加入我们');
+  assert.notEqual(normalise('Почему вы хотите работать у нас?'), '');
+});

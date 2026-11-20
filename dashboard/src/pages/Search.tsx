@@ -48,6 +48,12 @@ const EMPTY: Run = { q: '', phase: 'idle', own: [], answer: null, note: '', offl
 // The last search stays while the app is open, so going to another page and back keeps it.
 let kept: { run: Run; filters: SearchFilters } = { run: EMPTY, filters: DEFAULT_FILTERS };
 
+/** Leaving the page stops a search in progress, so it comes back finished with what it had. */
+export function restoredRun(run: Run): Run {
+  if (run.phase !== 'own' && run.phase !== 'web') return run;
+  return { ...run, phase: 'done', note: 'The web search stopped when you left this page. Search again to finish it.' };
+}
+
 const statusLabel: Record<string, string> = { interested: 'Interested', to_apply: 'To apply', applying: 'Applying', applied: 'Applied' };
 const goTo: Record<Exclude<Origin, 'web'>, [string, string]> = { feed: ['/', 'See in feed'], saved: ['/saved', 'Go to Saved'], application: ['/applications', 'Go to Applications'] };
 
@@ -55,7 +61,7 @@ export function Search() {
   const auth = useAuth();
   const who = auth.status === 'signedIn' ? 'me' : 'demo';
   const [filters, setFilters] = useState<SearchFilters>(kept.filters);
-  const [run, setRun] = useState<Run>(kept.run);
+  const [run, setRun] = useState<Run>(() => restoredRun(kept.run));
   const [text, setText] = useState(kept.run.q);
   const [recent, setRecent] = useState(recentSearches);
   const [tab, setTab] = useState<'all' | Origin>('all');

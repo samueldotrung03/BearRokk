@@ -24,11 +24,20 @@ export function MenuBarBridge() {
     sent.current = text;
     bridge.update(data);
   }, [bridge, data]);
+  // Leaving (a reload, or the window closing) clears what the menu shows about this student.
+  useEffect(
+    () => () => {
+      sent.current = '';
+      bridge?.update({ signedIn: false, searching: false, deadlines: [], top: null });
+    },
+    [bridge],
+  );
 
   const actions = useRef({ live, navigate });
   actions.current = { live, navigate };
   useEffect(() => {
     if (!bridge) return;
+    // Subscribing also tells the shell the page is ready for a picked action.
     return bridge.onAction((action) => {
       const { live, navigate } = actions.current;
       if (action.type === 'run') void live.runNow();

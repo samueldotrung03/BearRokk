@@ -178,6 +178,8 @@ function upgradeSettings(s: AgentSettings | undefined): AgentSettings {
 
 /** Searches in a row the agents may run to reach a minimum the student set, so it cannot run forever. */
 const MINIMUM_RUNS = 12;
+/** Applications one account can hold, so its stored memory stays within one document. */
+const MAX_APPLICATIONS = 200;
 /** True for a posting nobody has looked for a picture for, or one nothing was found for a day ago. */
 const needsPicture = (o: Opportunity, now: Date) =>
   o.imageKind === undefined || (o.imageKind === null && (!o.imageTriedAt || now.getTime() - Date.parse(o.imageTriedAt) > PICTURE_RETRY_MS));
@@ -688,6 +690,10 @@ export class AgentSystem {
     return this.sheet;
   }
 
+  applicationCount() {
+    return this.applications.size;
+  }
+
   getAgentSettings() {
     return this.agentSettings;
   }
@@ -700,7 +706,9 @@ export class AgentSystem {
     const minimums = Object.fromEntries(Object.entries(settings.minimums).filter(([t]) => t === 'any' || searched.has(t as OppType)));
     // Turning Automode on starts from now: times earlier today do not all run at once.
     const before = this.agentSettings.auto;
-    const auto = settings.auto ? { ...settings.auto, since: settings.auto.on ? (before?.on ? (before.since ?? this.opts.now().toISOString()) : this.opts.now().toISOString()) : null } : before;
+    // So do new or moved times: a time added for earlier today does not count as missed.
+    const sameSchedule = before?.on && before.timeZone === settings.auto?.timeZone && JSON.stringify(before.times) === JSON.stringify(settings.auto?.times);
+    const auto = settings.auto ? { ...settings.auto, since: settings.auto.on ? (sameSchedule ? (before?.since ?? this.opts.now().toISOString()) : this.opts.now().toISOString()) : null } : before;
     this.agentSettings = { ...settings, kinds, minimums, ...(auto ? { auto } : {}) };
     this.brain.setModels?.(settings.models);
     this.syncAutoTimer();
@@ -717,6 +725,15 @@ export class AgentSystem {
       clearInterval(this.autoTimer);
       this.autoTimer = null;
     }
+  }
+
+  /** Stop every timer and listener, for an account being deleted. */
+  dispose() {
+    this.setSchedule(0);
+    if (this.autoTimer) clearInterval(this.autoTimer);
+    this.autoTimer = null;
+    this.agentSettings = { ...this.agentSettings, auto: this.agentSettings.auto ? { ...this.agentSettings.auto, on: false } : undefined };
+    this.listeners.clear();
   }
 
   /** BearRok is open when its window is connected to this student's agents. */
@@ -838,9 +855,11 @@ export class AgentSystem {
     if ('opportunityId' in input) {
       const existing = this.applications.get(input.opportunityId);
       if (existing) return { application: existing, created: false };
+      if (this.applications.size >= MAX_APPLICATIONS) return null;
       const application = this.setApplication(input.opportunityId, { status: 'to_apply' });
       return application ? { application, created: true } : null;
     }
+    if (this.applications.size >= MAX_APPLICATIONS) return null;
     let id = `custom-${randomBytes(6).toString('hex')}`;
     while (this.applications.has(id)) id = `custom-${randomBytes(6).toString('hex')}`;
     this.applications.set(id, {
@@ -900,7 +919,18 @@ export class AgentSystem {
    * the web (source "agents"). Tabs already there are never replaced or removed, and a question
    * already on a tab is not added twice. Null when the application does not exist.
    */
-  async draftPortal(opportunityId: string): Promise<Portal | null> {
+  draftPortal(opportunityId: string): Promise<Portal | null> {
+    // A second request while the agents are still looking shares the first one's answer.
+    const running = this.drafting.get(opportunityId);
+    if (running) return running;
+    const job = this.draftPortalOnce(opportunityId).finally(() => this.drafting.delete(opportunityId));
+    this.drafting.set(opportunityId, job);
+    return job;
+  }
+
+  private drafting = new Map<string, Promise<Portal | null>>();
+
+  private async draftPortalOnce(opportunityId: string): Promise<Portal | null> {
     const app = this.applications.get(opportunityId);
     if (!app) return null;
     const opp = app.custom ? null : (this.opportunities.get(opportunityId) ?? null);
@@ -945,8 +975,12 @@ export class AgentSystem {
     else note = draft?.note || missed || "This application's questions could not be found. Add them yourself as tabs.";
     if (found && added.length === 0) note += ' Your tabs already cover all of it, so nothing new was added.';
 
-    current.portal = { tabs, drafted: { at: now, found, note } };
-    if (added.length) current.updatedAt = now;
+    // Kept within the account's size limit (one stored document); past it, nothing new is added.
+    const others = [...this.applications.values()].reduce((sum, a) => (a === current || !a.portal ? sum : sum + portalBytes(a.portal)), 0);
+    const grown = { tabs, drafted: { at: now, found, note } };
+    const fits = portalBytes(grown) <= PORTAL_LIMITS.portalBytes && others + portalBytes(grown) <= PORTAL_LIMITS.accountBytes;
+    current.portal = fits ? grown : { tabs: before.tabs, drafted: { at: now, found, note: 'Your applications have reached the space your account has, so nothing new was added. Shorten or remove some tabs, then try again.' } };
+    if (added.length && fits) current.updatedAt = now;
     this.emitStudent();
     return current.portal;
   }

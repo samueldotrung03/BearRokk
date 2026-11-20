@@ -20,7 +20,12 @@ contextBridge.exposeInMainWorld('bearrokDesktop', {
     onAction: (callback) => {
       const listener = (_event, action) => callback(action);
       ipcRenderer.on('menubar:action', listener);
-      return () => ipcRenderer.removeListener('menubar:action', listener);
+      // The shell holds a picked action until the page is listening.
+      ipcRenderer.send('menubar:ready', true);
+      return () => {
+        ipcRenderer.removeListener('menubar:action', listener);
+        ipcRenderer.send('menubar:ready', false);
+      };
     },
   },
   /** The notch panel's page: pass a pick to the main window, close the panel, or fit it to its content. */

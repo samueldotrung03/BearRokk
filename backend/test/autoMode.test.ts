@@ -68,3 +68,17 @@ test('automode: the settings route keeps valid times and the time zone, and turn
   const off = (await (await put({ on: false, times: ['08:00'], timeZone: LA })).json()) as any;
   assert.equal(off.auto.on, false);
 });
+
+test('automode: adding a time for earlier today does not start a search at once; deleting the account stops it', () => {
+  const clock = new Date('2026-11-19T23:00:00Z'); // 15:00 in Los Angeles
+  const s = new AgentSystem(new SimBrain({ speed: 0, now: () => clock }), { now: () => clock, feedTarget: 0 });
+  s.setAgentSettings({ models: {}, minimums: {}, kinds: [], auto: { on: true, times: ['09:00'], timeZone: LA, since: null } });
+  (s as any).agentSettings.auto.since = '2026-11-19T15:00:00Z';
+  s.setAgentSettings({ models: {}, minimums: {}, kinds: [], auto: { on: true, times: ['09:00', '10:00', '14:00'], timeZone: LA, since: null } });
+  const unsubscribe = s.subscribe(() => {});
+  assert.equal(s.autoStatus().waiting, 0, 'new times start from now');
+  s.dispose();
+  assert.equal(s.checkAuto(), false);
+  assert.equal(s.getAgentSettings().auto?.on, false);
+  unsubscribe();
+});
