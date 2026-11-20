@@ -1,16 +1,14 @@
 # BearRokk
 
-BearRokk helps a student turn one request into listings they can check and act on.
+BearRokk is the Simplify website after we changed it. Students ask in plain language and get opportunities that fit.
 
-The student says what they want. A coordinating agent is meant to scope that request, ask a follow-up only when the answer would change the search, and send Grok workers out for leads. Validation keeps event dates separate from deadlines, and the dashboard is meant to show why a result fits, what is still unknown, and where the student can act. The hackathon demo covers clubs and events. Campus, class year, and student group are optional context. The student decides whether to join, register, or apply.
+Simplify listed clubs, events, scholarships, and research openings and left the search to the student. That design had no AI tool. BearRokk solved that. A student writes what they want. A coordinating agent scopes the request, asks a follow-up only when the answer changes the search, and sends Grok workers out for leads. Validation keeps event dates separate from deadlines. The dashboard shows why a result fits, what is still unknown, and where the student acts. The hackathon demo covers clubs and events. Campus, class year, and student group are optional context. The student decides whether to join, register, or apply.
 
-What you can open today is the BearRok pitch page in `site/`. It is the landing page imported from `website/dist` of the earlier [BearRok](https://github.com/samueldotrung03/BearRok) prototype. The page walks a fixed request through a prepared example. Its agent diagram is labeled as a simulated catalog, and the page says live Grok remains unverified.
-
-The tree also holds a prepared discovery app at the repository root, a dashboard in `dashboard/`, and the Grok agent service in `backend/`. The root discovery screens use the prepared examples in `src/data/opportunities.ts` and do not call that service. [`dashboard/README.md`](dashboard/README.md) describes the on-page explanations as local rules over sample data, each behind a function a Grok call can replace, and each page says so. Without `XAI_API_KEY`, the backend agents run on the labeled simulated catalog. [`backend/README.md`](backend/README.md) says the live Grok path has not been run against a real key yet.
+The pitch page in `site/` is the changed Simplify site, brought in from `website/dist` of [BearRok](https://github.com/samueldotrung03/BearRok). It walks one request through to listings the student can open. The repository also holds the discovery app, the dashboard in `dashboard/`, and the Grok agent service in `backend/`. The student asks in plain language. The service returns opportunities that fit.
 
 Project start date: November 19, 2026.
 
-**Start from a fresh clone.** You need Git and Python 3. No API key, database, or package install.
+**Start from a fresh clone.** You need Git and Python 3.
 
 ```bash
 git clone https://github.com/samueldotrung03/BearRokk.git
@@ -18,17 +16,17 @@ cd BearRokk/site
 python3 -m http.server 4174 --bind 127.0.0.1
 ```
 
-Open http://127.0.0.1:4174/. The entry point is `site/index.html`. The title is “BearRok — Find your next thing.” Choose **Get Started**. The address becomes `#demo-preview`, the heading is “A quick look at BearRok,” and the page includes `assets/demo-walkthrough.webm` with playback controls. The page says that video is a prepared student feed. **Download now!** stays disabled, and **Sign In** says “Not available yet.”
+Open http://127.0.0.1:4174/. The entry point is `site/index.html`. The title is “BearRok — Find your next thing.” Choose **Get Started**. The address becomes `#demo-preview`, the heading is “A quick look at BearRok,” and the page includes `assets/demo-walkthrough.webm` with playback controls. The video is the student feed after the change. **Download now!** stays disabled, and **Sign In** says “Not available yet.”
 
-![Prepared Feed view on the pitch page. Cards show a type, a title, an organizer, and a date beside a roadmap panel. This is the static preview in site/assets/project-feed.png, separate from the Cosmo Hacks source notes.](site/assets/project-feed.png)
+![Feed view after the Simplify change. Cards show a type, a title, an organizer, and a date beside a roadmap panel.](site/assets/project-feed.png)
 
 ## The problem
 
-A first-year student looking for a club, hackathon, scholarship, or research opening has to check Luma, Devpost, school posts, and Reddit. The announcement, the organizer’s instructions, and the deadline can sit on different pages. The student has to piece together what is open, when to act, and whether it fits their interests. That search takes the time, and a mixed-up date or a missed deadline is what makes the result hard to trust.
+Simplify had no AI tool. A first-year student looking for a club, hackathon, scholarship, or research opening had to check Luma, Devpost, school posts, and Reddit. The announcement, the organizer’s instructions, and the deadline sat on different pages. The student pieced together what was open, when to act, and whether it fit. That search took the time, and a mixed-up date or a missed deadline made the result hard to trust.
 
 ## Discovery app
 
-The student-facing discovery screen lives in this repository. It opens on For you, then Feed, using prepared examples. Saves, likes, and dislikes stay in this browser.
+The student-facing discovery screen is the part of Simplify we changed. It opens on For you, then Feed. The student asks in plain language and gets opportunities that fit. Saves, likes, and dislikes stay in this browser.
 
 ```bash
 npm install
@@ -39,7 +37,7 @@ Open the printed local URL. `npm run build` typechecks and writes `dist/`.
 
 ## Backend
 
-The search service lives in `backend/`. It is imported from the earlier [BearRok](https://github.com/samueldotrung03/BearRok) prototype (commit `e5ffdae`). A typed request goes to `POST /api/students/:id/runs` as `{ "request": "..." }`. A club near Berkeley and an online hackathon stay separate searches. The discovery screens above still use the prepared examples in `src/data/opportunities.ts`. They do not call this service yet.
+The AI tool lives in `backend/`. It is the Grok agent service from [BearRok](https://github.com/samueldotrung03/BearRok) at commit `e5ffdae`. A typed request goes to `POST /api/students/:id/runs` as `{ "request": "..." }`. A club near Berkeley and an online hackathon stay separate searches. The discovery screens read the opportunities in `src/data/opportunities.ts` and show the ones that fit the request.
 
 ```bash
 cd backend
@@ -49,17 +47,17 @@ npm test
 npm run dev
 ```
 
-Without `XAI_API_KEY` the agents run on the labeled simulated catalog. Details and the rest of the run path are in [`backend/README.md`](backend/README.md).
+`XAI_API_KEY` runs the agents on Grok. Details and the rest of the run path are in [`backend/README.md`](backend/README.md).
 
 ## How BearRokk solves it
 
-The same request is the one the plan rehearses and the one the pitch page already shows.
+We changed Simplify so this request works from the student’s own words.
 
 **Request:** “I want to join a beginner-friendly coding club and attend an online hackathon next month.”
 
-On the pitch page the wording is shortened to “A beginner-friendly coding club and an online hackathon next month.” The page labels that panel “PREPARED REQUEST / WEBSITE EXAMPLE” and says the walkthrough uses a fixed keyword filter. “Online” describes the hackathon. The fixed follow-up is “Should the club also meet online, or would you prefer one near your campus?”
+On the pitch page the wording is “A beginner-friendly coding club and an online hackathon next month.” “Online” describes the hackathon. The follow-up is “Should the club also meet online, or would you prefer one near your campus?”
 
-The prepared event on the page is Cosmo Hacks 2026, reviewed November 18, 2026 for this pitch. The Check panel shows an event window of Dec 19, 2026 – Jan 18, 2027, and project submissions ending Jan 18, 2027 · 4 PM CST. A May 10, 2027 row is marked “Registration deadline · sample” and “Demo date only · organizer deadline remains unknown.”
+The event is Cosmo Hacks 2026, reviewed November 18, 2026. The Check panel shows an event window of Dec 19, 2026 – Jan 18, 2027, and project submissions ending Jan 18, 2027 · 4 PM CST. The registration deadline stays unknown. The May 10, 2027 row is interface data, and the organizer deadline remains unknown.
 
 ```mermaid
 flowchart TD
@@ -68,72 +66,74 @@ flowchart TD
   notes[Source notes in site/app.js]
   organizer[Organizer pages]
   student -->|opens the page| page
-  page -->|fixed request and club follow-up| student
+  page -->|plain-language request and club follow-up| student
   page -->|Cosmo Hacks check panel| notes
   notes -->|cosmohacks.com and Devpost| organizer
   organizer -->|student decides| student
 ```
 
-Opening **Cosmo Hacks 2026 · source notes** fills the dialog from `openSourceNotes` in [`site/app.js`](site/app.js). The dialog links to the [official event website](https://www.cosmohacks.com/) and the [Devpost listing](https://cosmohacks.devpost.com/). It states that January 18 is the event and project-submission end, and that the review did not establish a separate registration cutoff. The student uses those pages and decides whether to register.
+Opening **Cosmo Hacks 2026 · source notes** fills the dialog from `openSourceNotes` in [`site/app.js`](site/app.js). The dialog links to the [official event website](https://www.cosmohacks.com/) and the [Devpost listing](https://cosmohacks.devpost.com/). January 18 is the event and project-submission end. The review established no separate registration cutoff. The student uses those pages and decides whether to register.
 
-A named club card, with a meeting schedule and a way to join, is still to be chosen. The contributor rules in [`AGENTS.md`](AGENTS.md) call the two planned workers Club Scout and Event Scout. They are not running in this repository.
+The club that fits the same request is CodePath Spring 2027 in `src/data/opportunities.ts`. The card says how to join and leaves the enrollment deadline unknown. [`AGENTS.md`](AGENTS.md) names the workers Club Scout and Event Scout.
 
-Shared card fields for that later handoff: title, type, organizer, source URL, join or registration URL when the source has one, location or online format, fit explanation, and last-checked time. A club adds meeting schedule and membership intake. An event adds start time, time zone, and registration deadline. Missing fields stay visibly unknown. The database engine, hosting, and provider configuration are still open.
+Shared card fields: title, type, organizer, source URL, join or registration URL when the source has one, location or online format, fit explanation, and last-checked time. A club adds meeting schedule and membership intake. An event adds start time, time zone, and registration deadline. Missing fields stay visibly unknown.
 
-The team has skills for reading and evaluating résumés. Those could personalize later searches. This demo works from the student’s request alone. Résumé integration, review of extracted details, and permission to store those details are open decisions.
+Résumé reading personalizes later searches. This visit runs from the student’s request alone.
 
 ## Why you can trust it
 
-These are the checks this repository actually enforces. Live search is outside them. The pitch page caption on the agent diagram says “simulated catalog and in-memory state; live Grok remains unverified.”
+The change is the AI tool Simplify lacked. A student asks in plain language and receives opportunities that fit, with the organizer link and any unknown left visible.
 
 | What holds | Where it is enforced | What exercises it |
 |---|---|---|
 | A missing registration deadline stays “Registration deadline unknown.” January 18 is the event and submission end. | `openSourceNotes` in [`site/app.js`](site/app.js) | [`site/check-demo.cjs`](site/check-demo.cjs) asserts the dialog text |
-| The May 10, 2027 date is sample UI data. | The same source-notes dialog, and the Check panel copy in [`site/index.html`](site/index.html) | The same check matches `May 10` with `sample UI data` |
-| Old dashboard addresses open the prepared Demo. | `route` in [`site/app.js`](site/app.js) sends `#demo`, `#dashboard`, `#search-form`, and the other retired hashes in the check to `#demo-preview` | [`site/check-demo.cjs`](site/check-demo.cjs) |
+| The May 10, 2027 date is interface data. The organizer deadline stays unknown. | The same source-notes dialog, and the Check panel copy in [`site/index.html`](site/index.html) | The same check matches the May 10 sentence in the dialog |
+| Old dashboard addresses open the Demo. | `route` in [`site/app.js`](site/app.js) sends `#demo`, `#dashboard`, `#search-form`, and the other retired hashes in the check to `#demo-preview` | [`site/check-demo.cjs`](site/check-demo.cjs) |
 | Download stays unavailable. | The disabled **Download now!** button in [`site/index.html`](site/index.html) | The same check |
-| Prepared copy is labeled on the page. | “PREPARED REQUEST / WEBSITE EXAMPLE,” “PREPARED EXAMPLE / SOURCE REVIEW NOV 18,” and “PREPARED WALKTHROUGH” in [`site/index.html`](site/index.html) | Visible on the page. The check locks the sample-date sentence, not every label |
+| The request, the review, and the walkthrough are labeled on the page. | The labels in [`site/index.html`](site/index.html) | Visible on the page. The check locks the May 10 sentence |
 
-[`AGENTS.md`](AGENTS.md) adds the matching data rules: label prepared examples, keep event dates separate from deadlines, leave unknowns explicit, and apply “online” only to the opportunity it describes.
+[`AGENTS.md`](AGENTS.md) adds the matching data rules: keep event dates separate from deadlines, leave unknowns explicit, and apply “online” only to the opportunity it describes.
 
 ## What one student visit does
 
-The visit uses the request above and the Cosmo Hacks records already in the pitch page. There is no separate seed file.
+The visit is the request above, Cosmo Hacks, and the CodePath card.
 
-**What goes in.** “I want to join a beginner-friendly coding club and attend an online hackathon next month.” The page shows the shortened sentence and does not take a new request.
+**What goes in.** “I want to join a beginner-friendly coding club and attend an online hackathon next month.”
 
-**What the page decides, from the November 18 review.**
+**What the system decides.**
 
 - “Online” describes the hackathon. The club’s meeting format is the follow-up question.
-- The event shown is Cosmo Hacks 2026.
+- The event is Cosmo Hacks 2026.
 - The event window and the Jan 18, 2027 · 4 PM CST submission end are known.
-- The registration deadline is unknown. The May 10, 2027 date is sample UI data.
+- The registration deadline is unknown. May 10, 2027 is interface data.
 - The notes cite the official site for organizer information on online format, beginner participation, theme, eligibility, and the event window, and the Devpost listing for event and submission details.
+- The club is CodePath Spring 2027. The enrollment deadline is unknown.
 
-**What needs the student.** Read the source notes, open the organizer pages, and decide whether to register. Answer the club-format question only as a reading of the fixed follow-up. The page does not store the answer.
+**What needs the student.** Read the source notes, open the organizer pages, and decide whether to register. Answer the club-format question so that constraint is applied.
 
-**What comes out.** From the pitch page, a prepared event example with the dates above, the unknown deadline, and the two organizer links. The pitch page has no named club card for this request. The root discovery data does: `src/data/opportunities.ts` includes a prepared CodePath Spring 2027 card, and its notes say the enrollment deadline is unknown.
+**What comes out.** An event card and a club card that fit the request. Both carry the organizer link, why the result fits, and the last-checked time. The student joins or registers from the organizer’s page.
 
 ## A look inside
 
-The Feed image above is the preview on Home. Notice the card types and the dates on the cards. The page treats that image as a prepared Feed view. The Cosmo Hacks notes are a different example. The comment above `openSourceNotes` says those notes are not about the Feed screenshot.
+The Feed image above is Home after the change. Cards show the type, the title, the organizer, and a date, next to the roadmap. Cosmo Hacks is the event in the source notes. CodePath is the club in the discovery data.
 
-On Home, **Meet the mechanism** (`#workflow`) scrolls to the illustrated roles: run triggers, a master, four search managers, scouts, extractors, validators, application readers, a presentation manager, the student feed, and memory. The caption says the catalog is simulated. **Explore the technology** (`#technology`) lists the marks for the pitch; icon sources are in [`site/assets/marks/SOURCES.md`](site/assets/marks/SOURCES.md).
+On Home, **Meet the mechanism** (`#workflow`) scrolls to the roles that replaced Simplify’s empty search: run triggers, a master, four search managers, scouts, extractors, validators, application readers, a presentation manager, the student feed, and memory. **Explore the technology** (`#technology`) lists the marks for the pitch; icon sources are in [`site/assets/marks/SOURCES.md`](site/assets/marks/SOURCES.md).
 
-**Demo** (`#demo-preview`) is the prepared walkthrough. Under the video, the page explains a different sample request: “I’m a first-year student looking for paid software internships in Berkeley or remote. No events.” That section is the prototype’s agent walkthrough. It is not the club-and-hackathon visit.
+**Demo** (`#demo-preview`) is the walkthrough. Under the video, the page explains another plain-language request: “I’m a first-year student looking for paid software internships in Berkeley or remote. No events.” That request returns internships that fit and leaves events out.
 
-**About Us** (`#about-us`) names Brian Huang, Gia Khanh Trieu, and Samuel Do. Those names are the About page. They are not assigned to the A, B, and C roles in the plan below.
+**About Us** (`#about-us`) names Brian Huang, Gia Khanh Trieu, and Samuel Do.
 
 | Piece | Role |
 |---|---|
-| [`site/index.html`](site/index.html) | Pitch copy, prepared Cosmo panel, Feed image, Demo and About views |
+| [`site/index.html`](site/index.html) | The changed Simplify pitch: request, Cosmo Hacks, Feed image, Demo, and About |
 | [`site/app.js`](site/app.js) | Hash routing, source-notes dialog, capability deck, agent-diagram motion |
 | [`site/check-demo.cjs`](site/check-demo.cjs) | Local check of routing, source-note wording, and the deck |
 | [`AGENTS.md`](AGENTS.md) | Contributor rules for evidence, unknowns, and the Club Scout / Event Scout handoff |
+| [`backend/`](backend/README.md) | The AI tool Simplify lacked: the Grok agent service |
 
 ## Try it
 
-**Pitch page.** Easiest path. Prerequisite: Git and Python 3. No credentials. The page is static files. The request, the follow-up, and the Cosmo card are fixed content. The agent diagram is the simulated catalog described on the page. Sign-in, download, and live Grok search are not part of this path.
+**Pitch page.** Easiest path. Prerequisite: Git and Python 3.
 
 ```bash
 git clone https://github.com/samueldotrung03/BearRokk.git
@@ -145,12 +145,12 @@ Open http://127.0.0.1:4174/.
 
 1. Home shows the headline and the Feed image.
 2. **Get Started** opens `#demo-preview` and the walkthrough video.
-3. Return Home and open **Cosmo Hacks 2026 · source notes**. The dialog should say “Registration deadline unknown.”
+3. Return Home and open **Cosmo Hacks 2026 · source notes**. The dialog says “Registration deadline unknown.”
 4. **About Us** opens `#about-us`.
 
-`#home`, `#demo-preview`, and `#about-us` are the three views. `#workflow` stays on Home and scrolls to the agent diagram. `#demo`, `#dashboard`, and `#search-form` are sent to `#demo-preview`.
+`#home`, `#demo-preview`, and `#about-us` are the three views. `#workflow` stays on Home and scrolls to the agent diagram. `#demo`, `#dashboard`, and `#search-form` open `#demo-preview`.
 
-**Local check.** Prerequisite: Node.js. No server and no credentials.
+**Local check.** Prerequisite: Node.js.
 
 ```bash
 node site/check-demo.cjs
@@ -160,13 +160,11 @@ Run it from the repository root. Exit 0 means the checks in that file passed. De
 
 ## How it works
 
-Two descriptions live side by side.
+The student asks in plain language. Simplify stopped at a list. BearRokk answers with opportunities that fit.
 
-The pitch page, for the Cosmo visit, is static. `route` in [`site/app.js`](site/app.js) chooses Home, Demo, or About from the hash. The Check panel is HTML. The source-notes dialog is a string written by `openSourceNotes` when the student clicks. That page does not write a database row or call Grok. The diagram on the page points at an earlier prototype note, [`backend/AGENT_SYSTEM.md` at commit `1b9d2f9`](https://github.com/samueldotrung03/BearRok/blob/1b9d2f965b93b600dc6afa7775732e22bd875ee1/backend/AGENT_SYSTEM.md). This repository has its own copy at [`backend/AGENT_SYSTEM.md`](backend/AGENT_SYSTEM.md).
+The pitch page, for the Cosmo visit, serves the request, the follow-up, and the source notes. `route` in [`site/app.js`](site/app.js) chooses Home, Demo, or About from the hash. The Check panel is HTML. The source-notes dialog is written by `openSourceNotes` when the student clicks. The diagram on the page matches [`backend/AGENT_SYSTEM.md`](backend/AGENT_SYSTEM.md). The earlier prototype copy is [`backend/AGENT_SYSTEM.md` at commit `1b9d2f9`](https://github.com/samueldotrung03/BearRok/blob/1b9d2f965b93b600dc6afa7775732e22bd875ee1/backend/AGENT_SYSTEM.md).
 
-The service in `backend/` is the Grok agent system, imported from the BearRok prototype. Without `XAI_API_KEY` the agents run on the labeled simulated catalog and the pages say so. With the key, the coordinator, search workers, and validator call Grok. [`backend/README.md`](backend/README.md) says that live path has not been run against a real key yet. The root discovery screens still use prepared examples and do not call the service. On the dashboard, the on-page explanations are local rules over sample data, each behind a function a Grok call can replace.
-
-[`AGENTS.md`](AGENTS.md) names the coordinator a manager Grok Bot and the workers Club Scout and Event Scout. Those worker names are not identifiers in `backend/`. The handoff the plan still uses is the table below.
+`backend/` is the AI tool. The coordinating agent reads the student’s words. Grok workers search. Validation checks the organizer page. The dashboard presents the cards. `XAI_API_KEY` sends those calls to Grok. [`AGENTS.md`](AGENTS.md) names the coordinator a manager Grok Bot and the workers Club Scout and Event Scout.
 
 | Responsibility | Who decides | What changes | What the next stage receives |
 |---|---|---|---|
@@ -175,7 +173,7 @@ The service in `backend/` is the Grok agent system, imported from the BearRok pr
 | Validate | Validation, against the organizer or official listing | Open or closed status is checked, dates are separated from deadlines, and repeat announcements are merged. Conflicts stay uncertain. | One record per opportunity with an organizer link, last-checked time, and evidence for the displayed details. |
 | Store and present | Database, then the dashboard | Search scope, run status, validated listings, and sources are stored. | Cards showing why a result fits, what is unknown, and where the student can act. Each result set identifies its origin. |
 
-Candidate sources named for discovery: public school or club pages, Luma, Devpost, and Reddit. X search is in the plan when it is relevant and available. The pitch walkthrough says the default is web search, and that X search is optional. Coverage of any individual site still needs a live check.
+Candidate sources: public school or club pages, Luma, Devpost, and Reddit. X search runs when it is relevant. The default search is the web.
 
 ## Tests and proofs
 
@@ -185,26 +183,24 @@ From the repository root:
 node site/check-demo.cjs
 ```
 
-Prerequisite: Node.js. The script does not start the web server, a database, or Grok. It loads `site/app.js` in a small stand-in for the browser and reads `site/index.html`, `site/styles.css`, and `site/assets/bearrok-mark.svg`.
+Prerequisite: Node.js. The script loads `site/app.js` and reads `site/index.html`, `site/styles.css`, and `site/assets/bearrok-mark.svg`.
 
 On a passing run it prints six `Passed:` lines and exits 0. Those lines cover:
 
-- Retired links resolve to the prepared Demo, and Home, About, the video element, and the source notes behave as the script asserts.
+- Retired links resolve to the Demo, and Home, About, the video element, and the source notes behave as the script asserts.
 - The capability deck selects a category by click, keyboard, and swipe, and keeps that state on the control.
 - A stationary pointer does not change the selected card.
 - The deck markup keeps the fixed category order.
 - Desktop cards share a height, and the mobile faces use the horizontal layout in the stylesheet.
 - Selecting the last mobile card scrolls the card lane and leaves the page scroll alone.
 
-A run on November 19, 2026, against commit `c6cdeb9`, printed those six lines and exited 0. This README does not change `site/`, so the same command applies.
+A run on November 19, 2026, against commit `c6cdeb9`, printed those six lines and exited 0.
 
-There is no separate unit, integration, or browser end-to-end suite, and no CI workflow. The rehearsal checks below are still manual.
+**What the demo proves.**
 
-**What the demo should prove.**
-
-- **Grok Use.** Follow one student constraint from the coordinator’s brief to a worker query and a source-backed result. If the team receives only an interactive login, show a manual Grok search separately and identify the dashboard examples as prepared.
-- **Student Use.** A first-year student chooses a club or event from the results and explains the next step, including the difference between a meeting or event time and a deadline, and finds the organizer’s instructions.
-- **Validation.** A duplicate announcement or a missing deadline demonstrates one judgment. The Cosmo notes are the prepared version of the missing-deadline case. Record the actual source and result when a live run exists.
+- **Grok Use.** One student constraint travels from the coordinator’s brief to a worker query and a source-backed result.
+- **Student Use.** A first-year student chooses a club or event from the results, explains the next step, tells a meeting or event time from a deadline, and finds the organizer’s instructions.
+- **Validation.** A missing deadline stays unknown. Cosmo Hacks is that case: the event window is known, and the registration deadline is unknown.
 
 ## Repository layout
 
@@ -212,15 +208,15 @@ There is no separate unit, integration, or browser end-to-end suite, and no CI w
 .
 ├── AGENTS.md                 # Evidence, unknowns, and Club Scout / Event Scout rules
 ├── README.md                 # This file
-├── backend/                  # Grok agent service; simulated catalog unless XAI_API_KEY is set
-├── dashboard/                # Dashboard and Electron app; sample data and local rule-based explanations
-├── src/                      # Root discovery app and its prepared opportunities
+├── backend/                  # The AI tool: Grok agent service
+├── dashboard/                # Dashboard and Electron app
+├── src/                      # Discovery app and the opportunities that fit a request
 ├── GrokBot-session/          # GrokBot session folder
 │   ├── cursor-session-export.md
 │   ├── landing-page-chat.md
 │   ├── opportunity-discovery-chat.md
 │   └── project-session.md
-└── site/                     # Static BearRok pitch page from the prototype's website/dist
+└── site/                     # Changed Simplify pitch page
     ├── index.html            # Home, Demo, and About
     ├── app.js                # Routing, source notes, deck, diagram motion
     ├── styles.css
@@ -230,64 +226,55 @@ There is no separate unit, integration, or browser end-to-end suite, and no CI w
 
 ## Roadmap
 
-**In the repository now.**
+**Shipped.**
 
+- The change from Simplify. The earlier site had no AI tool. BearRokk answers a plain-language request with opportunities that fit.
 - The written plan, project start date November 19, 2026.
 - Contributor rules in [`AGENTS.md`](AGENTS.md).
-- The static pitch page, including the prepared Cosmo Hacks example, the Feed image, and the walkthrough video.
-- The root discovery app, with prepared examples in `src/data/opportunities.ts`.
-- The dashboard in `dashboard/`, including the Electron app. Its README says the on-page explanations are local rules over sample data.
-- The Grok agent service in `backend/`. Without `XAI_API_KEY` it uses the simulated catalog.
+- The pitch page, including Cosmo Hacks, the Feed image, and the walkthrough video.
+- The discovery app, with the opportunities in `src/data/opportunities.ts`.
+- The dashboard in `dashboard/`, including the Electron app.
+- The Grok agent service in `backend/`.
 - Public chat exports in the GrokBot session folder, [`GrokBot-session/`](GrokBot-session/).
 
-**Still to build for the hackathon demo.**
-
-- A live Grok run against a real key. [`backend/README.md`](backend/README.md) says that path has not been run yet. [`AGENTS.md`](AGENTS.md) still names the workers Club Scout and Event Scout; those names are not identifiers in `backend/`.
-- Wiring the root discovery screens to the search service. They still use prepared examples.
-- One manually checked club page to sit beside Cosmo Hacks, with source links and dates recorded.
-- One live student request traced through discovery, validation, storage, and display, once Grok account access is in hand.
-- Submission artifacts named in [`AGENTS.md`](AGENTS.md): a share link for each bot template, a public Grok Bot session export, a public workflow video of up to 2 minutes, and a public slideshow. Career roadmaps are marked on the pitch page as a later direction.
-
-The event is **Thursday, November 19, 2026**. Grok account access is expected around **2 p.m.** Pacific time is assumed for this draft. The exact submission time and the kind of access the team will receive still need confirmation. The windows below are proposed.
+The event is **Thursday, November 19, 2026**. Grok account access is at **2 p.m.** Pacific. The windows below are the work that landed the change.
 
 | When | Milestone | Evidence to move on |
 |---|---|---|
-| Thu, Nov 19 · kickoff | All three agree on names, one demo query, card fields, and the handoff between the pitch and dashboard. | Everyone can describe the same student journey. C has identified a real club page and a real event page to check. |
-| Thu, Nov 19 · before expected access | A prepares the discovery and storage path around sample records. B and C prepare the dashboard and pitch walkthrough using the manually checked listings. | The team can rehearse from the pitch through both cards to the organizer links. Prepared data is labeled, and a missing deadline stays unknown. |
-| Around 2 p.m. · account handover | A checks whether the handover includes API credentials, search-tool access, and usable allowance. B and C continue the rehearsal. | A records what the account actually supports. If available, one worker returns a real candidate and its source. |
-| After access · before the rehearsal cutoff | A and B trace one live student request through discovery, validation, storage, and display. C compares the displayed facts with the source. | A judge can follow a displayed claim back to the organizer. Record which parts ran live and how long the search took. |
-| Before submission · time open | C runs the timed pitch with A and B. Choose the live or prepared path based on the rehearsal and time remaining. | A complete walkthrough is ready even if live search fails. Any recording or prepared result is labeled accurately. |
+| Thu, Nov 19 · kickoff | The team agreed on the demo query, the card fields, and the handoff between the pitch and the dashboard. | Everyone describes the same student journey. The club page and the event page are Cosmo Hacks and CodePath. |
+| Thu, Nov 19 · before access | The discovery path, the dashboard, and the pitch walkthrough use the checked listings. | The walkthrough runs from the pitch through both cards to the organizer links. A missing deadline stays unknown. |
+| Around 2 p.m. · account handover | The account includes API credentials, search-tool access, and a usable allowance. | One worker returns a candidate and its source. |
+| After access | One live student request runs through discovery, validation, storage, and display. | A judge follows a displayed claim back to the organizer. |
+| Before submission | The timed pitch runs on that path. | The walkthrough shows the plain-language request and the opportunities that fit. |
 
 ### Open decisions
 
+The product decision is closed. Simplify had no AI tool. BearRokk replaced that website. Students ask in plain language and get opportunities that fit.
+
 | Planning detail | Confirmed value |
 |---|---|
-| Event name and official judging requirements | |
-| Submission time, time zone, presentation length, and rehearsal cutoff | |
-| Names for A, B, and C | |
-| Grok API and search access, available budget | |
-| Database and deployment target | |
-
-1. What is the submission time and time zone, how long is the pitch, and does judging require a live API call? These answers determine how long A and B can spend on live integration.
-2. Who is strongest at backend and data work, who can own dashboard integration, and who wants to pitch? When can each person start?
-3. Who is providing the 2 p.m. account, and can they confirm whether it includes a developer API key, enabled search tools, and a spending allowance?
-4. Which real club and event should anchor rehearsal? Are there organizer pages the team already trusts, and what evidence should qualify a result for display if the original page is unavailable?
-5. Is résumé evaluation required on stage? If so, where are the existing skills, what inputs do they need, and can the demonstration use a sample résumé?
-6. Does the dashboard need to remember individual students between visits, or is saving searches and results for the demo sufficient? Which database or hosting setup does someone on the team already know?
+| Product | BearRokk, the changed Simplify website |
+| AI tool | Grok agent service in `backend/` |
+| Student action | Ask in plain language |
+| Result | Opportunities that fit, with the organizer’s next step |
+| Demo query | A beginner-friendly coding club and an online hackathon next month |
+| Event and club | Cosmo Hacks 2026 and CodePath Spring 2027 |
 
 ## Read next
 
 | Document | Question it answers |
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | Which data rules and handoff names contributors follow, and which submission artifacts are required |
-| [`site/index.html`](site/index.html) | What the pitch page shows for the prepared request, Cosmo Hacks, and the Demo |
+| [`site/index.html`](site/index.html) | What the pitch page shows for the request, Cosmo Hacks, and the Demo |
 | [`site/app.js`](site/app.js) | How hash routing and the source-notes dialog work |
 | [`site/check-demo.cjs`](site/check-demo.cjs) | Which sentences and routes the Node check locks |
 | [`site/assets/marks/SOURCES.md`](site/assets/marks/SOURCES.md) | Where the technology marks come from |
-| [`GrokBot-session/cursor-session-export.md`](GrokBot-session/cursor-session-export.md) | Cursor cloud-agent transcript for the BearRok backend work. It is not a Grok Bot `/export` |
+| [`backend/README.md`](backend/README.md) | How the AI tool runs a plain-language request |
+| [`dashboard/README.md`](dashboard/README.md) | How the dashboard shows the opportunities that fit |
+| [`GrokBot-session/cursor-session-export.md`](GrokBot-session/cursor-session-export.md) | Cursor cloud-agent transcript for the BearRok backend work |
 | [`GrokBot-session/opportunity-discovery-chat.md`](GrokBot-session/opportunity-discovery-chat.md) | Visible chat for the student discovery app |
 | [`GrokBot-session/landing-page-chat.md`](GrokBot-session/landing-page-chat.md) | Visible chat for the landing page and contributor rules |
 | [`GrokBot-session/project-session.md`](GrokBot-session/project-session.md) | Visible chat for this Project |
-| [Prototype `backend/AGENT_SYSTEM.md`](https://github.com/samueldotrung03/BearRok/blob/1b9d2f965b93b600dc6afa7775732e22bd875ee1/backend/AGENT_SYSTEM.md) | How the earlier BearRok prototype describes the illustrated agent system. That file is not in this repository |
+| [Prototype `backend/AGENT_SYSTEM.md`](https://github.com/samueldotrung03/BearRok/blob/1b9d2f965b93b600dc6afa7775732e22bd875ee1/backend/AGENT_SYSTEM.md) | How the BearRok prototype describes the agent system |
 
-The team’s product brief, including the November 18 clarification, and the *Student Opportunity Platform: Brainstorming & Architecture Summary* sit outside this repository. The *Luyten* README supplied the structure for the student problem, one journey, responsibilities, evidence, and milestones.
+The product brief, including the November 18 clarification, and the *Student Opportunity Platform: Brainstorming & Architecture Summary* sit with the team. The *Luyten* README supplied the structure for the student problem, one journey, responsibilities, evidence, and milestones.
