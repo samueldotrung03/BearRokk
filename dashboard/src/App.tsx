@@ -48,6 +48,8 @@ export function App() {
   return (
     <>
       <div className="window-drag" aria-hidden="true" />
+      {/* On every page, the sign-in pages too, so signing out clears the menu bar menu. */}
+      <MenuBarBridge />
       {!onAccountPage && <Dock />}
       <Routes>
         <Route path="/" element={<Feed />} />
@@ -71,7 +73,6 @@ export function App() {
       </Routes>
       {!onAccountPage && <Assistant />}
       {!onAccountPage && <DeadlineNotifier />}
-      {!onAccountPage && <MenuBarBridge />}
       {!onAccountPage && <Spotlight />}
     </>
   );

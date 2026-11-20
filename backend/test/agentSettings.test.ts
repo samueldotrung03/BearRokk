@@ -112,3 +112,10 @@ test('agent settings: a total counts any mix of the kinds searched for, and keep
   assert.ok(s.student().runCount > 1, 'more than one search was needed');
   assert.deepEqual([...new Set(s.currentRun()!.assignments.map((a) => a.category))].sort(), ['event', 'internship'], 'the last search covered both kinds, not one');
 });
+
+test('agent settings: names like constructor are not taken as kinds', async () => {
+  const s = new AgentSystem(new SimBrain({ speed: 0, now: () => NOW }), { now: () => NOW, feedTarget: 0 });
+  const { app } = createApp(new LocalStore(null), {}, { demo: s });
+  await app.request('/api/students/demo/agent-settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kinds: ['constructor', 'toString', 'internship'] }) });
+  assert.deepEqual(s.getAgentSettings().kinds, ['internship']);
+});

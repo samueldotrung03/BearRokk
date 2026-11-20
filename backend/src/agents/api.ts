@@ -321,7 +321,7 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
   app.post(`${base}/runs`, async (c) => {
     const system = await systemOf(c);
     const body = await c.req.json().catch(() => ({}));
-    if (typeof body?.type === 'string' && body.type in CATEGORY_OF) void system.searchFor(body.type as OppType);
+    if (typeof body?.type === 'string' && Object.hasOwn(CATEGORY_OF, body.type)) void system.searchFor(body.type as OppType);
     else void system.trigger(system.student().runCount === 0 ? 'first' : 'manual');
     return c.json({ ok: true }, 202);
   });
@@ -389,7 +389,8 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     const system = await signedIn.get(user.uid);
     if (system) {
       system.onChange(() => {});
-      system.setSchedule(0);
+      // Timers (schedule and Automode) and stream listeners all stop.
+      system.dispose();
       await system.idle();
       signedIn.delete(user.uid);
     }
@@ -497,7 +498,7 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
         return Number.isInteger(n) && n > 0 ? [[t, Math.min(n, t === 'any' ? 100 : 50)]] : [];
       }),
     ) as AgentSettings['minimums'];
-    const kinds = (Array.isArray(body?.kinds) ? body.kinds : []).filter((k: unknown): k is OppType => typeof k === 'string' && k in CATEGORY_OF);
+    const kinds = (Array.isArray(body?.kinds) ? body.kinds : []).filter((k: unknown): k is OppType => typeof k === 'string' && Object.hasOwn(CATEGORY_OF, k));
     // Automode: on or off, one to six clock times, in the student's time zone.
     let auto: AgentSettings['auto'] | undefined;
     if (body?.auto && typeof body.auto === 'object') {
@@ -633,6 +634,7 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
     const body = await c.req.json().catch(() => null);
     if (!body || typeof body !== 'object') return c.json({ error: 'send a posting id or a title' }, 400);
     if (typeof body.opportunityId === 'string' && body.opportunityId) {
+      if (system.applicationCount() >= 200 && !system.getApplication(body.opportunityId)) return c.json({ error: 'You have reached 200 applications. Remove some you no longer need first.' }, 409);
       const made = system.createApplication({ opportunityId: body.opportunityId });
       if (!made) return c.json({ error: 'opportunity not found' }, 404);
       return c.json({ application: made.application }, made.created ? 201 : 200);
@@ -650,7 +652,8 @@ export function mountAgents(app: Hono, opts: AgentsOptions) {
       actionUrl = webLink(body.actionUrl.trim());
       if (!actionUrl) return c.json({ error: 'The link is not a web address.' }, 400);
     }
-    const made = system.createApplication({ title, organizer, deadline, actionUrl })!;
+    const made = system.createApplication({ title, organizer, deadline, actionUrl });
+    if (!made) return c.json({ error: 'You have reached 200 applications. Remove some you no longer need first.' }, 409);
     return c.json({ application: made.application }, 201);
   });
 

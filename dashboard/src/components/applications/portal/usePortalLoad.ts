@@ -1,6 +1,7 @@
 // Opens one application's portal from the backend, for the portal and the read-only view alike.
 import { useEffect, useRef, useState } from 'react';
 import type { Portal, PortalApplication } from '../../../lib/portal/types.ts';
+import { readPending } from '../../../lib/portal/pending.ts';
 import { useLive } from '../../../state/live.tsx';
 
 export type PortalLoad =
@@ -9,7 +10,8 @@ export type PortalLoad =
   | { state: 'missing' }
   /** The backend could not be reached or answered with an error. */
   | { state: 'offline' }
-  | { state: 'ready'; application: PortalApplication; portal: Portal };
+  /** restored: edits made on this computer that had not reached the account are shown over it. */
+  | { state: 'ready'; application: PortalApplication; portal: Portal; restored: boolean };
 
 export function usePortalLoad(id: string | undefined): { load: PortalLoad; retry: () => void } {
   const live = useLive();
@@ -34,7 +36,8 @@ export function usePortalLoad(id: string | undefined): { load: PortalLoad; retry
         const body = (await res.json()) as { application?: PortalApplication; portal?: Portal };
         if (cancelled) return;
         if (!body.application || !body.portal) return setLoad({ state: 'missing' });
-        setLoad({ state: 'ready', application: body.application, portal: { tabs: body.portal.tabs ?? [], drafted: body.portal.drafted ?? null } });
+        const pending = readPending(id);
+        setLoad({ state: 'ready', application: body.application, portal: { tabs: pending ?? body.portal.tabs ?? [], drafted: body.portal.drafted ?? null }, restored: pending !== null });
       } catch {
         if (!cancelled) setLoad({ state: 'offline' });
       }

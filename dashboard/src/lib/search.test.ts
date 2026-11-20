@@ -47,3 +47,15 @@ describe('search', () => {
     expect(shortDate('soon', now)).toBe('');
   });
 });
+
+describe('search page: leaving mid-search', () => {
+  it('comes back finished with what it had, not stuck searching', async () => {
+    const { restoredRun } = await import('../pages/Search.tsx');
+    const base = { q: 'nasa', own: [], answer: null, note: '', offline: false, contextParts: [] };
+    const back = restoredRun({ ...base, phase: 'web' });
+    expect(back.phase).toBe('done');
+    expect(back.note).toContain('Search again');
+    const done = { ...base, phase: 'done' as const };
+    expect(restoredRun(done)).toBe(done);
+  });
+});

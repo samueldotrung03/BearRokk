@@ -110,7 +110,8 @@ export function normalise(s: string) {
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
+    // Letters and digits of any script, so a prompt in Chinese or Cyrillic is not reduced to nothing.
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
 }
 

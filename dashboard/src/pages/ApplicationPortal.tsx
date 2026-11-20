@@ -20,10 +20,10 @@ export function ApplicationPortal() {
       </Page>
     );
 
-  const { application, portal } = load;
+  const { application, portal, restored } = load;
   return (
     <Page title={application.title} subtitle={application.organizer || 'Your own application'}>
-      <PortalWorkspace key={id} id={id!} application={application} portal={portal} />
+      <PortalWorkspace key={id} id={id!} application={application} portal={portal} restored={restored} />
     </Page>
   );
 }

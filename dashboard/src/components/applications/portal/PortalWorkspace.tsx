@@ -7,6 +7,7 @@ import { createSaver, type SaveState, type Saver } from '../../../lib/portal/aut
 import { TAB_LIMITS, mergeFound, moveBy, moveToGap, newTab, progressOf, removeTab, restoreTab, sameTabs, updateTab } from '../../../lib/portal/tabs.ts';
 import type { Portal, PortalApplication, PortalTab, PortalTabKind } from '../../../lib/portal/types.ts';
 import { useLive } from '../../../state/live.tsx';
+import { clearPending, keepPending } from '../../../lib/portal/pending.ts';
 import { useStore } from '../../../state/StoreProvider.tsx';
 import type { ApplicationStatus } from '../../../types.ts';
 import { Card } from '../../Page.tsx';
@@ -93,7 +94,7 @@ function EmptyPane({
   );
 }
 
-export function PortalWorkspace({ id, application, portal }: { id: string; application: PortalApplication; portal: Portal }) {
+export function PortalWorkspace({ id, application, portal, restored = false }: { id: string; application: PortalApplication; portal: Portal; restored?: boolean }) {
   const live = useLive();
   const liveRef = useRef(live);
   liveRef.current = live;
@@ -129,6 +130,12 @@ export function PortalWorkspace({ id, application, portal }: { id: string; appli
     const s = createSaver<PortalTab[]>({
       save: async (list) => {
         const res = await liveRef.current.request(`${base}/portal`, { method: 'PUT', body: JSON.stringify({ tabs: list }) });
+        if (res.status === 404) {
+          // Gone from the account (removed in another window): retrying cannot help. What was
+          // written stays on this computer and can still be exported.
+          setSaveProblem('This application is no longer on your account, so changes are not saved. Export it to keep what you wrote.');
+          return;
+        }
         if (res.status === 413) {
           // Too long for the account: say so, and keep retrying so it saves once it is shortened.
           const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -136,10 +143,13 @@ export function PortalWorkspace({ id, application, portal }: { id: string; appli
         }
         if (!res.ok) throw new Error(`The account answered ${res.status}`);
         setSaveProblem(null);
+        clearPending(id, list);
       },
       onState: setSaveState,
     });
     saver.current = s;
+    // Edits that had not reached the account last time go to it now.
+    if (restored) s.change(tabsRef.current, true);
     const flush = () => s.flush();
     const hidden = () => {
       if (document.visibilityState === 'hidden') s.flush();
@@ -162,6 +172,8 @@ export function PortalWorkspace({ id, application, portal }: { id: string; appli
     if (next === tabsRef.current) return;
     tabsRef.current = next;
     setTabs(next);
+    // Kept on this computer until the account has it.
+    keepPending(id, next);
     saver.current?.change(next, immediate);
   };
 
@@ -276,9 +288,10 @@ export function PortalWorkspace({ id, application, portal }: { id: string; appli
         const res = await liveRef.current.request(base, { method: 'PUT', body: JSON.stringify({ status: next }) });
         if (!res.ok) throw new Error(`The account answered ${res.status}`);
       } else {
-        // A posting's status is also shown on the Saved page, which reads it from here.
+        // One request, checked; the Saved page's copy is updated only once the account has it.
+        const res = await liveRef.current.request(base, { method: 'PUT', body: JSON.stringify({ status: next }) });
+        if (!res.ok) throw new Error(`The account answered ${res.status}`);
         dispatch({ type: 'setApplication', id, status: next });
-        await liveRef.current.setStatus(id, next);
       }
       setStatus(next);
     } catch {

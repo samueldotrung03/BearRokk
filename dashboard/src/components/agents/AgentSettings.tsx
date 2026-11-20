@@ -101,6 +101,8 @@ function AgentSettingsDialog({ onClose }: { onClose: () => void }) {
   const [profileKinds, setProfileKinds] = useState<Kind[]>([]);
   const [settings, setSettings] = useState<Settings>({ auto: { on: false, times: defaultTimes(1) }, models: {}, minimums: {}, kinds: [] });
   const [autoStatus, setAutoStatus] = useState<AutoStatus | null>(null);
+  // Saving is only offered once the saved settings have loaded, so defaults never overwrite them.
+  const [loaded, setLoaded] = useState(false);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'error'>('loading');
 
   useEffect(() => {
@@ -121,6 +123,7 @@ function AgentSettingsDialog({ onClose }: { onClose: () => void }) {
           minimums: body.settings.minimums ?? {},
           kinds: body.settings.kinds ?? [],
         });
+        setLoaded(true);
         setState('ready');
       })
       .catch(() => setState('error'));
@@ -129,6 +132,7 @@ function AgentSettingsDialog({ onClose }: { onClose: () => void }) {
 
   /** Saves; the window closes once the settings are kept, and stays open with a note if not. */
   const save = async () => {
+    if (!loaded) return false;
     setState('saving');
     const body = { ...settings, auto: { ...settings.auto, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } };
     const res = await live.request('/agent-settings', { method: 'PUT', body: JSON.stringify(body) }).catch(() => null);
@@ -181,7 +185,7 @@ function AgentSettingsDialog({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 className="ags-primary"
-                disabled={state === 'saving' || state === 'loading'}
+                disabled={!loaded || state === 'saving' || state === 'loading'}
                 onClick={async () => {
                   if (await save()) await live.runNow();
                 }}
@@ -342,7 +346,7 @@ function AgentSettingsDialog({ onClose }: { onClose: () => void }) {
         <button type="button" className="ags-secondary" onClick={() => ref.current?.close()}>
           Close
         </button>
-        <button type="button" className="ags-primary" disabled={state === 'loading' || state === 'saving'} onClick={() => void save()}>
+        <button type="button" className="ags-primary" disabled={!loaded || state === 'loading' || state === 'saving'} onClick={() => void save()}>
           Save
         </button>
       </div>
