@@ -208,6 +208,11 @@ There is no separate unit, integration, or browser end-to-end suite, and no CI w
 .
 ├── AGENTS.md                 # Evidence, unknowns, and Club Scout / Event Scout rules
 ├── README.md                 # This file
+├── GrokBot-session/          # GrokBot session folder
+│   ├── cursor-session-export.md
+│   ├── landing-page-chat.md
+│   ├── opportunity-discovery-chat.md
+│   └── project-session.md
 └── site/                     # Static BearRok pitch page from the prototype's website/dist
     ├── index.html            # Home, Demo, and About
     ├── app.js                # Routing, source notes, deck, diagram motion
@@ -223,6 +228,7 @@ There is no separate unit, integration, or browser end-to-end suite, and no CI w
 - The written plan, project start date November 19, 2026.
 - Contributor rules in [`AGENTS.md`](AGENTS.md).
 - The static pitch page, including the prepared Cosmo Hacks example, the Feed image, and the walkthrough video.
+- Public chat exports in the GrokBot session folder, [`GrokBot-session/`](GrokBot-session/).
 
 **Still to build for the hackathon demo.**
 
@@ -268,6 +274,10 @@ The event is **Thursday, November 19, 2026**. Grok account access is expected ar
 | [`site/app.js`](site/app.js) | How hash routing and the source-notes dialog work |
 | [`site/check-demo.cjs`](site/check-demo.cjs) | Which sentences and routes the Node check locks |
 | [`site/assets/marks/SOURCES.md`](site/assets/marks/SOURCES.md) | Where the technology marks come from |
+| [`GrokBot-session/cursor-session-export.md`](GrokBot-session/cursor-session-export.md) | Cursor cloud-agent transcript for the BearRok backend work. It is not a Grok Bot `/export` |
+| [`GrokBot-session/opportunity-discovery-chat.md`](GrokBot-session/opportunity-discovery-chat.md) | Visible chat for the student discovery app |
+| [`GrokBot-session/landing-page-chat.md`](GrokBot-session/landing-page-chat.md) | Visible chat for the landing page and contributor rules |
+| [`GrokBot-session/project-session.md`](GrokBot-session/project-session.md) | Visible chat for this Project |
 | [Prototype `backend/AGENT_SYSTEM.md`](https://github.com/samueldotrung03/BearRok/blob/1b9d2f965b93b600dc6afa7775732e22bd875ee1/backend/AGENT_SYSTEM.md) | How the earlier BearRok prototype describes the illustrated agent system. That file is not in this repository |
 
 The team’s product brief, including the November 18 clarification, and the *Student Opportunity Platform: Brainstorming & Architecture Summary* sit outside this repository. The *Luyten* README supplied the structure for the student problem, one journey, responsibilities, evidence, and milestones.
