@@ -18,7 +18,6 @@ import { Discover } from './pages/Discover.tsx';
 import { Feed } from './pages/Feed.tsx';
 import { ForgotPassword } from './pages/ForgotPassword.tsx';
 import { Profile } from './pages/Profile.tsx';
-import { Quick } from './pages/Quick.tsx';
 import { Roadmap } from './pages/Roadmap.tsx';
 import { RoadmapList } from './pages/RoadmapList.tsx';
 import { Saved } from './pages/Saved.tsx';
@@ -31,18 +30,27 @@ import { Today } from './pages/Today.tsx';
 /** Pages for getting into an account. They have no sidebar and need no sign-in. */
 const accountPages = ['/signin', '/signup', '/forgot-password'];
 
+/** True only in a build made for the public web address, where the sign-in page is skipped. */
+const OPEN_TO_GUESTS = import.meta.env.VITE_NO_SIGNIN === '1';
+
 export function App() {
   const { pathname } = useLocation();
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
 
-  const { status, user } = useAuth();
+  const { status, user, continueAsGuest } = useAuth();
   const onAccountPage = accountPages.includes(pathname);
-  // The desktop app's quick panel: its own small window, with no app chrome and its own signed-out state.
-  if (pathname === '/quick') return <Quick />;
+  // On the public web copy (built with VITE_NO_SIGNIN=1) nobody has to sign in to look around: a
+  // visitor with no account goes straight in as a guest. The account pages stay reachable.
+  const enterAsGuest = OPEN_TO_GUESTS && status === 'signedOut' && !onAccountPage;
+  useEffect(() => {
+    if (enterAsGuest) continueAsGuest();
+  }, [enterAsGuest, continueAsGuest]);
   // Firebase takes a moment to restore a saved sign-in; show nothing rather than flash the wrong page.
   if (status === 'loading') return <div className="window-drag" aria-hidden="true" />;
+  // The moment before the guest session starts.
+  if (enterAsGuest) return <div className="window-drag" aria-hidden="true" />;
   // The app is for signed-in students, or a guest who chose to look around on sample data.
   if (status === 'signedOut' && !onAccountPage) return <Navigate to="/signin" replace />;
   // A new account fills in "about you" once before reaching the feed.

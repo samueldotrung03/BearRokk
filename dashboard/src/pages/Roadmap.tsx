@@ -18,7 +18,7 @@ import { formatHours } from '../lib/roadmapx/context.ts';
 import { activeApplications, careerJourney, careerSearch, customCareer, guideJourney, GUIDES_KEY, jobJourney, planJourney, type GuideStart } from '../lib/roadmapx/journey.ts';
 import { useLocal } from '../lib/useLocal.ts';
 import { useAiRoadmap } from '../state/aiRoadmap.ts';
-import { useLive } from '../state/live.tsx';
+import { SAMPLE_FEED, useLive } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import type { ApplicationStatus, Opportunity } from '../types.ts';
 import '../styles/journey.css';
@@ -318,7 +318,9 @@ export function Roadmap() {
                 ? 'Your roadmap is being written. This is a first draft by fixed rules.'
                 : written.status === 'failed'
                   ? 'The writer could not finish this one. This is a draft by fixed rules.'
-                  : 'Grok is not connected. This is a draft by fixed rules.'}
+                  : SAMPLE_FEED
+                    ? 'Sample roadmap: this public copy has no agents behind it, so this is a draft by fixed rules.'
+                    : 'Grok is not connected. This is a draft by fixed rules.'}
             {(written.status === 'ready' || written.status === 'failed') && (
               <button type="button" onClick={written.rewrite} title="Write it again from your profile as it is now">
                 <RefreshCw aria-hidden="true" /> Rewrite

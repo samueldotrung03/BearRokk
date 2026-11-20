@@ -336,7 +336,13 @@ export function Feed() {
   // The ranking runs again on every save, like and dislike, but only for cards the student has
   // not reached yet: cards already scrolled past keep their place, so nothing moves under the thumb.
   const [seen, setSeen] = useState<string[]>([]);
-  const live = useMemo(() => rankFeedDetailed(opportunities, state), [opportunities, state]);
+  const live = useMemo(() => {
+    const ranked = rankFeedDetailed(opportunities, state);
+    // The public showcase leads with the real postings Grok found, in rank order, then the samples.
+    if (!agentsLive.sample) return ranked;
+    const real = (r: RankedOpportunity) => r.opportunity.origin === 'live';
+    return [...ranked.filter(real), ...ranked.filter((r) => !real(r))];
+  }, [opportunities, state, agentsLive.sample]);
   const slides = useMemo(() => {
     const byId = new Map(live.map((r) => [r.opportunity.id, r]));
     const kept = seen.map((id) => byId.get(id)).filter((r): r is RankedOpportunity => r !== undefined);
@@ -542,7 +548,9 @@ export function Feed() {
                   {slides.length > 0 ? 'You are all caught up' : agentsLive.searching ? 'Your agents are searching' : 'Nothing here yet'}
                 </h2>
                 <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-ink-2">
-                  {agentsLive.status === 'offline'
+                  {agentsLive.sample
+                    ? 'These are sample postings. This public copy has no agents behind it, so nothing new arrives.'
+                    : agentsLive.status === 'offline'
                     ? 'The agents cannot be reached right now, so there is nothing new to show. This page fills in on its own once they are back.'
                     : slides.length < agentsLive.feedTarget
                       ? `Your agents have found ${slides.length} of the ${agentsLive.feedTarget} opportunities they aim for${agentsLive.searching ? ' and are searching for more' : '. They search again on their own'}.`

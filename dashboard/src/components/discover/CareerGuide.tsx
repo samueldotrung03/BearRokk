@@ -28,6 +28,7 @@ import {
 } from '../../lib/discover/guide.ts';
 import { AskAgents } from './AskAgents.tsx';
 import { PartIcon } from './CareerGuideIcons.tsx';
+import { SAMPLE_FEED } from '../../state/live.tsx';
 
 const dateLabel = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -599,7 +600,9 @@ export function CareerGuide({
                 {line}
               </>
             ) : (
-              <span className="text-ink-3">{`Researched ${dateLabel(guide.startedAt)} by ${providerLabel(guide.provider)}`}</span>
+              <span className="text-ink-3">
+                {SAMPLE_FEED && guide.provider === 'simulated' ? 'Sample guide, written for this public copy. No agents researched it.' : `Researched ${dateLabel(guide.startedAt)} by ${providerLabel(guide.provider)}`}
+              </span>
             )}
           </p>
         </div>

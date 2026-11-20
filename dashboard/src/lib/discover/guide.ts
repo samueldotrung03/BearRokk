@@ -3,6 +3,8 @@
 // to a part, and the one line that says what they are doing.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_URL } from '../../auth/firebase.ts';
+import { sampleGuideList, sampleGuides } from '../../data/sampleGuides.ts';
+import { SAMPLE_FEED } from '../../state/live.tsx';
 
 /** In reading order: the interviews come before how to start, which is written to prepare for them. */
 export const SECTION_IDS = ['basics', 'voices', 'interview', 'start'] as const;
@@ -175,6 +177,15 @@ async function readError(res: Response): Promise<string> {
 
 const OFFLINE = 'Your agents cannot be reached right now. Try again in a moment.';
 
+/** The sample guide for a career the student typed, in the public showcase, which has no agents behind it. */
+export function sampleGuideFor(career: string): Guide | null {
+  const slug = slugFor(career);
+  if (!slug) return null;
+  return sampleGuides.find((g) => g.slug === slug || slugFor(g.title) === slug || g.slug.startsWith(slug) || slug.startsWith(slugFor(g.title))) ?? null;
+}
+
+const SAMPLE_ONLY = `This public sample copy has no agents behind it, so it only has sample guides for ${sampleGuides.map((g) => g.title.toLowerCase()).join(', ')}.`;
+
 /**
  * The guide for one career. Asking for a career the backend already knows shows the kept guide;
  * a new one starts the research. While the agents work, the guide is fetched again every two seconds.
@@ -225,6 +236,11 @@ export function useCareerGuide(query: string | null, by = 'guest', student: Stud
         if (isBusy(guide)) poll(guide.slug);
       } catch (e) {
         if (active.current !== slug) return;
+        if (SAMPLE_FEED) {
+          const sample = sampleGuideFor(career);
+          setState(sample ? { guide: sample, error: null, busy: false } : { guide: null, error: SAMPLE_ONLY, busy: false });
+          return;
+        }
         const message = e instanceof TypeError ? OFFLINE : e instanceof Error ? e.message : OFFLINE;
         setState({ guide: null, error: message, busy: false });
       }
@@ -259,6 +275,7 @@ export function useCareerGuide(query: string | null, by = 'guest', student: Stud
         poll(slug);
         return null;
       } catch (e) {
+        if (SAMPLE_FEED) return 'This is the public sample copy, so there are no agents behind it to add more.';
         return e instanceof TypeError ? OFFLINE : e instanceof Error ? e.message : OFFLINE;
       }
     },
@@ -295,7 +312,7 @@ export function useGuideList(refreshKey: unknown): GuideSummary[] {
     fetch(`${API_URL}/api/careers/guides`)
       .then((r) => (r.ok ? r.json() : { guides: [] }))
       .then((body: { guides?: GuideSummary[] }) => live && setList(body.guides ?? []))
-      .catch(() => live && setList([]));
+      .catch(() => live && setList(SAMPLE_FEED ? sampleGuideList : []));
     return () => {
       live = false;
     };

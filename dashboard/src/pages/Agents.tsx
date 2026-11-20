@@ -19,7 +19,7 @@ import { funnel, idleRun, runReducer, totals, type RunInput } from '../lib/agent
 import { fromLive, liveStats, sourceLabel, type Provider } from '../lib/agents/fromLive.ts';
 import { fromRun } from '../lib/agents/view.ts';
 import { useLocal } from '../lib/useLocal.ts';
-import { useLive, withNextManagers } from '../state/live.tsx';
+import { SAMPLE_FEED, useLive, withNextManagers } from '../state/live.tsx';
 import { useStore } from '../state/StoreProvider.tsx';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
@@ -37,6 +37,15 @@ const sourceNote: Record<Provider, string> = {
 };
 
 function BackendChip({ status, showing }: { status: BackendState; showing: boolean }) {
+  // The public showcase has no agent server behind it, so it says so instead of checking one.
+  if (SAMPLE_FEED && !showing)
+    return (
+      <span className="ag-chip-dark" title="This public copy has no agent server. The run below is a simulation on sample data.">
+        <Server className="size-3.5" aria-hidden="true" />
+        <span className="size-1.5 rounded-full bg-white/40" aria-hidden="true" />
+        Sample mode: no agent server
+      </span>
+    );
   const text =
     status.kind === 'checking' ? 'Backend: checking…' : status.kind === 'connected' ? `Backend: connected${status.live ? '' : ' (no Grok key)'}` : 'Backend: not running';
   return (
@@ -170,7 +179,7 @@ export function Agents() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <h2 id="ag-run-title" className="font-display text-3xl leading-none">
-              {real ? 'Latest run' : 'Live run'}
+              {real ? 'Latest run' : SAMPLE_FEED ? 'Sample run' : 'Live run'}
               {!real && run.run > 0 && <span className="text-white/55"> #{run.run}</span>}
             </h2>
             <span className="ag-chip-dark">

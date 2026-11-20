@@ -17,6 +17,7 @@ import { pathGroups } from '../data/fields.ts';
 import { careerPaths, opportunities } from '../data/sample.ts';
 import type { AnswerAction } from '../lib/discover/ask.ts';
 import { askerId, slugFor, useCareerGuide, useGuideList, type StudentContext } from '../lib/discover/guide.ts';
+import { SAMPLE_FEED } from '../state/live.tsx';
 import { rankPaths, type PathMatch, type QuizAnswers } from '../lib/discover/match.ts';
 import { currentRoadmap } from '../lib/roadmap.ts';
 import { useLocal } from '../lib/useLocal.ts';
@@ -96,8 +97,11 @@ export function Discover() {
       keys.forEach((k) => seen.add(k));
       out.push(title);
     };
-    add(titles[state.goalId]);
-    ranked.slice(0, 3).forEach((m) => add(titles[m.pathId]));
+    // The public showcase offers only the careers it has sample guides for.
+    if (!SAMPLE_FEED) {
+      add(titles[state.goalId]);
+      ranked.slice(0, 3).forEach((m) => add(titles[m.pathId]));
+    }
     kept.forEach((g) => add(g.title, g.slug));
     return out;
   }, [state.goalId, ranked, kept]);

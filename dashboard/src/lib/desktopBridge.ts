@@ -38,16 +38,6 @@ interface DesktopBridge {
     update: (data: MenuBarData) => void;
     onAction: (callback: (action: MenuBarAction) => void) => () => void;
   };
-  /**
-   * The quick panel that drops down from the camera notch (route /quick). Actions go to the main
-   * window, which handles them like menu bar picks, and the panel hides. Absent in an older shell.
-   */
-  quick?: {
-    action: (action: MenuBarAction) => void;
-    hide: () => void;
-    /** The panel card's height in pixels, so the window fits it. */
-    resize: (height: number) => void;
-  };
   permissions: () => Promise<Record<PermissionKind, PermissionState>>;
   openPermission: (kind: PermissionKind) => Promise<boolean>;
 }

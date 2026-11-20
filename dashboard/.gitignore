@@ -4,3 +4,4 @@ dist/
 release/
 backend-bundle/
 electron/app-config.json
+.vercel

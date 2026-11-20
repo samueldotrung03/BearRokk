@@ -335,7 +335,7 @@ export function AgentsCard({ inFeed }: { inFeed: number }) {
   const [busy, setBusy] = useState(false);
   const connected = live.status === 'connected';
   const run = live.agents;
-  const state = live.searching ? 'Searching now' : !connected ? 'Backend not connected' : run ? 'Latest search finished' : 'Waiting for the first search';
+  const state = live.searching ? 'Searching now' : !connected ? (live.sample ? 'Sample mode: no agents behind this copy' : 'Backend not connected') : run ? 'Latest search finished' : 'Waiting for the first search';
   return (
     <section className="db-card db-agents">
       <header className="db-head">

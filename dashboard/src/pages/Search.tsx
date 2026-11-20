@@ -6,7 +6,7 @@
 // Client: src/lib/search.ts. Backend: backend/src/search.ts.
 import { ArrowRight, ArrowUpRight, Briefcase, Clock, Copy, ExternalLink, Globe, MapPin, Search as SearchIcon, Sparkles, UserRound, X as XSmall } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthProvider.tsx';
 import { Card, Page } from '../components/Page.tsx';
 import { logoUrl, suggest, type Company, type Suggestion } from '../data/searchSuggestions.ts';
@@ -21,6 +21,8 @@ import {
   searchOwn,
   searchWeb,
   SearchError,
+  SAMPLE_SOURCE,
+  SAMPLE_WRITER,
   shortDate,
   TIMES,
   type Origin,
@@ -28,7 +30,6 @@ import {
   type SearchFilters,
   type SearchResult,
 } from '../lib/search.ts';
-import { askedQuery } from '../lib/quick.ts';
 import '../styles/search.css';
 
 type Phase = 'idle' | 'own' | 'web' | 'done';
@@ -98,7 +99,11 @@ export function Search() {
       own = local.results;
       contextParts = local.contextParts;
       if (!local.ai) {
-        setRun({ ...EMPTY, q, phase: 'done', own, contextParts, offline: true, note: 'Grok is not connected, so only your own postings were searched. Connect Grok in Settings to search the web.' });
+        const note =
+          local.writer === SAMPLE_WRITER
+            ? 'Sample search: this public copy has no agents behind it, so only the sample postings were searched, not the web.'
+            : 'Grok is not connected, so only your own postings were searched. Connect Grok in Settings to search the web.';
+        setRun({ ...EMPTY, q, phase: 'done', own, contextParts, offline: true, note });
         return;
       }
       setRun({ ...EMPTY, q, phase: 'web', own, contextParts });
@@ -116,22 +121,6 @@ export function Search() {
     setFilters(next);
     if (rerun && run.q) void search(run.q, next);
   };
-  // /search?q=<text>, from the quick panel: run that query on arrival, then drop it from the
-  // address so going back and forth does not run it again.
-  const [params, setParams] = useSearchParams();
-  const asked = askedQuery(params);
-  useEffect(() => {
-    if (!asked) return;
-    setParams(
-      (p) => {
-        p.delete('q');
-        return p;
-      },
-      { replace: true },
-    );
-    void search(asked);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per query that arrives
-  }, [asked]);
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -524,7 +513,11 @@ function ResultList({ list, ranked, tab, setTab }: { list: SearchResult[]; ranke
           ))}
         </div>
       )}
-      {!ranked && <h2 className="srch-h2 srch-sub">From your postings, while the web search runs</h2>}
+      {!ranked && (
+        <h2 className="srch-h2 srch-sub">
+          {list.length > 0 && list.every((r) => r.source === SAMPLE_SOURCE) ? 'Sample postings that match' : 'From your postings, while the web search runs'}
+        </h2>
+      )}
       <ol className="srch-list">
         {shown.map(({ r, n }) => (
           <ResultItem key={r.id} r={r} n={n} ranked={ranked} />

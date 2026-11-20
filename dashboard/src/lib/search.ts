@@ -2,6 +2,9 @@
 // searches (kept only in this browser) and reading the answer's [1] citations.
 // Backend: backend/src/search.ts.
 import { API_URL } from '../auth/firebase.ts';
+import { opportunities as sampleOpportunities } from '../data/sample.ts';
+import { SAMPLE_FEED } from '../state/live.tsx';
+import type { Opportunity } from '../types.ts';
 
 export type SearchKind = 'all' | 'internship' | 'research' | 'event' | 'club' | 'hackathon' | 'scholarship';
 export type SearchTime = 'any' | 'open' | 'week' | 'month';
@@ -95,8 +98,57 @@ async function post<T>(path: string, who: 'me' | 'demo', token: string | null, b
   return data as T;
 }
 
-export const searchOwn = (who: 'me' | 'demo', token: string | null, query: string, f: SearchFilters, signal?: AbortSignal) =>
-  post<LocalAnswer>('search/local', who, token, { query, ...f }, signal);
+export const searchOwn = async (who: 'me' | 'demo', token: string | null, query: string, f: SearchFilters, signal?: AbortSignal) => {
+  try {
+    return await post<LocalAnswer>('search/local', who, token, { query, ...f }, signal);
+  } catch (error) {
+    // The public showcase has no agents behind it: it searches the sample postings instead.
+    if (SAMPLE_FEED && error instanceof SearchError && error.status === 0) return sampleSearch(sampleOpportunities, query, f);
+    throw error;
+  }
+};
+
+/** Writer of an answer that searched only the sample postings, in the public showcase. */
+export const SAMPLE_WRITER = 'sample';
+/** Where a result from the sample search says it came from. */
+export const SAMPLE_SOURCE = 'Sample posting';
+
+/** The sample postings that match a query and the filters, best first. Words are matched anywhere in the posting. */
+export function sampleSearch(list: Opportunity[], query: string, f: SearchFilters, now = new Date()): LocalAnswer {
+  const words = query.toLowerCase().split(/[^a-z0-9+#]+/).filter((w) => w.length > 1);
+  const today = now.toISOString().slice(0, 10);
+  const until = (days: number) => new Date(now.getTime() + days * 86_400_000).toISOString().slice(0, 10);
+  const inTime = (deadline: string | null) =>
+    f.time === 'any' ||
+    (deadline !== null && deadline.slice(0, 10) >= today && (f.time === 'open' || deadline.slice(0, 10) <= until(f.time === 'week' ? 7 : 31)));
+  const results: SearchResult[] = [];
+  for (const o of list) {
+    if (f.kind !== 'all' && o.type !== f.kind) continue;
+    if (!inTime(o.deadline)) continue;
+    if (f.place.trim() && !(o.location ?? '').toLowerCase().includes(f.place.trim().toLowerCase())) continue;
+    const text = [o.title, o.organizer, o.type, o.location ?? '', o.fitExplanation, ...o.tags].join(' ').toLowerCase();
+    const hits = words.filter((w) => text.includes(w)).length;
+    if (words.length > 0 && hits === 0) continue;
+    results.push({
+      id: `sample-${o.id}`,
+      origin: 'feed',
+      opportunityId: o.id,
+      title: o.title,
+      organizer: o.organizer,
+      type: o.type,
+      url: o.sourceUrl,
+      source: SAMPLE_SOURCE,
+      snippet: o.fitExplanation,
+      deadline: o.deadline,
+      location: o.location,
+      status: null,
+      why: 'A sample posting that matches your words.',
+      score: words.length ? hits / words.length : 0.5,
+    });
+  }
+  results.sort((a, b) => b.score - a.score);
+  return { results, contextParts: [], ai: false, writer: SAMPLE_WRITER };
+}
 export const searchWeb = (who: 'me' | 'demo', token: string | null, query: string, f: SearchFilters, signal?: AbortSignal) =>
   post<SearchAnswer>('search', who, token, { query, ...f }, signal);
 
