@@ -1,0 +1,54 @@
+{
+  "note": "PLACEHOLDERS. These two records are invented so the dashboard has something to render. Replace them with the real club and event the team checks by hand, keeping the same fields. Quotes must be copied from the organizer page.",
+  "candidates": [
+    {
+      "type": "club",
+      "title": "Placeholder Coding Club",
+      "organizer": "Placeholder University Computer Science Society",
+      "sourceUrl": "https://example.org/placeholder-coding-club",
+      "actionUrl": "https://example.org/placeholder-coding-club/join",
+      "format": "online",
+      "location": null,
+      "fitExplanation": "Beginner-friendly coding club that meets online and is taking new members this term.",
+      "meetingSchedule": "Wednesdays, 6:00 to 7:30 PM Pacific, on Discord",
+      "membershipIntake": "Fill in the interest form, then join the Discord server. No application or experience required.",
+      "acceptingMembers": true,
+      "startTime": null,
+      "endTime": null,
+      "timeZone": null,
+      "registrationDeadline": null,
+      "registrationOpen": null,
+      "evidence": [
+        { "field": "meetingSchedule", "quote": "We meet every Wednesday 6-7:30pm PT in the #workshop voice channel.", "url": "https://example.org/placeholder-coding-club" },
+        { "field": "membershipIntake", "quote": "New here? Fill out the interest form and hop into our Discord. No experience needed.", "url": "https://example.org/placeholder-coding-club/join" },
+        { "field": "fit", "quote": "Our fall series starts from zero: variables, loops, then your first web page.", "url": "https://example.org/placeholder-coding-club" }
+      ],
+      "uncertainties": []
+    },
+    {
+      "type": "event",
+      "title": "Placeholder Online Hackathon",
+      "organizer": "Placeholder Hack Collective",
+      "sourceUrl": "https://example.org/placeholder-hackathon",
+      "actionUrl": "https://example.org/placeholder-hackathon/register",
+      "format": "online",
+      "location": null,
+      "fitExplanation": "Online hackathon next month with a first-timer track.",
+      "meetingSchedule": null,
+      "membershipIntake": null,
+      "acceptingMembers": null,
+      "startTime": "2026-12-12T09:00:00-08:00",
+      "endTime": "2026-12-13T17:00:00-08:00",
+      "timeZone": "America/Los_Angeles",
+      "registrationDeadline": null,
+      "registrationOpen": true,
+      "evidence": [
+        { "field": "startTime", "quote": "Hacking begins Saturday, December 12 at 9:00 AM PT.", "url": "https://example.org/placeholder-hackathon" },
+        { "field": "endTime", "quote": "Submissions close Sunday, December 13 at 5:00 PM PT.", "url": "https://example.org/placeholder-hackathon" },
+        { "field": "registrationOpen", "quote": "Registration is open. Sign up free.", "url": "https://example.org/placeholder-hackathon/register" },
+        { "field": "fit", "quote": "First hackathon? Join the beginner track with mentors on call.", "url": "https://example.org/placeholder-hackathon" }
+      ],
+      "uncertainties": []
+    }
+  ]
+}
